@@ -144,7 +144,7 @@ Mỗi agent có công tắc bật/tắt và **mức tự chủ** (Chỉ gợi ý
 
 ```bash
 # 1. Tải mã nguồn
-git clone https://github.com/<tài-khoản>/dna-crm.git
+git clone https://github.com/nguyentatkiem/dna-crm.git
 cd dna-crm
 
 # 2. Cài thư viện
