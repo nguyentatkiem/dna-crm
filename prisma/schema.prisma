@@ -1,0 +1,151 @@
+// SQLite cho phát triển. Khi lên Postgres/Supabase: đổi provider = "postgresql".
+// Các cột *Json lưu chuỗi JSON để chạy được trên cả hai.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String       @id @default(cuid())
+  email        String       @unique
+  name         String
+  passwordHash String
+  createdAt    DateTime     @default(now())
+  memberships  Membership[]
+}
+
+model Workspace {
+  id          String            @id @default(cuid())
+  name        String
+  industry    String            @default("")
+  onboarded   Boolean           @default(false)
+  formKey     String            @unique @default(cuid())
+  createdAt   DateTime          @default(now())
+  memberships Membership[]
+  dnas        Dna[]
+  configs     WorkspaceConfig[]
+  records     Record[]
+  tasks       Task[]
+  automations Automation[]
+  agents      AgentSetting[]
+  logs        AgentLog[]
+  invites     Invite[]
+}
+
+model Membership {
+  userId      String
+  workspaceId String
+  role        String    @default("owner")
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@id([userId, workspaceId])
+}
+
+model Invite {
+  token       String    @id
+  workspaceId String
+  role        String    @default("member")
+  usedAt      DateTime?
+  expiresAt   DateTime
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model Dna {
+  id          String    @id @default(cuid())
+  workspaceId String
+  dataJson    String
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model WorkspaceConfig {
+  id          String    @id @default(cuid())
+  workspaceId String
+  version     Int
+  configJson  String
+  source      String    @default("template")
+  isActive    Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, isActive])
+}
+
+model Record {
+  id          String     @id @default(cuid())
+  workspaceId String
+  objectKey   String
+  title       String
+  status      String
+  ownerName   String     @default("")
+  amount      Float      @default(0)
+  score       Int        @default(0)
+  dataJson    String     @default("{}")
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  workspace   Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  activities  Activity[]
+
+  @@index([workspaceId, objectKey])
+}
+
+model Activity {
+  id        String   @id @default(cuid())
+  recordId  String
+  kind      String   @default("update")
+  body      String
+  author    String
+  createdAt DateTime @default(now())
+  record    Record   @relation(fields: [recordId], references: [id], onDelete: Cascade)
+}
+
+model Task {
+  id          String    @id @default(cuid())
+  workspaceId String
+  recordId    String?
+  title       String
+  dueAt       DateTime?
+  done        Boolean   @default(false)
+  source      String    @default("Bạn")
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model Automation {
+  id            String    @id @default(cuid())
+  workspaceId   String
+  triggerType   String
+  triggerObject String
+  triggerValue  String    @default("")
+  actionType    String
+  actionValue   String
+  enabled       Boolean   @default(true)
+  runs          Int       @default(0)
+  createdAt     DateTime  @default(now())
+  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model AgentSetting {
+  workspaceId String
+  agentKey    String
+  enabled     Boolean
+  autonomy    String    @default("suggest")
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@id([workspaceId, agentKey])
+}
+
+model AgentLog {
+  id          String    @id @default(cuid())
+  workspaceId String
+  agent       String
+  message     String
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}

@@ -1,0 +1,143 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Token theo DESIGN.md: nền xám-xanh, tấm nội dung trắng, xanh dương chủ đạo */
+:root {
+  --primary: #0073ea;
+  --primary-hover: #0060b9;
+  --primary-selected: #cce5ff;
+  --bg: #eceff8;
+  --surface: #ffffff;
+  --surface-2: #f6f7fb;
+  --ink: #323338;
+  --ink-2: #676879;
+  --line: #d0d4e4;
+  --line-soft: #e7e9ef;
+  --row-hover: #f5f6f8;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --primary: #0073ea;
+    --primary-hover: #3d91ef;
+    --primary-selected: #133774;
+    --bg: #181b34;
+    --surface: #30324e;
+    --surface-2: #292f4c;
+    --ink: #d5d8df;
+    --ink-2: #9699a6;
+    --line: #4b4e69;
+    --line-soft: #3d4060;
+    --row-hover: #383a56;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --primary: #0073ea;
+  --primary-hover: #3d91ef;
+  --primary-selected: #133774;
+  --bg: #181b34;
+  --surface: #30324e;
+  --surface-2: #292f4c;
+  --ink: #d5d8df;
+  --ink-2: #9699a6;
+  --line: #4b4e69;
+  --line-soft: #3d4060;
+  --row-hover: #383a56;
+  color-scheme: dark;
+}
+
+html,
+body {
+  height: 100%;
+}
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: Figtree, Roboto, system-ui, sans-serif;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+h1,
+h2,
+h3 {
+  font-family: Poppins, Figtree, system-ui, sans-serif;
+  text-wrap: balance;
+}
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex h-8 items-center gap-1.5 rounded px-3 text-[14px] font-medium transition-colors disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply btn bg-primary text-white hover:bg-primary-hover;
+  }
+  .btn-ghost {
+    @apply btn text-ink hover:bg-hover;
+  }
+  .btn-outline {
+    @apply btn border border-line text-ink hover:bg-hover;
+  }
+  .input {
+    @apply h-9 w-full rounded border border-line bg-surface px-3 text-[14px] text-ink outline-none placeholder:text-ink-2 focus:border-primary;
+  }
+  .textarea {
+    @apply w-full rounded border border-line bg-surface px-3 py-2 text-[14px] text-ink outline-none placeholder:text-ink-2 focus:border-primary;
+  }
+  .label {
+    @apply text-[12px] font-medium uppercase tracking-wide text-ink-2;
+  }
+  .canvas {
+    @apply min-h-full rounded-tl-lg bg-surface;
+  }
+  .card {
+    @apply rounded-lg border border-line-soft bg-surface;
+  }
+  .chip {
+    @apply inline-flex h-8 items-center rounded-full border border-line px-3 text-[13px] text-ink hover:bg-hover;
+  }
+  .chip-on {
+    @apply border-primary bg-primary-selected text-ink;
+  }
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Bảng kiểu Work OS */
+.board-table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.board-table th,
+.board-table td {
+  border-bottom: 1px solid var(--line-soft);
+  border-right: 1px solid var(--line-soft);
+  height: 36px;
+  padding: 0;
+}
+.board-table th {
+  font-weight: 400;
+  color: var(--ink-2);
+  font-size: 13px;
+  text-align: center;
+  background: var(--surface);
+}
+.board-table tr:hover td {
+  background: var(--row-hover);
+}
+.board-table tr:hover td.status-cell {
+  background: inherit;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
