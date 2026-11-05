@@ -8,13 +8,17 @@ import { color } from "@/lib/colors";
 import { Icon } from "../Icon";
 import { Avatar } from "../Avatar";
 import { FieldCell, InputCell, LabelCell, PersonCell } from "./cells";
+import { RecordDocs } from "./RecordDocs";
+import { WinProb } from "./TableView";
+import { evalField, isMoneyFormula } from "@/lib/formula";
 
 type Activity = { id: string; kind: string; body: string; author: string; createdAt: string };
 type Task = { id: string; title: string; dueAt: string | null; done: boolean; source: string };
 type Patch = Partial<Pick<RecordDTO, "title" | "status" | "ownerName" | "amount">> & { data?: Record<string, FieldValue> };
 
-export function ItemPanel({ obj, team, record, onClose, onPatch, onDelete }: { obj: ObjectDef; team: string[]; record: RecordDTO; onClose: () => void; onPatch: (b: Patch) => void; onDelete: () => void }) {
-  const [tab, setTab] = useState<"updates" | "info" | "tasks">("updates");
+export function ItemPanel({ obj, team, record, onClose, onPatch, onDelete, canDelete = true }: { obj: ObjectDef; team: string[]; record: RecordDTO; onClose: () => void; onPatch: (b: Patch) => void; onDelete: () => void; canDelete?: boolean }) {
+  const [tab, setTab] = useState<"updates" | "info" | "tasks" | "docs">("updates");
+  const [docCount, setDocCount] = useState<number | null>(null);
   const [acts, setActs] = useState<Activity[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [text, setText] = useState("");
@@ -82,7 +86,7 @@ export function ItemPanel({ obj, team, record, onClose, onPatch, onDelete }: { o
     <>
       <div className="fixed inset-0 z-40 bg-black/20" onClick={onClose} aria-hidden="true" />
       <aside role="dialog" aria-label={record.title} className="fixed inset-y-0 right-0 z-50 flex w-full max-w-[640px] flex-col bg-surface shadow-panel">
-        <div className="flex items-start gap-3 border-b border-line-soft px-6 pb-0 pt-5">
+        <div className="flex items-start gap-3 border-b border-line-soft px-4 pb-0 pt-5 sm:px-6">
           <div className="min-w-0 flex-1">
             <div className="-ml-2.5 h-10 font-title font-semibold [&_button]:text-[22px] [&_input]:text-[22px]">
               <InputCell field={{ type: "text", label: obj.itemLabel }} value={record.title} onSave={(v) => onPatch({ title: String(v) })} />
@@ -106,15 +110,16 @@ export function ItemPanel({ obj, team, record, onClose, onPatch, onDelete }: { o
                 </a>
               )}
             </div>
-            <div className="mt-3 flex gap-1">
+            <div className="mt-3 flex gap-1 overflow-x-auto">
               {(
                 [
                   ["updates", "Cập nhật"],
                   ["info", "Thông tin"],
                   ["tasks", `Việc (${tasks.filter((t) => !t.done).length})`],
+                  ["docs", docCount === null ? "Tài liệu" : `Tài liệu (${docCount})`],
                 ] as const
               ).map(([k, label]) => (
-                <button key={k} type="button" onClick={() => setTab(k)} className={`-mb-px h-9 border-b-2 px-3 text-[14px] ${tab === k ? "border-primary" : "border-transparent text-ink-2 hover:text-ink"}`}>
+                <button key={k} type="button" onClick={() => setTab(k)} className={`-mb-px h-9 flex-none border-b-2 px-3 text-[14px] ${tab === k ? "border-primary" : "border-transparent text-ink-2 hover:text-ink"}`}>
                   {label}
                 </button>
               ))}
@@ -125,7 +130,7 @@ export function ItemPanel({ obj, team, record, onClose, onPatch, onDelete }: { o
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto bg-surface-2 px-6 py-5">
+        <div className="flex-1 overflow-y-auto bg-surface-2 px-4 py-5 sm:px-6">
           {tab === "updates" && (
             <div className="grid gap-4">
               <div className="rounded-lg border border-[#d9c5f0] bg-surface p-4">
@@ -195,22 +200,30 @@ export function ItemPanel({ obj, team, record, onClose, onPatch, onDelete }: { o
           {tab === "info" && (
             <dl className="grid gap-3 rounded-lg bg-surface p-5">
               {obj.fields.map((f) => (
-                <div key={f.key} className="grid grid-cols-[150px_minmax(0,1fr)] items-center gap-3">
+                <div key={f.key} className="grid grid-cols-[110px_minmax(0,1fr)] items-center gap-3 sm:grid-cols-[150px_minmax(0,1fr)]">
                   <dt className="text-[13.5px] text-ink-2">{f.label}</dt>
-                  <dd className="h-9">
-                    <FieldCell field={f} value={record.data[f.key]} onSave={(v) => onPatch({ data: { [f.key]: v } })} form />
+                  <dd className="h-9" title={f.type === "formula" ? `Công thức: ${f.formula ?? ""}` : undefined}>
+                    <FieldCell field={f} value={record.data[f.key]} onSave={(v) => onPatch({ data: { [f.key]: v } })} form computed={f.type === "formula" ? evalField(f, record, obj) : undefined} money={f.type === "formula" && isMoneyFormula(f, obj)} />
                   </dd>
                 </div>
               ))}
               {obj.amountLabel && (
-                <div className="grid grid-cols-[150px_minmax(0,1fr)] items-center gap-3">
+                <div className="grid grid-cols-[110px_minmax(0,1fr)] items-center gap-3 sm:grid-cols-[150px_minmax(0,1fr)]">
                   <dt className="text-[13.5px] text-ink-2">{obj.amountLabel}</dt>
                   <dd className="h-9">
                     <InputCell field={{ type: "money", label: obj.amountLabel }} value={record.amount} onSave={(v) => onPatch({ amount: Number(v) })} form align="left" />
                   </dd>
                 </div>
               )}
-              <div className="mt-4 border-t border-line-soft pt-4">
+              {obj.amountLabel && record.winProb !== null && (
+                <div className="grid grid-cols-[110px_minmax(0,1fr)] items-center gap-3 sm:grid-cols-[150px_minmax(0,1fr)]">
+                  <dt className="text-[13.5px] text-ink-2">Khả năng chốt</dt>
+                  <dd className="h-9">
+                    <WinProb value={record.winProb} />
+                  </dd>
+                </div>
+              )}
+              {canDelete && <div className="mt-4 border-t border-line-soft pt-4">
                 {confirmDel ? (
                   <div className="flex flex-wrap items-center gap-2 text-[14px]">
                     <span>Xoá vĩnh viễn mục này cùng các cập nhật?</span>
@@ -226,9 +239,11 @@ export function ItemPanel({ obj, team, record, onClose, onPatch, onDelete }: { o
                     <Icon name="trash" size={16} /> Xoá mục
                   </button>
                 )}
-              </div>
+              </div>}
             </dl>
           )}
+
+          {tab === "docs" && <RecordDocs recordId={record.id} onCount={setDocCount} />}
 
           {tab === "tasks" && (
             <div className="grid gap-3">

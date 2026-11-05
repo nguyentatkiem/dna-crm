@@ -3,6 +3,10 @@ import { db, parseJson } from "@/lib/db";
 import { appApi, fail, ok } from "@/lib/http";
 import { getObject } from "@/lib/config/schema";
 import { runAutomations, toDTO, type FieldValue } from "@/lib/records";
+import { can, findScopedRecord, getRole } from "@/lib/permissions";
+import { audit, recordSnapshot, snapshotDiff } from "@/lib/audit";
+import { notify, userIdByName } from "@/lib/notify";
+import { fireRecordUpdate } from "@/lib/automation";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -18,7 +22,8 @@ export async function PATCH(req: Request, { params }: Ctx) {
   const a = await appApi();
   if ("error" in a) return a.error;
   const { id } = await params;
-  const rec = await db.record.findFirst({ where: { id, workspaceId: a.ctx.workspace.id } });
+  // Ngoài phạm vi được xem thì coi như không có (không lộ là mục tồn tại).
+  const rec = await findScopedRecord(a.ctx, id);
   if (!rec) return fail("Không tìm thấy mục", 404);
   const parsed = Patch.safeParse(await req.json().catch(() => ({})));
   if (!parsed.success) return fail("Dữ liệu chưa hợp lệ");
@@ -37,18 +42,38 @@ export async function PATCH(req: Request, { params }: Ctx) {
     const from = obj?.statuses.find((s) => s.key === rec.status)?.label ?? rec.status;
     const to = obj?.statuses.find((s) => s.key === p.status)?.label ?? p.status;
     await db.activity.create({ data: { recordId: id, kind: "system", body: `${a.ctx.user.name} đổi ${obj?.statusLabel.toLowerCase()} từ “${from}” sang “${to}”`, author: a.ctx.user.name } });
-    await runAutomations(a.ctx.workspace.id, a.ctx.config, { kind: "status_changed", record: updated });
+    await runAutomations(a.ctx.workspace.id, a.ctx.config, { kind: "status_changed", record: updated, from: rec.status });
   }
+  await fireRecordUpdate(a.ctx.workspace.id, a.ctx.config, rec, updated).catch((e) => console.error("[automation]", e instanceof Error ? e.message : e));
+
+  const diff = snapshotDiff(recordSnapshot(rec), recordSnapshot(updated));
+  if (Object.keys(diff).length) {
+    const fields = Object.keys(diff).map((k) => (k.startsWith("data.") ? (obj?.fields.find((f) => f.key === k.slice(5))?.label ?? k.slice(5)) : FIELD_NAME[k] ?? k));
+    await audit({ workspaceId: a.ctx.workspace.id, user: a.ctx.user }, "record.update", rec.objectKey, id, `Sửa “${updated.title}”: ${fields.join(", ")}`, diff);
+  }
+
+  if (p.ownerName !== undefined && p.ownerName && p.ownerName !== rec.ownerName && p.ownerName !== a.ctx.user.name) {
+    const userId = await userIdByName(a.ctx.workspace.id, p.ownerName);
+    if (userId) await notify(a.ctx.workspace.id, { userId, kind: "lead", text: `${a.ctx.user.name} giao cho bạn ${obj?.itemLabel.toLowerCase() ?? "mục"} “${updated.title}”`, href: `/w/b/${rec.objectKey}?open=${id}` });
+  }
+
   const fresh = await db.record.findUniqueOrThrow({ where: { id }, include: { _count: { select: { activities: true } } } });
   return ok(toDTO(fresh));
 }
+
+const FIELD_NAME: Record<string, string> = { title: "tên", status: "trạng thái", ownerName: "người phụ trách", amount: "giá trị" };
 
 export async function DELETE(_req: Request, { params }: Ctx) {
   const a = await appApi();
   if ("error" in a) return a.error;
   const { id } = await params;
-  const { count } = await db.record.deleteMany({ where: { id, workspaceId: a.ctx.workspace.id } });
-  if (!count) return fail("Không tìm thấy mục", 404);
+  const role = await getRole(a.ctx.user.id, a.ctx.workspace.id);
+  if (!can(role, "delete")) return fail("Bạn không có quyền xoá. Hãy nhờ chủ hoặc quản lý.", 403);
+  const rec = await findScopedRecord(a.ctx, id);
+  if (!rec) return fail("Không tìm thấy mục", 404);
+  await db.record.delete({ where: { id } });
   await db.task.deleteMany({ where: { recordId: id } });
+  const obj = getObject(a.ctx.config, rec.objectKey);
+  await audit({ workspaceId: a.ctx.workspace.id, user: a.ctx.user }, "record.delete", rec.objectKey, id, `Xoá ${obj?.itemLabel.toLowerCase() ?? "mục"} “${rec.title}”`, { before: recordSnapshot(rec) });
   return ok({ deleted: true });
 }

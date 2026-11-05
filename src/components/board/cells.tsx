@@ -6,6 +6,7 @@ import { color } from "@/lib/colors";
 import { dateVi, vnd } from "@/lib/format";
 import { Avatar } from "../Avatar";
 import type { FieldValue } from "@/lib/records";
+import { formatFormulaValue, type FormulaResult } from "@/lib/formula";
 
 /** Đóng popover khi bấm ra ngoài. */
 export function usePopover() {
@@ -152,7 +153,27 @@ export function RatingCell({ value, onSave }: { value: FieldValue | undefined; o
   );
 }
 
-export function FieldCell({ field, value, onSave, form }: { field: FieldDef; value: FieldValue | undefined; onSave: (v: FieldValue) => void; form?: boolean }) {
+/** Ô công thức: chỉ đọc, số căn phải, lỗi hiện #LỖI kèm chú thích. */
+export function FormulaCell({ result, money, form }: { result: FormulaResult | undefined; money?: boolean; form?: boolean }) {
+  const base = `flex h-full w-full items-center px-2.5 text-[14px] ${form ? "h-9 rounded border border-dashed border-line-soft bg-surface-2" : ""}`;
+  if (!result) return <span className={base} />;
+  if (!result.ok)
+    return (
+      <span className={`${base} justify-end font-medium text-[#df2f4a]`} title={`Lỗi công thức: ${result.error}`} aria-label={`Lỗi công thức: ${result.error}`}>
+        #LỖI
+      </span>
+    );
+  const v = result.value;
+  const numeric = typeof v === "number";
+  return (
+    <span className={`${base} ${numeric ? "justify-end tnum" : v instanceof Date ? "justify-center" : ""} truncate`} title="Tính tự động từ công thức">
+      <span className="truncate">{formatFormulaValue(v, { money, vnd })}</span>
+    </span>
+  );
+}
+
+export function FieldCell({ field, value, onSave, form, computed, money }: { field: FieldDef; value: FieldValue | undefined; onSave: (v: FieldValue) => void; form?: boolean; computed?: FormulaResult; money?: boolean }) {
+  if (field.type === "formula") return <FormulaCell result={computed} money={money} form={form} />;
   if (field.type === "select") return <LabelCell options={field.options} value={String(value ?? "")} onPick={(k) => onSave(field.options.find((o) => o.key === k)?.label ?? k)} block={!form} />;
   if (field.type === "rating") return <RatingCell value={value} onSave={onSave} />;
   return <InputCell field={field} value={value} onSave={onSave} form={form} />;

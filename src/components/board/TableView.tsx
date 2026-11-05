@@ -1,0 +1,300 @@
+"use client";
+
+import { memo, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import type { ObjectDef } from "@/lib/config/schema";
+import type { RecordDTO } from "@/lib/records";
+import { color } from "@/lib/colors";
+import { ago, heat, vnd } from "@/lib/format";
+import { Icon } from "../Icon";
+import { FieldCell, InputCell, LabelCell, PersonCell } from "./cells";
+import { CHECK_W, TITLE_W, fieldOf, formulaMoney, formulaNumber, formulaOf, type Column, type Group, type Patch } from "./model";
+
+const VIRTUAL_FROM = 200;
+const ROW_H = 36;
+
+type Props = {
+  obj: ObjectDef;
+  team: string[];
+  groups: Group[];
+  rows: RecordDTO[];
+  cols: Column[];
+  selected: Set<string>;
+  onSelect: (ids: string[], on: boolean) => void;
+  onPatch: (id: string, b: Patch) => void;
+  onCreate: (title: string, g: Group) => void;
+  onOpen: (id: string) => void;
+};
+
+/** Bảng chính kiểu monday: mỗi nhóm có viền trái màu, cột tiêu đề dính trái; nhóm > 200 dòng render ảo. */
+export function TableView({ obj, team, groups, rows, cols, selected, onSelect, onPatch, onCreate, onOpen }: Props) {
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const template = `${CHECK_W + TITLE_W}px ${cols.map((c) => `${c.w}px`).join(" ")}`;
+  const moneyCols = useMemo(() => new Set(cols.filter((c) => fieldOf(c)?.type === "formula" && formulaMoney(fieldOf(c)!, obj)).map((c) => c.id)), [cols, obj]);
+  const parts = useMemo(() => groups.map((g) => ({ g, rows: rows.filter(g.match) })), [groups, rows]);
+
+  if (!rows.length && !groups.length) return null;
+  return (
+    <div className="mt-5 overflow-x-auto pb-40">
+      <div className="grid min-w-max gap-8">
+        {parts.map(({ g, rows: list }) => (
+          <section key={g.key} aria-label={g.label}>
+            <div className="sticky left-0 mb-2 flex w-fit items-center gap-2">
+              <button type="button" onClick={() => setCollapsed((c) => ({ ...c, [g.key]: !c[g.key] }))} className="flex items-center gap-1.5 text-[16px] font-semibold" style={{ color: g.color }}>
+                <Icon name="chevron" size={18} className={collapsed[g.key] ? "-rotate-90" : ""} />
+                {g.label}
+              </button>
+              <span className="text-[13px] text-ink-2">{list.length} mục</span>
+              {list.length > VIRTUAL_FROM && <span className="rounded bg-surface-2 px-1.5 text-[11.5px] text-ink-2">cuộn nhanh</span>}
+            </div>
+            {!collapsed[g.key] && (
+              <GroupTable obj={obj} team={team} group={g} rows={list} cols={cols} template={template} moneyCols={moneyCols} selected={selected} onSelect={onSelect} onPatch={onPatch} onCreate={onCreate} onOpen={onOpen} />
+            )}
+          </section>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function GroupTable({ obj, team, group, rows, cols, template, moneyCols, selected, onSelect, onPatch, onCreate, onOpen }: Omit<Props, "groups"> & { group: Group; template: string; moneyCols: Set<string> }) {
+  const allOn = rows.length > 0 && rows.every((r) => selected.has(r.id));
+  const someOn = !allOn && rows.some((r) => selected.has(r.id));
+  const virtual = rows.length > VIRTUAL_FROM;
+  return (
+    <div role="table" className="w-max text-[14px]" style={{ borderLeft: `6px solid ${group.color}`, borderRadius: 4 }}>
+      <div role="row" className="grid" style={{ gridTemplateColumns: template }}>
+        <div role="columnheader" className="sticky left-0 z-20 flex h-9 items-center border-b border-r border-t border-line-soft bg-surface text-[13px] text-ink-2">
+          <span className="grid h-full flex-none place-items-center" style={{ width: CHECK_W }}>
+            <input
+              type="checkbox"
+              aria-label={`Chọn tất cả trong nhóm ${group.label}`}
+              checked={allOn}
+              ref={(el) => {
+                if (el) el.indeterminate = someOn;
+              }}
+              onChange={(e) => onSelect(rows.map((r) => r.id), e.target.checked)}
+              className="h-4 w-4 accent-[var(--primary)]"
+            />
+          </span>
+          <span className="pl-1">{obj.itemLabel}</span>
+        </div>
+        {cols.map((c) => {
+          const f = fieldOf(c);
+          return (
+            <div key={c.id} role="columnheader" title={f?.type === "formula" ? `Công thức: ${f.formula ?? ""}` : undefined} className="flex h-9 items-center justify-center gap-1 truncate border-b border-r border-t border-line-soft bg-surface px-1 text-[13px] text-ink-2">
+              {f?.type === "formula" && <Icon name="formula" size={13} />}
+              <span className="truncate">{c.label}</span>
+            </div>
+          );
+        })}
+      </div>
+      {virtual ? (
+        <VirtualRows obj={obj} team={team} rows={rows} cols={cols} template={template} moneyCols={moneyCols} selected={selected} onSelect={onSelect} onPatch={onPatch} onOpen={onOpen} />
+      ) : (
+        rows.map((r) => <Row key={r.id} obj={obj} team={team} r={r} cols={cols} template={template} moneyCols={moneyCols} on={selected.has(r.id)} onSelect={onSelect} onPatch={onPatch} onOpen={onOpen} />)
+      )}
+      <div role="row" className="grid" style={{ gridTemplateColumns: template }}>
+        <div className="sticky left-0 z-10 h-9 border-b border-r border-line-soft bg-surface" style={{ paddingLeft: CHECK_W }}>
+          <AddRow label={obj.itemLabel} onAdd={(t) => onCreate(t, group)} />
+        </div>
+        <div className="h-9 border-b border-line-soft" style={{ gridColumn: `span ${cols.length}` }} />
+      </div>
+      <SumRow obj={obj} rows={rows} cols={cols} template={template} moneyCols={moneyCols} />
+    </div>
+  );
+}
+
+/** Tìm phần tử cuộn dọc của trang (main trong layout). */
+function scrollParentOf(el: HTMLElement | null): HTMLElement | null {
+  return (el?.closest("main") as HTMLElement | null) ?? (typeof document !== "undefined" ? (document.scrollingElement as HTMLElement | null) : null);
+}
+
+function VirtualRows({ obj, team, rows, cols, template, moneyCols, selected, onSelect, onPatch, onOpen }: Omit<Props, "groups" | "onCreate"> & { template: string; moneyCols: Set<string> }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [margin, setMargin] = useState(0);
+  const [scroller, setScroller] = useState<HTMLElement | null>(null);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    const sc = scrollParentOf(el);
+    setScroller(sc);
+    if (!el || !sc) return;
+    const measure = () => setMargin(el.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop);
+    measure();
+    const ro = new ResizeObserver(measure);
+    if (sc.firstElementChild) ro.observe(sc.firstElementChild);
+    ro.observe(sc);
+    return () => ro.disconnect();
+  }, []);
+
+  const v = useVirtualizer({ count: rows.length, getScrollElement: () => scroller, estimateSize: () => ROW_H, overscan: 12, scrollMargin: margin });
+  return (
+    <div ref={ref} style={{ height: v.getTotalSize(), position: "relative" }}>
+      {v.getVirtualItems().map((it) => {
+        const r = rows[it.index];
+        return (
+          <div key={r.id} style={{ position: "absolute", top: 0, left: 0, transform: `translateY(${it.start - margin}px)` }}>
+            <Row obj={obj} team={team} r={r} cols={cols} template={template} moneyCols={moneyCols} on={selected.has(r.id)} onSelect={onSelect} onPatch={onPatch} onOpen={onOpen} />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+type RowProps = { obj: ObjectDef; team: string[]; r: RecordDTO; cols: Column[]; template: string; moneyCols: Set<string>; on: boolean; onSelect: Props["onSelect"]; onPatch: Props["onPatch"]; onOpen: Props["onOpen"] };
+
+const Row = memo(function Row({ obj, team, r, cols, template, moneyCols, on, onSelect, onPatch, onOpen }: RowProps) {
+  const cellBg = on ? "bg-primary-selected" : "bg-surface group-hover:bg-[var(--row-hover)]";
+  return (
+    <div role="row" className="group grid" style={{ gridTemplateColumns: template }}>
+      <div role="cell" className={`sticky left-0 z-10 flex h-9 items-center border-b border-r border-line-soft ${cellBg}`}>
+        <span className="grid h-full flex-none place-items-center" style={{ width: CHECK_W }}>
+          <input type="checkbox" aria-label={`Chọn ${r.title}`} checked={on} onChange={(e) => onSelect([r.id], e.target.checked)} className="h-4 w-4 accent-[var(--primary)]" />
+        </span>
+        <div className="h-full min-w-0 flex-1">
+          <InputCell field={{ type: "text", label: obj.itemLabel }} value={r.title} onSave={(v) => onPatch(r.id, { title: String(v) })} />
+        </div>
+        <button type="button" onClick={() => onOpen(r.id)} className="mr-1 flex h-7 flex-none items-center gap-1 rounded px-1.5 text-[12.5px] text-ink-2 opacity-0 hover:bg-hover hover:text-primary focus:opacity-100 group-hover:opacity-100 max-md:opacity-100" aria-label={`Mở chi tiết ${r.title}`}>
+          <Icon name="open" size={14} /> <span className="max-md:hidden">Mở</span>
+        </button>
+        {r.updates > 0 && <span className="mr-2 flex-none rounded-full bg-primary px-1.5 text-[11px] text-white tnum">{r.updates}</span>}
+      </div>
+      {cols.map((c) => (
+        <div key={c.id} role="cell" className={`h-9 min-w-0 border-b border-r border-line-soft ${c.id === "status" || fieldOf(c)?.type === "select" ? "" : cellBg}`}>
+          <CellFor obj={obj} team={team} r={r} c={c} money={moneyCols.has(c.id)} onPatch={onPatch} />
+        </div>
+      ))}
+    </div>
+  );
+});
+
+function CellFor({ obj, team, r, c, money, onPatch }: { obj: ObjectDef; team: string[]; r: RecordDTO; c: Column; money: boolean; onPatch: Props["onPatch"] }) {
+  const f = fieldOf(c);
+  if (f) return <FieldCell field={f} value={r.data[f.key]} onSave={(v) => onPatch(r.id, { data: { [f.key]: v } })} computed={f.type === "formula" ? formulaOf(f, r, obj) : undefined} money={money} />;
+  switch (c.id) {
+    case "owner":
+      return <PersonCell team={team} value={r.ownerName} onPick={(v) => onPatch(r.id, { ownerName: v })} />;
+    case "status":
+      return <LabelCell options={obj.statuses} value={r.status} onPick={(k) => onPatch(r.id, { status: k })} />;
+    case "amount":
+      return <InputCell field={{ type: "money", label: obj.amountLabel }} value={r.amount} onSave={(v) => onPatch(r.id, { amount: Number(v) })} />;
+    case "winProb":
+      return <WinProb value={r.winProb} />;
+    case "score":
+      return (
+        <div className="grid h-full place-items-center">
+          <ScorePill score={r.score} />
+        </div>
+      );
+    case "updated":
+      return (
+        <div className="grid h-full place-items-center text-[12.5px] text-ink-2" suppressHydrationWarning>
+          {ago(r.updatedAt)}
+        </div>
+      );
+  }
+  return null;
+}
+
+export function WinProb({ value, compact }: { value: number | null; compact?: boolean }) {
+  if (value === null || value === undefined) return <div className="grid h-full place-items-center text-[12.5px] text-ink-2">{compact ? "" : "–"}</div>;
+  const c = value >= 70 ? "#00c875" : value >= 40 ? "#fdab3d" : "#df2f4a";
+  return (
+    <div className="flex h-full items-center gap-2 px-2.5" title={`Khả năng chốt ${value}%`}>
+      <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-line-soft">
+        <span className="block h-full rounded-full" style={{ width: `${Math.max(0, Math.min(100, value))}%`, background: c }} />
+      </span>
+      <span className="w-9 text-right text-[12.5px] tnum">{value}%</span>
+    </div>
+  );
+}
+
+export function ScorePill({ score }: { score: number }) {
+  const h = heat(score);
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[12.5px] font-medium text-white tnum" style={{ background: color(h.color).bg }}>
+      {h.label} · {score}
+    </span>
+  );
+}
+
+function Sum({ label, value, money }: { label: string; value: number; money?: boolean }) {
+  return (
+    <span className="text-[13px] tnum">
+      <b className="font-semibold text-ink">{money ? vnd(value) : (Math.round(value * 100) / 100).toLocaleString("vi-VN")}</b> <span className="text-[11.5px] text-ink-2">{label}</span>
+    </span>
+  );
+}
+
+function SumRow({ obj, rows, cols, template, moneyCols }: { obj: ObjectDef; rows: RecordDTO[]; cols: Column[]; template: string; moneyCols: Set<string> }) {
+  const cells = useMemo(
+    () =>
+      cols.map((col) => {
+        const f = fieldOf(col);
+        if (f?.type === "number" || f?.type === "money") return <Sum label="tổng" value={rows.reduce((a, r) => a + (Number(r.data[f.key]) || 0), 0)} money={f.type === "money"} />;
+        if (f?.type === "formula") {
+          let n = 0;
+          let any = false;
+          for (const r of rows) {
+            const x = formulaNumber(f, r, obj);
+            if (x !== null) {
+              n += x;
+              any = true;
+            }
+          }
+          return any ? <Sum label="tổng" value={n} money={moneyCols.has(col.id)} /> : null;
+        }
+        if (col.id === "status")
+          return (
+            <div className="flex h-5 w-[120px] overflow-hidden rounded-sm" title={`${rows.length} mục`}>
+              {obj.statuses.map((s) => {
+                const k = rows.filter((r) => r.status === s.key).length;
+                return k ? <span key={s.key} style={{ width: `${(k / rows.length) * 100}%`, background: color(s.color).bg }} title={`${s.label}: ${k}`} /> : null;
+              })}
+              {!rows.length && <span className="flex-1" style={{ background: "var(--line-soft)" }} />}
+            </div>
+          );
+        if (col.id === "amount") return <Sum label="tổng" value={rows.reduce((a, r) => a + r.amount, 0)} money />;
+        if (col.id === "score") return <span className="text-[12.5px] text-ink-2">TB {rows.length ? Math.round(rows.reduce((a, r) => a + r.score, 0) / rows.length) : 0}</span>;
+        if (col.id === "winProb") {
+          const xs = rows.filter((r) => r.winProb !== null);
+          return xs.length ? <span className="text-[12.5px] text-ink-2">TB {Math.round(xs.reduce((a, r) => a + (r.winProb ?? 0), 0) / xs.length)}%</span> : null;
+        }
+        return null;
+      }),
+    [cols, rows, obj, moneyCols],
+  );
+  return (
+    <div role="row" className="grid" style={{ gridTemplateColumns: template }}>
+      <div className="sticky left-0 z-10 h-9 bg-surface" />
+      {cells.map((x, i) => (
+        <div key={cols[i].id} className="flex h-9 items-center justify-center px-2">
+          {x}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function AddRow({ label, onAdd }: { label: string; onAdd: (t: string) => void }) {
+  const [v, setV] = useState("");
+  const submit = () => {
+    if (v.trim()) {
+      onAdd(v.trim());
+      setV("");
+    }
+  };
+  return (
+    <input
+      aria-label={`Thêm ${label.toLowerCase()}`}
+      value={v}
+      onChange={(e) => setV(e.target.value)}
+      onKeyDown={(e) => e.key === "Enter" && submit()}
+      onBlur={submit}
+      placeholder={`+ Thêm ${label.toLowerCase()}`}
+      className="h-full w-full bg-transparent px-2 text-[14px] outline-none placeholder:text-ink-2 focus:bg-surface"
+    />
+  );
+}

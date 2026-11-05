@@ -1,0 +1,96 @@
+# DNA CRM chạy bằng Docker. Hướng dẫn đầy đủ: docs/VAN-HANH.md
+#
+#   docker compose up -d --build                     → chỉ CRM (SQLite), mở http://localhost:3210
+#   docker compose --profile stt up -d               → thêm máy chép lời ghi âm (speaches, chạy CPU)
+#   docker compose --profile tunnel up -d            → thêm đường hầm Cloudflare để nhận webhook từ internet
+#   docker compose logs cloudflared | grep trycloudflare   → xem địa chỉ công khai
+#   Postgres: chép các dòng trong docker/postgres.env.example vào .env rồi docker compose up -d --build
+#
+# Biến lấy từ file .env cạnh file này (không bắt buộc). Tên có tiền tố CRM_ để không lẫn với .env khi chạy npm run dev.
+
+name: dna-crm
+
+services:
+  crm:
+    build:
+      context: .
+      args:
+        # sqlite (mặc định) hoặc postgresql — phải khớp với CRM_DATABASE_URL.
+        DB_PROVIDER: ${DB_PROVIDER:-sqlite}
+    image: dna-crm:${DB_PROVIDER:-sqlite}
+    init: true
+    restart: unless-stopped
+    ports:
+      - "${CRM_PORT:-3210}:3210"
+    environment:
+      DATABASE_URL: ${CRM_DATABASE_URL:-file:/app/data/crm.db}
+      # Để trống: tự sinh một lần và lưu trong volume crm-data (/app/data/.secret).
+      SESSION_SECRET: ${CRM_SESSION_SECRET:-}
+      # Không bắt buộc: có key thì AI Agent dùng Claude, không có thì chạy bằng luật.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      CLAUDE_MODEL: ${CLAUDE_MODEL:-claude-opus-5-5}
+      # Chép lời ghi âm: khi bật profile "stt" đặt CRM_TRANSCRIBE_URL=http://speaches:8000 trong .env.
+      TRANSCRIBE_BASE_URL: ${CRM_TRANSCRIBE_URL:-}
+      TRANSCRIBE_MODEL: ${CRM_TRANSCRIBE_MODEL:-Systran/faster-whisper-large-v3}
+      TRANSCRIBE_API_KEY: ${TRANSCRIBE_API_KEY:-}
+      FPT_AI_API_KEY: ${FPT_AI_API_KEY:-}
+      # 1 = tạo tài khoản demo@dnacrm.local / demo12345 kèm dữ liệu mẫu ở lần chạy đầu.
+      CRM_DEMO: ${CRM_DEMO:-0}
+      CRM_DEMO_INDUSTRY: ${CRM_DEMO_INDUSTRY:-spa}
+      # Sao lưu toàn hệ thống mỗi ngày vào volume crm-backups, giữ BACKUP_KEEP bản.
+      BACKUP_KEEP: ${BACKUP_KEEP:-14}
+      TZ: Asia/Ho_Chi_Minh
+    volumes:
+      - crm-data:/app/data # SQLite + khoá phiên
+      - crm-uploads:/app/uploads # file ghi âm cuộc gọi
+      - crm-backups:/app/backups # bản sao lưu
+    depends_on:
+      # Chỉ chờ khi bật profile postgres; không bật thì bỏ qua.
+      postgres:
+        condition: service_healthy
+        required: false
+
+  # Máy chép lời tiếng Việt chuẩn OpenAI (faster-whisper). Lần đầu tự tải model (~3 GB với large-v3).
+  speaches:
+    image: ghcr.io/speaches-ai/speaches:latest-cpu
+    profiles: ["stt"]
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - stt-models:/home/ubuntu/.cache/huggingface/hub
+
+  # Đường hầm Cloudflare miễn phí: cho Facebook, Zalo, Shopify... gọi được webhook vào máy bạn.
+  # Địa chỉ dạng https://xxxx.trycloudflare.com, đổi mỗi lần khởi động lại.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    profiles: ["tunnel"]
+    restart: unless-stopped
+    command: tunnel --no-autoupdate --url http://crm:3210
+    depends_on:
+      - crm
+
+  # Postgres 16 chạy kèm. Dùng khi nhiều người truy cập cùng lúc hoặc dữ liệu lớn.
+  postgres:
+    image: postgres:16
+    profiles: ["postgres"]
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: crm
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-doi-mat-khau-nay}
+      POSTGRES_DB: crm
+      TZ: Asia/Ho_Chi_Minh
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U crm -d crm"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  crm-data:
+  crm-uploads:
+  crm-backups:
+  stt-models:
+  pg-data:

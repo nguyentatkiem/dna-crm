@@ -3,6 +3,7 @@ import { appApi, fail, ok } from "@/lib/http";
 import { getObject } from "@/lib/config/schema";
 import { ai, MODEL, textOf } from "@/lib/ai";
 import { heat } from "@/lib/format";
+import { recordScope } from "@/lib/permissions";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -11,7 +12,8 @@ export async function POST(_req: Request, { params }: Ctx) {
   const a = await appApi();
   if ("error" in a) return a.error;
   const { id } = await params;
-  const rec = await db.record.findFirst({ where: { id, workspaceId: a.ctx.workspace.id }, include: { activities: { orderBy: { createdAt: "desc" }, take: 8 } } });
+  const scope = await recordScope(a.ctx);
+  const rec = await db.record.findFirst({ where: { AND: [scope, { id }] }, include: { activities: { orderBy: { createdAt: "desc" }, take: 8 } } });
   if (!rec) return fail("Không tìm thấy mục", 404);
   const cfg = a.ctx.config;
   const obj = getObject(cfg, rec.objectKey);

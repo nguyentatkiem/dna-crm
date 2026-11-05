@@ -1,6 +1,7 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import type { Integrations } from "../settings";
 import type { Channel, Lead } from "./ingest";
+import type { Attachment, InboxEvent } from "../inbox";
 
 type Json = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 type Ctx = { raw: string; body: Json; headers: Headers; settings: Integrations; url: URL };
@@ -18,6 +19,8 @@ export type Provider = {
   /** false = sai chữ ký, bỏ qua yêu cầu. Không cấu hình khoá thì cho qua để học viên thử nhanh. */
   verify?: (c: Ctx) => boolean;
   parse: (c: Ctx) => Promise<Lead[]> | Lead[];
+  /** Tin nhắn cho Hộp thư (Zalo OA, Messenger). Tách khỏi luồng lead; lead lần đầu đi kèm trong từng tin. */
+  messages?: (c: Ctx) => InboxEvent[];
 };
 
 const safeEq = (a: string, b: string) => a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b));
@@ -38,6 +41,11 @@ function pick(o: Json, keys: string[]) {
 const NAME_KEYS = ["name", "full_name", "fullname", "ho_ten", "hoten", "ho_va_ten", "ten", "customer_name", "your_name"];
 const PHONE_KEYS = ["phone", "phone_number", "so_dien_thoai", "sodienthoai", "sdt", "mobile", "tel", "dien_thoai"];
 const EMAIL_KEYS = ["email", "e_mail", "mail"];
+const PHONE_RE = /(?:\+?84|0)(?:\d[\s.]?){8,9}\d/;
+const tsDate = (v: unknown) => {
+  const n = Number(v);
+  return n ? new Date(n < 1e12 ? n * 1000 : n) : undefined;
+};
 const NOTE_KEYS = ["message", "note", "ghi_chu", "noi_dung", "nhu_cau", "content", "comment"];
 
 /** Đơn kiểu Shopify (Haravan, Sapo dùng cùng cấu trúc). */
@@ -88,7 +96,7 @@ export const PROVIDERS: Provider[] = [
     label: "Facebook Lead Ads",
     channel: "ads",
     guide:
-      "Meta for Developers → App → Webhooks → Page → đăng ký trường leadgen, dán URL bên dưới và Verify token. Cấp Page Access Token có quyền leads_retrieval để CRM tải được tên, SĐT của lead.",
+      "Meta for Developers → App → Webhooks → Page → đăng ký trường leadgen (và messages, messaging_postbacks để tin Messenger về Hộp thư), dán URL bên dưới và Verify token. Cấp Page Access Token có quyền leads_retrieval để CRM tải được tên, SĐT của lead.",
     secrets: [
       ["verifyToken", "Verify token (tự đặt)"],
       ["pageToken", "Page Access Token"],
@@ -123,6 +131,40 @@ export const PROVIDERS: Provider[] = [
             if (d.error) lead.note = `Không tải được chi tiết lead: ${d.error.message}`;
           } else lead.note = "Chưa có Page Access Token nên chưa tải được tên và SĐT. Điền token ở trang Nguồn khách.";
           out.push(lead);
+        }
+      return out;
+    },
+    messages({ body }) {
+      const out: InboxEvent[] = [];
+      for (const entry of body.entry ?? [])
+        for (const m of entry.messaging ?? []) {
+          const msg = m.message;
+          const post = m.postback;
+          if (!msg && !post) continue; // bỏ qua delivery/read/reaction
+          const echo = !!msg?.is_echo;
+          // Echo: Trang gửi cho khách (từ CRM hoặc Meta Business Suite) → người dùng là recipient.
+          const psid = str(echo ? m.recipient?.id : m.sender?.id);
+          const pageId = str(echo ? m.sender?.id : m.recipient?.id) || str(entry.id);
+          const atts: Attachment[] = (msg?.attachments ?? []).map((a: Json) =>
+            a.type === "location"
+              ? { type: "location", lat: a.payload?.coordinates?.lat, lng: a.payload?.coordinates?.long }
+              : { type: msg?.sticker_id ? "sticker" : str(a.type) || "file", url: str(a.payload?.url) || undefined, name: str(a.title) || undefined },
+          );
+          const text = post ? `[Bấm nút] ${str(post.title) || str(post.payload)}` : str(msg?.text);
+          const mid = str(msg?.mid) || (post ? `postback:${psid}:${m.timestamp}` : "");
+          const phone = text.match(PHONE_RE)?.[0];
+          out.push({
+            channel: "messenger",
+            externalId: psid,
+            pageId,
+            direction: echo ? "out" : "in",
+            text,
+            attachments: atts,
+            msgId: mid,
+            at: tsDate(m.timestamp),
+            // Messenger không có SĐT: chỉ tạo lead khi khách tự nhắn số điện thoại.
+            lead: !echo && phone ? { provider: "facebook", providerLabel: "Facebook Messenger", channel: "organic", name: "Khách nhắn Messenger", phone, externalId: `msg:${mid}`, note: `Tin nhắn: ${text}` } : undefined,
+          });
         }
       return out;
     },
@@ -184,7 +226,7 @@ export const PROVIDERS: Provider[] = [
     label: "Zalo OA",
     channel: "zalo",
     guide:
-      "developers.zalo.me → ứng dụng → Webhook: dán URL bên dưới, bật sự kiện follow, user_send_text, user_submit_info. Điền App ID + OA Secret Key để kiểm tra chữ ký, Access token để CRM nhắn lại khách.",
+      "developers.zalo.me → ứng dụng → Webhook: dán URL bên dưới, bật sự kiện follow, user_submit_info và nhóm tin nhắn (user_send_text, user_send_image, user_send_file, user_send_sticker, user_send_location, oa_send_text) để tin về Hộp thư. Điền App ID + OA Secret Key để kiểm tra chữ ký, Access token để CRM nhắn lại khách.",
     secrets: [
       ["appId", "App ID"],
       ["secretKey", "OA Secret Key"],
@@ -198,20 +240,57 @@ export const PROVIDERS: Provider[] = [
       return safeEq(sig, createHash("sha256").update(z.appId + c.raw + str(c.body.timestamp) + z.secretKey).digest("hex"));
     },
     parse({ body }) {
+      // Tin nhắn và sự kiện quan tâm đi qua messages() (Hộp thư); lead lần đầu được tạo kèm ở đó.
+      if (str(body.event_name) !== "user_submit_info") return [];
+      const uid = str(body.sender?.id ?? body.user_id_by_app);
+      const i = body.info ?? {};
+      return [{ provider: "zalo", providerLabel: "Zalo OA", channel: "zalo", zaloUid: uid, name: str(i.name) || "Khách Zalo", phone: str(i.phone), externalId: `info:${uid}:${body.timestamp}`, note: [i.address, i.ward, i.district, i.city].filter(Boolean).join(", ") }];
+    },
+    messages({ body }) {
       const ev = str(body.event_name);
-      const uid = str(body.sender?.id ?? body.follower?.id ?? body.user_id_by_app);
-      const base = { provider: "zalo", providerLabel: "Zalo OA", channel: "zalo" as Channel, zaloUid: uid };
-      if (ev === "user_submit_info") {
-        const i = body.info ?? {};
-        return [{ ...base, name: str(i.name) || "Khách Zalo", phone: str(i.phone), externalId: `info:${uid}:${body.timestamp}`, note: [i.address, i.ward, i.district, i.city].filter(Boolean).join(", ") }];
+      const at = tsDate(body.timestamp);
+      if (ev === "follow") {
+        const uid = str(body.follower?.id ?? body.user_id_by_app);
+        return [
+          {
+            channel: "zalo",
+            externalId: uid,
+            direction: "in",
+            text: "Khách vừa quan tâm OA",
+            attachments: [{ type: "event" }],
+            msgId: `follow:${uid}:${body.timestamp}`,
+            at,
+            system: true,
+            lead: { provider: "zalo", providerLabel: "Zalo OA", channel: "zalo", zaloUid: uid, name: "Người theo dõi Zalo OA", externalId: `follow:${uid}`, note: "Khách vừa quan tâm OA" },
+          },
+        ];
       }
-      if (ev === "follow") return [{ ...base, name: "Người theo dõi Zalo OA", externalId: `follow:${uid}`, note: "Khách vừa quan tâm OA" }];
-      if (ev.startsWith("user_send")) {
-        const text = str(body.message?.text) || `[${ev.replace("user_send_", "")}]`;
-        const phone = text.match(/(?:\+?84|0)(?:\d[\s.]?){8,9}\d/)?.[0];
-        return [{ ...base, name: "Khách nhắn Zalo OA", phone, externalId: str(body.message?.msg_id) || `${ev}:${uid}:${body.timestamp}`, note: `Tin nhắn: ${text}` }];
-      }
-      return [];
+      const inbound = ev.startsWith("user_send_");
+      if (!inbound && !ev.startsWith("oa_send_")) return [];
+      const kind = ev.replace(/^(user|oa)_send_/, "");
+      const m = body.message ?? {};
+      const uid = str(inbound ? body.sender?.id : body.recipient?.id) || str(body.user_id_by_app);
+      const atts: Attachment[] = (m.attachments ?? []).map((a: Json) => {
+        const p = a.payload ?? {};
+        if (a.type === "location") return { type: "location", lat: Number(p.coordinates?.latitude) || undefined, lng: Number(p.coordinates?.longitude) || undefined };
+        return { type: str(a.type) || kind, url: str(p.url || p.thumbnail) || undefined, name: str(p.name) || undefined };
+      });
+      if (!atts.length && kind !== "text") atts.push({ type: kind === "gif" ? "gif" : kind });
+      const text = str(m.text);
+      const msgId = str(m.msg_id) || `${ev}:${uid}:${body.timestamp}`;
+      const phone = text.match(PHONE_RE)?.[0];
+      return [
+        {
+          channel: "zalo",
+          externalId: uid,
+          direction: inbound ? "in" : "out",
+          text,
+          attachments: atts,
+          msgId,
+          at,
+          lead: inbound ? { provider: "zalo", providerLabel: "Zalo OA", channel: "zalo", zaloUid: uid, name: "Khách nhắn Zalo OA", phone, externalId: msgId, note: `Tin nhắn: ${text || `[${kind}]`}` } : undefined,
+        },
+      ];
     },
   },
   {

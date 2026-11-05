@@ -3,6 +3,7 @@ import { fail, ok } from "@/lib/http";
 import { getSettings } from "@/lib/settings";
 import { ingestLead } from "@/lib/sources/ingest";
 import { getProvider } from "@/lib/sources/providers";
+import { ingestEvents, linkLeadToConversation } from "@/lib/inbox";
 
 type P = { params: Promise<{ key: string; provider: string }> };
 
@@ -23,7 +24,7 @@ export async function GET(req: Request, { params }: P) {
   return ok({ ok: true, provider: found.p.label, hint: "Webhook đang hoạt động. Gửi POST để đẩy lead." });
 }
 
-/** Nhận lead/đơn từ mọi nguồn. Luôn trả 200 nhanh khi đã nhận để nền tảng không gửi lại liên tục. */
+/** Nhận lead/đơn từ mọi nguồn, và tin nhắn Zalo OA/Messenger cho Hộp thư. Luôn trả 200 nhanh khi đã nhận để nền tảng không gửi lại liên tục. */
 export async function POST(req: Request, { params }: P) {
   const found = await load(params);
   if (!found) return fail("Không tìm thấy", 404);
@@ -41,15 +42,33 @@ export async function POST(req: Request, { params }: P) {
     await db.leadEvent.create({ data: { workspaceId: ws.id, provider: p.key, channel: p.channel, status: "error", message: "Sai chữ ký hoặc khoá bí mật" } });
     return fail("Sai chữ ký", 401);
   }
+  // Luồng tin nhắn (Hộp thư) chạy riêng: lỗi ở đây không chặn luồng lead và ngược lại.
+  let messages: Awaited<ReturnType<typeof ingestEvents>> = [];
+  let messageError = "";
+  let events: ReturnType<NonNullable<typeof p.messages>> = [];
+  try {
+    events = p.messages?.(ctx) ?? [];
+    if (events.length) messages = await ingestEvents(ws, events, body);
+  } catch (e) {
+    messageError = e instanceof Error ? e.message : String(e);
+    console.error("[hook inbox]", messageError);
+  }
   try {
     const leads = await p.parse(ctx);
+    // Hộp thư lỗi thì vẫn ghi lead của tin nhắn như trước để không mất khách.
+    if (messageError) for (const ev of events) if (ev.lead) leads.push(ev.lead);
     const results = [];
-    for (const lead of leads) results.push(await ingestLead(ws, lead, body));
-    if (!leads.length) await db.leadEvent.create({ data: { workspaceId: ws.id, provider: p.key, channel: p.channel, status: "ignored", message: "Sự kiện không chứa lead", payloadJson: raw.slice(0, 20000) } });
-    return ok({ ok: true, results });
+    for (const lead of leads) {
+      const r = await ingestLead(ws, lead, body);
+      await linkLeadToConversation(ws.id, lead.zaloUid, r.recordId).catch(() => {});
+      results.push(r);
+    }
+    if (!leads.length && !messages.length)
+      await db.leadEvent.create({ data: { workspaceId: ws.id, provider: p.key, channel: p.channel, status: messageError ? "error" : "ignored", message: messageError || "Sự kiện không chứa lead", payloadJson: raw.slice(0, 20000) } });
+    return ok({ ok: !messageError, results, messages, ...(messageError ? { error: messageError } : {}) });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     await db.leadEvent.create({ data: { workspaceId: ws.id, provider: p.key, channel: p.channel, status: "error", message, payloadJson: raw.slice(0, 20000) } });
-    return ok({ ok: false, error: message });
+    return ok({ ok: false, error: message, messages });
   }
 }

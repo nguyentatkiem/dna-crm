@@ -3,9 +3,10 @@ import { notFound } from "next/navigation";
 import { isOwner, requireApp } from "@/lib/auth";
 import { db, parseJson } from "@/lib/db";
 import { getScorecard, outcomeOf, type CallScore } from "@/lib/calls";
-import { scoreColor } from "@/lib/calls-shared";
+import { customerSentiment, scoreColor, segmentsOf, talkStats } from "@/lib/calls-shared";
 import { color } from "@/lib/colors";
 import { Review } from "./Review";
+import { Conversation } from "./Conversation";
 
 const SENT: Record<string, string> = { tich_cuc: "Tích cực", trung_lap: "Trung lập", tieu_cuc: "Tiêu cực" };
 
@@ -19,6 +20,9 @@ export default async function CallPage({ params }: { params: Promise<{ id: strin
   const o = outcomeOf(call.outcome);
   const label = (k: string) => card.criteria.find((c) => c.key === k)?.label ?? k;
   const weight = (k: string) => card.criteria.find((c) => c.key === k)?.weight ?? 0;
+  const segments = segmentsOf(call);
+  const stats = talkStats(segments);
+  const sentiment = call.sentiment ?? customerSentiment(segments);
 
   return (
     <div className="canvas px-6 pb-16 pt-6 sm:px-8">
@@ -34,19 +38,14 @@ export default async function CallPage({ params }: { params: Promise<{ id: strin
         </span>
       </header>
       <p className="mt-1 text-[13.5px] text-ink-2">
-        {call.agentName} · {call.startedAt.toLocaleString("vi-VN")} · {Math.floor(call.durationSec / 60)} phút {call.durationSec % 60} giây · {call.provider === "pbx" ? "Tổng đài" : "Ghi tay"}
+        {call.agentName} · {call.startedAt.toLocaleString("vi-VN")} · {Math.floor(call.durationSec / 60)} phút {call.durationSec % 60} giây · {call.provider === "pbx" ? "Tổng đài" : call.provider === "sip" ? "Softphone trên trình duyệt" : "Ghi tay"}
         {call.scorecardVersion ? ` · chấm theo phiếu v${call.scorecardVersion}` : ""}
       </p>
       {call.note && <p className="mt-2 text-[14px]">Ghi chú: {call.note}</p>}
 
       <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
         <div className="grid content-start gap-4">
-          {call.recordingPath && (
-            <section className="card p-4">
-              <h2 className="mb-2 text-[15px] font-semibold">Ghi âm</h2>
-              <audio controls preload="metadata" src={`/api/calls/${call.id}/audio`} className="w-full" />
-            </section>
-          )}
+          <Conversation callId={call.id} hasAudio={!!call.recordingPath} segments={segments} stats={stats} sentiment={sentiment} />
           {score ? (
             <section className="card p-5">
               <div className="flex flex-wrap items-center gap-4">

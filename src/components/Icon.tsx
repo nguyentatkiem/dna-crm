@@ -60,6 +60,9 @@ const P: Record<string, string> = {
   layout: "M3 3h18v18H3zM3 9h18M9 21V9",
   formula: "M4 4h7M7.5 4c-1 5-1.5 11-3.5 16M14 10l6 6M20 10l-6 6",
   link: "M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7",
+  eye: "M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z",
+  "eye-off": "M17.9 17.9A10.1 10.1 0 0 1 12 20c-7 0-11-8-11-8a18.5 18.5 0 0 1 5.1-5.9M9.9 4.2A9.1 9.1 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.2 3.2M14.1 14.1a3 3 0 1 1-4.2-4.2M1 1l22 22",
+  server: "M2 3h20v8H2zM2 13h20v8H2zM6 7h.01M6 17h.01",
 };
 
 export function Icon({ name, size = 18, className = "" }: { name: string; size?: number; className?: string }) {

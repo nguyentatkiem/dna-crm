@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { fail, ok } from "@/lib/http";
 import { getSettings } from "@/lib/settings";
 import { findContact, loadConfig, normPhone } from "@/lib/sources/ingest";
-import { scoreCall, sttConfigured, transcribe, UPLOAD_DIR } from "@/lib/calls";
+import { scoreCall, sttConfigured, transcribeDetailed, UPLOAD_DIR } from "@/lib/calls";
 
 type Json = Record<string, unknown>;
 const first = (o: Json, keys: string[]) => {
@@ -65,8 +65,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ key: st
         await fs.writeFile(path.join(UPLOAD_DIR, `${call.id}.${ext}`), buf);
         let updated = await db.call.update({ where: { id: call.id }, data: { recordingPath: `${call.id}.${ext}` } });
         if (sttConfigured()) {
-          const text = await transcribe(buf, `${call.id}.${ext}`);
-          if (text) updated = await db.call.update({ where: { id: call.id }, data: { transcript: text } });
+          const r = await transcribeDetailed(buf, `${call.id}.${ext}`);
+          if (r) updated = await db.call.update({ where: { id: call.id }, data: { transcript: r.text, segmentsJson: r.segments ? JSON.stringify(r.segments) : "" } });
           await scoreCall(updated);
         }
       } catch (e) {

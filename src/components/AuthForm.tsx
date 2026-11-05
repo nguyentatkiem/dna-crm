@@ -2,6 +2,9 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { Icon } from "./Icon";
+
+const AUTO: Record<string, string> = { email: "email", name: "name", password: "current-password" };
 
 type Field = { name: string; label: string; type?: string; placeholder?: string };
 
@@ -22,6 +25,8 @@ export function AuthForm({
 }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [reveal, setReveal] = useState(false);
+  const isNew = endpoint.includes("register");
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -40,14 +45,38 @@ export function AuthForm({
 
   return (
     <form onSubmit={onSubmit} className="grid gap-4">
-      {fields.map((f) => (
-        <label key={f.name} className="grid gap-1.5">
-          <span className="text-[14px] font-medium">{f.label}</span>
-          <input id={`f-${f.name}`} name={f.name} type={f.type ?? "text"} placeholder={f.placeholder} required className="input h-10" />
-        </label>
-      ))}
-      {error && <p className="rounded bg-[#ffe0e5] px-3 py-2 text-[13px] text-[#a01c32]">{error}</p>}
-      <button className="btn-primary h-10 justify-center" disabled={busy}>
+      {fields.map((f) => {
+        const pw = f.type === "password";
+        return (
+          <label key={f.name} className="grid gap-1.5">
+            <span className="text-[14px] font-medium">{f.label}</span>
+            <span className="relative">
+              <input
+                id={`f-${f.name}`}
+                name={f.name}
+                type={pw && reveal ? "text" : (f.type ?? "text")}
+                placeholder={f.placeholder}
+                required
+                autoComplete={pw && isNew ? "new-password" : AUTO[f.name]}
+                minLength={pw && isNew ? 8 : undefined}
+                className={`input h-11 ${pw ? "pr-11" : ""}`}
+              />
+              {pw && (
+                <button type="button" onClick={() => setReveal(!reveal)} className="absolute right-1 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded text-ink-2 hover:text-ink" aria-label={reveal ? "Ẩn mật khẩu" : "Hiện mật khẩu"} aria-pressed={reveal}>
+                  <Icon name={reveal ? "eye-off" : "eye"} size={16} />
+                </button>
+              )}
+            </span>
+          </label>
+        );
+      })}
+      {error && (
+        <p role="alert" className="anim-fade flex items-start gap-2 rounded-md bg-danger-soft px-3 py-2 text-[13px] text-danger">
+          <Icon name="x" size={15} className="mt-px flex-none" /> {error}
+        </p>
+      )}
+      <button className="btn-primary h-11 justify-center text-[15px]" disabled={busy}>
+        {busy && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />}
         {busy ? "Đang xử lý..." : submit}
       </button>
       {footer && (

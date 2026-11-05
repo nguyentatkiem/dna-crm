@@ -32,7 +32,9 @@ export async function PATCH(req: Request, { params }: Ctx) {
   }
   let score = null;
   if (b.transcript !== undefined || b.rescore) {
-    const updated = await db.call.update({ where: { id }, data: { transcript: b.transcript ?? call.transcript } });
+    const changed = b.transcript !== undefined && b.transcript !== call.transcript;
+    // Sửa bản chép lời thì hội thoại cũ không còn khớp: xoá để dựng lại theo bản mới.
+    const updated = await db.call.update({ where: { id }, data: { transcript: b.transcript ?? call.transcript, ...(changed ? { segmentsJson: "" } : {}) } });
     score = await scoreCall(updated);
   }
   return ok({ ok: true, score });

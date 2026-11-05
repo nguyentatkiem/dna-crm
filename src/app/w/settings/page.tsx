@@ -24,9 +24,17 @@ export default async function SettingsPage() {
           <h1 className="text-[26px] font-semibold">DNA & Cấu hình</h1>
           <p className="mt-1 text-ink-2">Sửa DNA để DNA Architect sinh cấu hình mới. Dữ liệu cũ được giữ nguyên.</p>
         </div>
-        <Link href="/onboarding" className="btn-primary">
-          Sửa DNA và sinh lại
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link href="/w/settings/audit" className="btn-outline">
+            Nhật ký thao tác
+          </Link>
+          <Link href="/w/settings/backup" className="btn-outline">
+            Sao lưu & khôi phục
+          </Link>
+          <Link href="/onboarding" className="btn-primary">
+            Sửa DNA và sinh lại
+          </Link>
+        </div>
       </div>
 
       <div className="mt-6 grid gap-4 xl:grid-cols-2">

@@ -8,8 +8,9 @@ import { ai, MODEL } from "./ai";
 import type { WorkspaceConfig } from "./config/schema";
 import { loadConfig } from "./sources/ingest";
 
-import { POSITIVE, TALKED, outcomeOf } from "./calls-shared";
-export { OUTCOMES, POSITIVE, TALKED, outcomeOf, type OutcomeKey } from "./calls-shared";
+import { POSITIVE, TALKED, outcomeOf, buildSegments, customerSentiment, hasSpeakerLabels, type RawSegment, type Segment } from "./calls-shared";
+import { detectObjections, objectionLibrary } from "./objections";
+export { OUTCOMES, POSITIVE, TALKED, outcomeOf, type OutcomeKey, type Segment, type RawSegment } from "./calls-shared";
 
 export type Criterion = { key: string; label: string; weight: number; guide: string; keywords: string[] };
 export type CriterionScore = { key: string; score: number; evidence: string; tip: string };
@@ -23,6 +24,8 @@ export type CallScore = {
   sentiment: "tich_cuc" | "trung_lap" | "tieu_cuc";
   nextAction: string;
   source: "ai" | "rules";
+  /** Cảm xúc khách 0–100 (cũng lưu ở Call.sentiment). */
+  customerSentiment?: number | null;
 };
 
 /** Phiếu chấm mặc định theo các bước bán hàng (Mở đầu → Khai thác → Tư vấn → Xử lý từ chối → Chốt). Tổng trọng số 100. */
@@ -77,34 +80,45 @@ export const UPLOAD_DIR = path.join(process.cwd(), "uploads", "calls");
 
 /**
  * Chép lời ghi âm. Hỗ trợ 2 kiểu:
- * - Máy chủ chuẩn OpenAI /v1/audio/transcriptions: speaches (faster-whisper) chạy trên máy, whisper.cpp server... → TRANSCRIBE_BASE_URL.
+ * - Máy chủ chuẩn OpenAI /v1/audio/transcriptions: speaches (faster-whisper) chạy trên máy, whisper.cpp server, whisperX... → TRANSCRIBE_BASE_URL.
+ *   Yêu cầu verbose_json để có mốc thời gian từng đoạn; máy chủ có tách người nói (diarization) thì trả thêm speaker.
  * - FPT.AI Speech to Text → FPT_AI_API_KEY.
  * Không cấu hình gì thì trả null: người dùng dán bản chép lời bằng tay.
  */
-export async function transcribe(file: Buffer, filename: string): Promise<string | null> {
+export async function transcribeDetailed(file: Buffer, filename: string): Promise<{ text: string; segments: RawSegment[] | null } | null> {
   const base = process.env.TRANSCRIBE_BASE_URL?.replace(/\/$/, "");
   if (base) {
     const form = new FormData();
     form.append("file", new Blob([new Uint8Array(file)]), filename);
     form.append("model", process.env.TRANSCRIBE_MODEL || "Systran/faster-whisper-large-v3");
     form.append("language", "vi");
-    form.append("response_format", "json");
+    form.append("response_format", "verbose_json");
+    form.append("timestamp_granularities[]", "segment");
     const res = await fetch(`${base}/v1/audio/transcriptions`, {
       method: "POST",
       headers: process.env.TRANSCRIBE_API_KEY ? { Authorization: `Bearer ${process.env.TRANSCRIBE_API_KEY}` } : {},
       body: form,
     });
     if (!res.ok) throw new Error(`Máy chủ chép lời báo lỗi ${res.status}: ${(await res.text()).slice(0, 200)}`);
-    const j = (await res.json()) as { text?: string };
-    return j.text?.trim() || null;
+    const j = (await res.json()) as { text?: string; segments?: { start?: number; end?: number; text?: string; speaker?: string | number }[] };
+    const segments = (j.segments ?? [])
+      .filter((x) => x.text?.trim())
+      .map((x) => ({ start: Number(x.start) || 0, end: Number(x.end) || 0, text: String(x.text).trim(), speaker: x.speaker != null ? String(x.speaker) : undefined }));
+    const text = j.text?.trim() || segments.map((x) => x.text).join(" ");
+    return text ? { text, segments: segments.length ? segments : null } : null;
   }
   if (process.env.FPT_AI_API_KEY) {
     const res = await fetch("https://api.fpt.ai/hmi/asr/general", { method: "POST", headers: { api_key: process.env.FPT_AI_API_KEY }, body: new Uint8Array(file) });
     const j = (await res.json().catch(() => ({}))) as { status?: number; message?: string; hypotheses?: { utterance: string }[] };
     if (j.status !== 0) throw new Error(`FPT.AI báo lỗi: ${j.message ?? res.status}`);
-    return (j.hypotheses ?? []).map((h) => h.utterance).join(" ").trim() || null;
+    const text = (j.hypotheses ?? []).map((h) => h.utterance).join(" ").trim();
+    return text ? { text, segments: null } : null;
   }
   return null;
+}
+
+export async function transcribe(file: Buffer, filename: string): Promise<string | null> {
+  return (await transcribeDetailed(file, filename))?.text ?? null;
 }
 
 export const sttConfigured = () => !!(process.env.TRANSCRIBE_BASE_URL || process.env.FPT_AI_API_KEY);
@@ -126,13 +140,17 @@ const ScoreOut = z.object({
   objections: z.array(z.string()),
   sentiment: z.enum(["tich_cuc", "trung_lap", "tieu_cuc"]),
   nextAction: z.string(),
+  customerSentiment: z.number().describe("cảm xúc của khách cả cuộc, 0 rất tiêu cực, 50 trung lập, 100 rất tích cực"),
+  lines: z
+    .array(z.object({ i: z.number(), speaker: z.enum(["NV", "KH"]), sentiment: z.number().describe("-1 tiêu cực, 0 trung lập, 1 tích cực") }))
+    .describe("mỗi câu đã đánh số: ai nói (NV là nhân viên, KH là khách) và cảm xúc câu đó"),
 });
 
 const total = (criteria: Criterion[], scores: CriterionScore[]) =>
   Math.round(criteria.reduce((s, c) => s + (Math.max(0, Math.min(10, scores.find((x) => x.key === c.key)?.score ?? 0)) / 10) * c.weight, 0));
 
 /** Bản luật khi chưa có API key: đếm dấu hiệu theo từ khoá của từng tiêu chí. Thô, nhưng ổn định để học viên thử. */
-function ruleScore(transcript: string, outcome: string, criteria: Criterion[]): CallScore {
+function ruleScore(transcript: string, outcome: string, criteria: Criterion[], segs: Segment[], cfg: WorkspaceConfig | null): CallScore {
   const t = transcript.toLowerCase();
   const scores = criteria.map((c) => {
     const hits = c.keywords.filter((k) => t.includes(k.toLowerCase()));
@@ -144,15 +162,19 @@ function ruleScore(transcript: string, outcome: string, criteria: Criterion[]): 
   const weak = [...scores].filter((x) => x.score < 7).sort((a, b) => a.score - b.score).slice(0, 2);
   const strong = [...scores].sort((a, b) => b.score - a.score).slice(0, 2);
   const label = (k: string) => criteria.find((c) => c.key === k)?.label ?? k;
-  const objections = ["đắt", "giá cao", "suy nghĩ", "hỏi lại", "chưa cần", "bận"].filter((k) => t.includes(k));
+  const lib = objectionLibrary(cfg ?? { businessName: "bên em", terminology: { contact: "Khách", deal: "dịch vụ" } });
+  const khText = segs.filter((x) => x.speaker === "KH").map((x) => x.text).join(" ") || transcript;
+  const objections = detectObjections(khText, lib).map((o) => o.label);
+  const cs = customerSentiment(segs);
   return {
     total: total(criteria, scores),
     criteria: scores,
     summary: `Cuộc gọi ${transcript.split(/\s+/).length} từ, kết quả: ${outcomeOf(outcome).label.toLowerCase()}.`,
     strengths: strong.map((s) => label(s.key)),
     improvements: weak.map((s) => `${label(s.key)}: ${criteria.find((c) => c.key === s.key)?.guide}`),
-    objections: objections.map((o) => `Khách nói "${o}"`),
-    sentiment: POSITIVE.has(outcome) ? "tich_cuc" : outcome === "not_interested" ? "tieu_cuc" : "trung_lap",
+    objections: objections.map((o) => `Khách băn khoăn: ${o.toLowerCase()}`),
+    sentiment: POSITIVE.has(outcome) || (cs ?? 50) >= 65 ? "tich_cuc" : outcome === "not_interested" || (cs ?? 50) <= 35 ? "tieu_cuc" : "trung_lap",
+    customerSentiment: cs,
     nextAction: POSITIVE.has(outcome) ? "Gửi tin xác nhận và nhắc lịch trước 1 ngày." : "Gọi lại sau 2–3 ngày, chuẩn bị câu trả lời cho băn khoăn của khách.",
     source: "rules",
   };
@@ -174,6 +196,12 @@ export async function scoreCall(call: Call, opts: { rulesOnly?: boolean } = {}):
   const cfg = await loadConfig(call.workspaceId);
   const card = await getScorecard(call.workspaceId, cfg);
   let result: CallScore | null = null;
+  // Hội thoại theo người nói: dùng đoạn đã lưu (từ STT hoặc lần chấm trước), không có thì dựng từ bản chép lời.
+  const stored = parseJson<(RawSegment | Segment)[] | null>(call.segmentsJson, null);
+  const final = !!stored?.length && stored.every((x) => x.speaker === "NV" || x.speaker === "KH");
+  const certain = final || hasSpeakerLabels(call.transcript) || !!stored?.some((x) => x.speaker);
+  let segs: Segment[] = final ? (stored as Segment[]) : buildSegments(call.transcript, call.durationSec, stored as RawSegment[] | null);
+  const numbered = segs.length <= 250 ? segs.map((x, i) => `[${i}] ${certain ? `${x.speaker}: ` : ""}${x.text}`).join("\n") : "";
   const c = opts.rulesOnly ? null : ai();
   if (c && cfg) {
     try {
@@ -195,22 +223,34 @@ ${calib ? `\nCHUẨN CHẤM CỦA QUẢN LÝ (học từ các lần chấm lại
 KẾT QUẢ NHÂN VIÊN GHI: ${outcomeOf(call.outcome).label}${call.note ? `. Ghi chú: ${call.note}` : ""}
 
 BẢN CHÉP LỜI:
-${call.transcript.slice(0, 30000)}`,
+${call.transcript.slice(0, 30000)}
+${numbered ? `\nCÁC CÂU ĐÃ ĐÁNH SỐ (trả "lines" cho từng câu${certain ? ", giữ người nói đã ghi trừ khi sai rõ ràng" : ": suy luận ai nói, nhân viên thường chào và xưng 'em' trước"}):\n${numbered.slice(0, 20000)}` : ""}`,
           },
         ],
       });
       const out = res.parsed_output;
       if (res.stop_reason !== "refusal" && out) {
         const criteria = card.criteria.map((k) => out.criteria.find((x) => x.key === k.key) ?? { key: k.key, score: 0, evidence: "Không có", tip: k.guide });
-        result = { ...out, criteria, total: total(card.criteria, criteria), source: "ai" };
+        segs = segs.map((x, i) => {
+          const l = out.lines.find((y) => y.i === i);
+          if (!l) return x;
+          return { ...x, speaker: certain ? x.speaker : l.speaker, sentiment: (l.sentiment > 0.3 ? 1 : l.sentiment < -0.3 ? -1 : 0) as Segment["sentiment"] };
+        });
+        const { lines: _lines, ...rest } = out;
+        void _lines;
+        result = { ...rest, customerSentiment: Math.max(0, Math.min(100, Math.round(out.customerSentiment))), criteria, total: total(card.criteria, criteria), source: "ai" };
       }
     } catch (e) {
       console.error("[Call Analyst] dùng bản luật vì AI lỗi:", e instanceof Error ? e.message : e);
     }
   }
-  result ??= ruleScore(call.transcript, call.outcome, card.criteria);
+  result ??= ruleScore(call.transcript, call.outcome, card.criteria, segs, cfg);
+  const sentiment = result.customerSentiment ?? customerSentiment(segs);
 
-  await db.call.update({ where: { id: call.id }, data: { aiScore: result.total, scoreJson: JSON.stringify(result), summary: result.summary, scorecardVersion: card.version } });
+  await db.call.update({
+    where: { id: call.id },
+    data: { aiScore: result.total, scoreJson: JSON.stringify(result), summary: result.summary, scorecardVersion: card.version, segmentsJson: segs.length ? JSON.stringify(segs) : "", sentiment },
+  });
   if (call.recordId) {
     await db.activity.create({
       data: { recordId: call.recordId, kind: "ai", body: `Call Analyst chấm cuộc gọi của ${call.agentName}: ${result.total}/100. ${result.summary}\nBước tiếp theo: ${result.nextAction}`, author: "Call Analyst" },

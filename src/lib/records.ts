@@ -2,6 +2,7 @@ import type { Record as DbRecord } from "@prisma/client";
 import { db, parseJson } from "./db";
 import { getObject, type WorkspaceConfig } from "./config/schema";
 import { onSequenceEvent } from "./marketing/sequences";
+import { runRules } from "./automation";
 
 export type FieldValue = string | number;
 export type RecordDTO = {
@@ -12,6 +13,7 @@ export type RecordDTO = {
   ownerName: string;
   amount: number;
   score: number;
+  winProb: number | null;
   data: Record<string, FieldValue>;
   createdAt: string;
   updatedAt: string;
@@ -27,6 +29,7 @@ export function toDTO(r: DbRecord & { _count?: { activities: number } }): Record
     ownerName: r.ownerName,
     amount: r.amount,
     score: r.score,
+    winProb: r.winProb ?? null,
     data: parseJson<Record<string, FieldValue>>(r.dataJson, {}),
     createdAt: r.createdAt.toISOString(),
     updatedAt: r.updatedAt.toISOString(),
@@ -45,33 +48,12 @@ export function scoreContact(data: Record<string, FieldValue>, cfg: WorkspaceCon
   return Math.max(5, Math.min(98, s));
 }
 
-type Event = { kind: "record_created" | "status_changed"; record: DbRecord };
+type Event = { kind: "record_created" | "status_changed"; record: DbRecord; from?: string };
 
-/** Chạy các công thức tự động hoá khớp sự kiện. */
+/** Chạy các công thức tự động hoá khớp sự kiện (luật cũ và luật nhiều điều kiện/hành động, xem src/lib/automation.ts). */
 export async function runAutomations(workspaceId: string, cfg: WorkspaceConfig, ev: Event) {
   await onSequenceEvent(workspaceId, ev).catch((e) => console.error("[sequences]", e instanceof Error ? e.message : e));
-  const rules = await db.automation.findMany({
-    where: { workspaceId, enabled: true, triggerType: ev.kind, triggerObject: ev.record.objectKey },
-  });
-  for (const r of rules) {
-    if (ev.kind === "status_changed" && r.triggerValue && r.triggerValue !== ev.record.status) continue;
-    if (r.actionType === "create_task") {
-      const [text, days] = r.actionValue.split("|");
-      const due = new Date();
-      due.setDate(due.getDate() + (Number(days) || 0));
-      await db.task.create({
-        data: { workspaceId, recordId: ev.record.id, title: text.replaceAll("{title}", ev.record.title), dueAt: due, source: "Tự động hoá" },
-      });
-    } else if (r.actionType === "notify") {
-      await db.activity.create({ data: { recordId: ev.record.id, kind: "system", body: `Thông báo tự động: ${r.actionValue}`, author: "Tự động hoá" } });
-      await db.agentLog.create({ data: { workspaceId, agent: "Tự động hoá", message: `${r.actionValue} (${ev.record.title})` } });
-    } else if (r.actionType === "assign_owner" && !ev.record.ownerName) {
-      const count = await db.record.count({ where: { workspaceId, objectKey: ev.record.objectKey } });
-      const owner = cfg.team[count % Math.max(cfg.team.length, 1)] ?? "Bạn";
-      await db.record.update({ where: { id: ev.record.id }, data: { ownerName: owner } });
-    }
-    await db.automation.update({ where: { id: r.id }, data: { runs: { increment: 1 } } });
-  }
+  await runRules(workspaceId, cfg, ev).catch((e) => console.error("[automation]", e instanceof Error ? e.message : e));
 }
 
 export async function createRecord(

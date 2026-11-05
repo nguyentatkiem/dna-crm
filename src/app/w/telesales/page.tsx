@@ -2,9 +2,13 @@ import { isOwner, requireApp } from "@/lib/auth";
 import { db, parseJson } from "@/lib/db";
 import { getObject } from "@/lib/config/schema";
 import { getScorecard, outcomeOf, POSITIVE, sttConfigured, TALKED, teamStats } from "@/lib/calls";
+import { customerSentiment, segmentsOf, talkStats } from "@/lib/calls-shared";
+import { recordScope } from "@/lib/permissions";
+import { getSettings } from "@/lib/settings";
 import { Telesales, type QueueItem } from "./Telesales";
 
 const STOP = new Set(["not_interested", "wrong", "won"]);
+const mean = (v: number[]) => (v.length ? Math.round(v.reduce((x, y) => x + y, 0) / v.length) : null);
 
 export default async function TelesalesPage({ searchParams }: { searchParams: Promise<{ tab?: string; record?: string }> }) {
   const { tab, record } = await searchParams;
@@ -14,8 +18,10 @@ export default async function TelesalesPage({ searchParams }: { searchParams: Pr
   const phoneKey = obj.fields.find((f) => f.type === "phone")?.key;
   const lostKeys = new Set(obj.statuses.filter((s) => s.color === "gray" || s.color === "red").map((s) => s.key));
 
+  // Nhân viên chỉ thấy khách của mình khi chủ bật quyền đó.
+  const scope = await recordScope({ user, workspace });
   const [contacts, calls, stats, lessons, owner] = await Promise.all([
-    db.record.findMany({ where: { workspaceId: wid, objectKey: "contacts" }, orderBy: { createdAt: "desc" }, take: 500 }),
+    db.record.findMany({ where: { AND: [scope, { objectKey: "contacts" }] }, orderBy: { createdAt: "desc" }, take: 500 }),
     db.call.findMany({ where: { workspaceId: wid }, orderBy: { startedAt: "desc" }, take: 300 }),
     teamStats(wid),
     db.lesson.findMany({ where: { workspaceId: wid }, orderBy: { createdAt: "desc" }, take: 10 }),
@@ -60,9 +66,16 @@ export default async function TelesalesPage({ searchParams }: { searchParams: Pr
   }
 
   // Bảng xếp hạng theo nhân viên.
-  const agents = new Map<string, { name: string; calls: number; talked: number; positive: number; talk: number; scores: number[]; reviewed: number }>();
+  const agents = new Map<string, { name: string; calls: number; talked: number; positive: number; talk: number; scores: number[]; reviewed: number; ratios: number[]; sents: number[] }>();
   for (const c of stats.calls) {
-    const a = agents.get(c.agentName) ?? { name: c.agentName, calls: 0, talked: 0, positive: 0, talk: 0, scores: [], reviewed: 0 };
+    const a = agents.get(c.agentName) ?? { name: c.agentName, calls: 0, talked: 0, positive: 0, talk: 0, scores: [], reviewed: 0, ratios: [], sents: [] };
+    if (c.transcript || c.segmentsJson) {
+      const segs = segmentsOf(c);
+      const r = talkStats(segs).ratio;
+      if (r != null) a.ratios.push(r);
+      const sent = c.sentiment ?? customerSentiment(segs);
+      if (sent != null) a.sents.push(sent);
+    }
     a.calls++;
     if (TALKED.has(c.outcome)) a.talked++;
     if (POSITIVE.has(c.outcome)) a.positive++;
@@ -73,12 +86,13 @@ export default async function TelesalesPage({ searchParams }: { searchParams: Pr
     agents.set(c.agentName, a);
   }
   const board = [...agents.values()]
-    .map((a) => ({ ...a, avg: a.scores.length ? Math.round(a.scores.reduce((x, y) => x + y, 0) / a.scores.length) : null }))
+    .map(({ ratios, sents, ...a }) => ({ ...a, avg: mean(a.scores), talkRatio: mean(ratios), sentiment: mean(sents) }))
     .sort((a, b) => b.positive - a.positive || (b.avg ?? 0) - (a.avg ?? 0));
 
   const titles = new Map(contacts.map((c) => [c.id, c.title]));
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+  const sip = getSettings(workspace).sip ?? {};
   const mine = calls.filter((c) => c.agentName === user.name && c.startedAt >= today);
 
   return (
@@ -99,6 +113,8 @@ export default async function TelesalesPage({ searchParams }: { searchParams: Pr
       stt={sttConfigured()}
       aiOn={!!process.env.ANTHROPIC_API_KEY}
       contactLabel={config.terminology.contact}
+      sip={{ configured: !!(sip.wsUri && sip.domain && sip.extension && sip.password), wsUri: sip.wsUri ?? "", domain: sip.domain ?? "", extension: sip.extension ?? "", displayName: sip.displayName ?? "", password: sip.password ? `••••${sip.password.slice(-2)}` : "" }}
+      objCtx={{ businessName: config.businessName, terminology: { contact: config.terminology.contact, deal: config.terminology.deal } }}
     />
   );
 }

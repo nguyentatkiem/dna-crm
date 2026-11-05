@@ -9,7 +9,18 @@
     "setup": "tsx scripts/setup.ts && prisma db push",
     "demo": "tsx scripts/demo.ts",
     "reset-password": "tsx scripts/reset-password.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "smoke": "tsx scripts/smoke.ts",
+    "db:postgres": "tsx scripts/use-db.ts postgres",
+    "db:sqlite": "tsx scripts/use-db.ts sqlite",
+    "backup": "tsx scripts/backup.ts",
+    "restore": "tsx scripts/restore.ts",
+    "docker:up": "docker compose up -d --build",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f crm",
+    "docker:backup": "docker compose exec crm npm run backup"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "1.4.0",

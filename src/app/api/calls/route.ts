@@ -1,8 +1,10 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { appApi, fail, ok } from "@/lib/http";
-import { OUTCOMES, outcomeOf, saveRecording, scoreCall, sttConfigured, transcribe } from "@/lib/calls";
+import { OUTCOMES, outcomeOf, saveRecording, scoreCall, sttConfigured, transcribeDetailed } from "@/lib/calls";
 import { normPhone } from "@/lib/sources/ingest";
+import { fireEvent } from "@/lib/automation";
+import { findScopedRecord } from "@/lib/permissions";
 
 const Body = z.object({
   recordId: z.string().optional(),
@@ -12,6 +14,9 @@ const Body = z.object({
   note: z.string().max(4000).default(""),
   callbackAt: z.string().optional(),
   transcript: z.string().max(100000).default(""),
+  // "sip": gọi bằng softphone trên trình duyệt; "manual": gọi tel: rồi ghi tay.
+  provider: z.enum(["manual", "sip"]).default("manual"),
+  direction: z.enum(["out", "in"]).default("out"),
 });
 
 export async function GET(req: Request) {
@@ -42,7 +47,7 @@ export async function POST(req: Request) {
   const b = parsed.data;
   if (file && file.size > 60 * 1024 * 1024) return fail("File ghi âm tối đa 60MB");
 
-  const rec = b.recordId ? await db.record.findFirst({ where: { id: b.recordId, workspaceId: ws.id } }) : null;
+  const rec = b.recordId ? await findScopedRecord(a.ctx, b.recordId) : null;
   const callbackAt = b.callbackAt ? new Date(b.callbackAt) : null;
   let call = await db.call.create({
     data: {
@@ -55,6 +60,8 @@ export async function POST(req: Request) {
       note: b.note,
       callbackAt: callbackAt && !isNaN(+callbackAt) ? callbackAt : null,
       transcript: b.transcript,
+      provider: b.provider,
+      direction: b.direction,
     },
   });
 
@@ -64,8 +71,9 @@ export async function POST(req: Request) {
     call = await db.call.update({ where: { id: call.id }, data: { recordingPath: name } });
     if (!call.transcript && sttConfigured()) {
       try {
-        const text = await transcribe(buf, file.name);
-        if (text) call = await db.call.update({ where: { id: call.id }, data: { transcript: text } });
+        const r = await transcribeDetailed(buf, file.name);
+        // Đoạn thô (mốc thời gian, nhãn diarization) lưu tạm vào segmentsJson, scoreCall sẽ gán NV/KH và cảm xúc.
+        if (r) call = await db.call.update({ where: { id: call.id }, data: { transcript: r.text, segmentsJson: r.segments ? JSON.stringify(r.segments) : "" } });
       } catch (e) {
         sttError = e instanceof Error ? e.message : String(e);
       }
@@ -83,5 +91,6 @@ export async function POST(req: Request) {
     await db.task.create({ data: { workspaceId: ws.id, recordId: rec?.id, title: `Gọi lại ${rec?.title ?? call.phone}`, dueAt: call.callbackAt, source: "Telesales" } });
   }
   const score = await scoreCall(call);
+  if (rec) await fireEvent(ws.id, a.ctx.config, { kind: "call_logged", record: rec, outcome: call.outcome }).catch((e) => console.error("[automation]", e instanceof Error ? e.message : e));
   return ok({ id: call.id, score, sttError, needsTranscript: !!file && !call.transcript }, 201);
 }

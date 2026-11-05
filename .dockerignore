@@ -1,0 +1,18 @@
+# Không đưa vào ảnh Docker: thư viện / bản build trên máy, dữ liệu thật, khoá bí mật.
+node_modules
+.next
+.git
+.claude
+.env
+.env.*
+!.env.example
+prisma/*.db
+prisma/*.db-journal
+uploads
+backups
+data
+*.tsbuildinfo
+next-env.d.ts
+docs/screenshots
+npm-debug.log*
+.DS_Store

@@ -9,11 +9,15 @@ Bạn trả lời 6 nhóm câu hỏi về doanh nghiệp (ngành, sản phẩm, 
 
 Giao diện theo phong cách Work OS (board chia nhóm màu, ô trạng thái tô màu, Kanban, lịch), quen thuộc với người đã dùng các công cụ quản lý công việc hiện đại.
 
-Đi kèm hai module bán hàng thực chiến:
-- **Telesales**: hàng gọi ưu tiên, ghi nhận cuộc gọi và ghi âm, **AI chấm điểm từng cuộc gọi** theo phiếu chấm, quản lý chấm lại, **vòng phản hồi** tự rút bài học để cập nhật phiếu chấm và kịch bản.
-- **Hub nguồn khách**: lead từ **Facebook, Google, TikTok Ads**, **Zalo OA**, sàn **Shopee, Lazada, TikTok Shop**, web bán hàng **Haravan, Sapo, Shopify, WooCommerce**, website/landing page và **tổng đài** đổ về một chỗ, tự chống trùng, gắn kênh và chiến dịch.
+Đi kèm các module bán hàng thực chiến:
+- **Hộp thư hợp nhất**: tin nhắn **Zalo OA** và **Facebook Messenger** về một màn hình, AI soạn sẵn câu trả lời, tự gắn vào đúng khách.
+- **Telesales**: **gọi ngay trên trình duyệt** (SIP/WebRTC), **gọi liên tục** theo hàng chờ, **trợ lý gợi ý khi đang gọi**, ghi âm, **AI chấm điểm từng cuộc gọi**, tách giọng nhân viên/khách và đo cảm xúc, **vòng phản hồi** tự cập nhật phiếu chấm và kịch bản.
+- **Hub nguồn khách**: lead từ **Facebook, Google, TikTok Ads**, **Zalo OA**, sàn **Shopee, Lazada, TikTok Shop**, web bán hàng **Haravan, Sapo, Shopify, WooCommerce**, website và **tổng đài** đổ về một chỗ, chống trùng, gắn kênh và chiến dịch.
+- **Marketing & ROAS**: kéo chi phí từ Facebook/Google Ads, ghép với lead và doanh thu: **CPL, CAC, ROAS từng chiến dịch**; **kịch bản chăm sóc tự động** qua Zalo, ZNS, SMS, email.
 
-![Board giai đoạn bán hàng](docs/screenshots/06-board-giai-doan.png)
+Và bộ công cụ Work OS: **Gantt**, kanban kéo thả, bảng hàng nghìn dòng, **cột công thức**, **tài liệu gắn khách**, **dashboard tự chọn widget**, **tự động hoá "Khi… thì…"** nhiều điều kiện/hành động, **phân quyền**, **nhật ký thao tác**, **dự báo khả năng chốt**, **Docker một lệnh**, **sao lưu tự động**.
+
+![Trang chủ trung tâm chỉ huy](docs/screenshots/29-trang-chu-trung-tam.png)
 
 ---
 
@@ -25,6 +29,7 @@ Giao diện theo phong cách Work OS (board chia nhóm màu, ô trạng thái t�
 - [Bật AI (tuỳ chọn)](#bật-ai-tuỳ-chọn)
 - [Kết nối nguồn khách, tổng đài, chép lời](#kết-nối-nguồn-khách-tổng-đài-chép-lời)
 - [Đưa lên mạng cho cả đội dùng](#đưa-lên-mạng-cho-cả-đội-dùng)
+- [Vận hành: Docker, Postgres, sao lưu, kiểm thử](docs/VAN-HANH.md)
 - [Câu hỏi thường gặp](#câu-hỏi-thường-gặp)
 - [Cấu trúc mã nguồn](#cấu-trúc-mã-nguồn)
 - [Đề xuất nâng cấp & repo tham khảo](docs/DE-XUAT-NANG-CAP.md)
@@ -44,18 +49,28 @@ Giao diện theo phong cách Work OS (board chia nhóm màu, ô trạng thái t�
 - Mỗi giai đoạn là một **nhóm có màu riêng**. Ô trạng thái **tô kín màu**, bấm vào để đổi.
 - **Sửa trực tiếp mọi ô**, gán người phụ trách bằng avatar, có hàng "+ Thêm" ở cuối mỗi nhóm.
 - **Hàng tổng** cho tiền và số, cùng **thanh tỉ lệ** trạng thái của cả bảng.
-- **3 chế độ xem**: Bảng chính · Kanban kéo thả · Lịch tháng.
-- Tìm kiếm, lọc theo người phụ trách, sắp xếp (mới nhất, tên, giá trị, điểm AI).
-- **Panel chi tiết**: tab Cập nhật (như một dòng thời gian), Thông tin và Việc cần làm.
+- **4 chế độ xem**, lưu trên URL để gửi link cho đồng nghiệp:
+  - **Bảng chính**: nhóm theo trạng thái hoặc người phụ trách, ẩn/hiện cột, chọn nhiều dòng để đổi trạng thái/giao người/xoá hàng loạt, nhóm trên 200 dòng tự cuộn ảo nên hàng nghìn dòng vẫn mượt.
+  - **Kanban** kéo thả (cả trên điện thoại), tổng tiền mỗi cột, **% khả năng chốt** trên thẻ giao dịch.
+  - **Lịch** tháng/tuần, kéo mục sang ngày khác.
+  - **Gantt / Timeline**: thang Ngày/Tuần/Tháng, vạch hôm nay, kéo thanh để dời ngày, kéo mép để đổi hạn.
+- **Cột công thức** kiểu Excel: `{so_luong} * {don_gia}`, `IF({diem} > 70; "Nóng"; "Theo dõi")`, `DAYS(TODAY(); {tao_luc})`... Gần 400 hàm (formula.js), kiểm tra cú pháp và xem trước khi lưu, tự cộng ở hàng tổng.
+- **Lọc nâng cao** nhiều điều kiện (bằng, khác, lớn hơn, chứa, rỗng...), sắp xếp, tìm kiếm.
+- **Panel chi tiết**: tab Cập nhật, Thông tin, Việc cần làm và **Tài liệu**.
+- **Tài liệu** (trình soạn thảo kiểu Notion): gắn vào từng khách hoặc dùng chung, tự lưu, 4 mẫu sẵn (Kịch bản tư vấn, Biên bản họp, Báo giá, Quy trình chăm sóc).
 
 ### Dữ liệu vào và ra
-- **Nhập từ Excel / Google Sheets**: chọn file CSV hoặc dán thẳng bảng đã sao chép. Hệ thống tự ghép cột và tự bỏ qua khách trùng số điện thoại.
-- **Xuất Excel (CSV)** ở mọi bảng, mở bằng Excel vẫn đúng tiếng Việt.
+- **Nhập từ Excel (.xlsx) / CSV / Google Sheets**: xem trước 10 dòng, tự ghép cột, **gộp khách trùng số điện thoại** (0912…, +84912…, 84912… là một người), có file mẫu .xlsx.
+- **Xuất Excel .xlsx thật**: tiêu đề in đậm, định dạng tiền ₫ và ngày, cố định hàng đầu, cột công thức xuất giá trị đã tính. Vẫn xuất được CSV.
 - **Form thu lead công khai**: một link để gắn vào fanpage hoặc bio, hoặc mã nhúng cho website. Khách điền xong sẽ tự vào bảng, được chấm điểm và chạy tự động hoá. Form có bẫy chống bot.
 
 ### Telesales: gọi, ghi âm, chấm điểm, vòng phản hồi
 - **Hàng gọi ưu tiên** tự sắp: hẹn gọi lại đến hạn → lead chưa gọi (điểm cao trước) → gọi lỡ cần thử lại (tối đa 3 lần). Khách đã từ chối, sai số, đã chốt tự rời hàng.
-- **Bàn gọi**: bấm Gọi (mở ứng dụng gọi trên điện thoại hoặc softphone), bấm giờ, kịch bản gọi ngay bên cạnh, chọn kết quả (8 loại), ghi chú, hẹn gọi lại (tự tạo việc), tải file ghi âm hoặc dán bản chép lời.
+- **Bàn gọi**: bấm giờ, kịch bản gọi ngay bên cạnh, chọn kết quả (8 loại), ghi chú, hẹn gọi lại (tự tạo việc), tải file ghi âm hoặc dán bản chép lời.
+- **Gọi ngay trên trình duyệt (softphone)**: khai báo máy nhánh SIP qua WebSocket của tổng đài (Stringee, OMICall, VoIP24h, Asterisk, FreeSWITCH). Có nút gọi, gác máy, tắt mic, giữ máy, bàn phím số, **nhận cuộc gọi đến kèm tên khách**. Trình duyệt **tự ghi âm cả hai phía**, gác máy là thời lượng và file ghi âm được điền sẵn. Chưa có tổng đài thì nút Gọi mở ứng dụng gọi của điện thoại như cũ.
+- **Gọi liên tục (power dialer)**: tự mở khách kế tiếp, đếm ngược 5 giây, tự quay số; có tạm dừng, bỏ qua, thống kê phiên (đã gọi, kết nối, hẹn/chốt, thời gian TB).
+- **Trợ lý khi đang gọi**: 9 kiểu từ chối hay gặp ("đắt quá", "để suy nghĩ", "hỏi ý chồng/vợ"...) với cách xử lý mẫu; gõ câu khách nói là có gợi ý ngay; khi bật chép lời, cứ 15 giây CRM nghe đoạn hội thoại và **tự gợi ý câu nói tiếp**.
+- **Tách giọng + cảm xúc**: hội thoại hiển thị theo người nói (bấm câu để tua ghi âm), **biểu đồ cảm xúc khách** theo thời gian, **tỉ lệ nói NV/KH** (tốt khi 40–60%), số câu hỏi nhân viên đặt ra.
 - **Call Analyst chấm điểm** theo phiếu 6 tiêu chí có trọng số (Mở đầu, Khai thác nhu cầu, Tư vấn, Xử lý từ chối, Chốt, Thái độ). Mỗi tiêu chí có điểm 0–10, **câu trích nguyên văn làm bằng chứng** và mẹo cải thiện. Kèm tóm tắt, điểm mạnh, băn khoăn của khách và bước tiếp theo.
 - Cuộc gọi dưới 60 điểm: **tự giao việc luyện kỹ năng** cho đúng nhân viên, đúng tiêu chí yếu nhất.
 - **Quản lý chấm lại**: kéo điểm, ghi lý do. Các lần chấm lệch nhiều được đưa vào prompt làm **chuẩn chấm** để AI chấm sát ý chủ hơn.
@@ -74,11 +89,30 @@ Giao diện theo phong cách Work OS (board chia nhóm màu, ô trạng thái t�
 - **Chống trùng và gộp**: chuẩn hoá SĐT Việt Nam (+84, 84, dấu chấm...), lead quay lại được gộp vào khách cũ kèm ghi chú. Mỗi sự kiện có mã riêng nên nền tảng gửi lại cũng không nhân đôi.
 - **Báo cáo theo nguồn**: lead 30 ngày theo kênh, theo nguồn/chiến dịch: số lead, khách nóng, tỷ lệ gọi được, tỷ lệ hẹn/chốt, doanh thu đơn hàng. Có nhật ký nhận lead để đối soát lỗi.
 
-### Tự động hoá
-- Công thức dạng câu: **"Khi giai đoạn đổi thành Đặt cọc, thì tạo việc Gửi hợp đồng hạn sau 1 ngày"**.
-- Kích hoạt khi có mục mới hoặc khi đổi trạng thái. Hành động có thể là tạo việc có hạn, gửi thông báo, hoặc chia người phụ trách xoay vòng.
-- **Tạo công thức bằng lời**: gõ mô tả, Automation Builder tự dựng công thức.
-- Bật/tắt từng công thức và đếm số lần đã chạy.
+### Hộp thư hợp nhất (Zalo OA + Messenger)
+- Mỗi người nhắn là một hội thoại; lọc **Chưa đọc / Của tôi / Đã xong**, theo kênh, tìm theo tên hoặc nội dung.
+- **AI soạn trả lời** dựa trên lịch sử chat, hồ sơ khách và DNA doanh nghiệp (không có AI thì dùng mẫu theo ý định: hỏi giá, địa chỉ, đặt lịch, khuyến mãi...). **Mẫu trả lời nhanh**, **ghi chú nội bộ**, giao hội thoại cho thành viên, đánh dấu đã xong.
+- Lần đầu khách nhắn là thành khách trong CRM; khách nhắn số điện thoại thì tự điền vào hồ sơ. Cột phải hiện thẻ khách, nút **Gọi** và **Mở hồ sơ**.
+- Khách trả lời thì **kịch bản chăm sóc tự dừng**, người phụ trách nhận thông báo.
+- Messenger quá 24 giờ: báo rõ và cho gửi lại với tag HUMAN_AGENT.
+
+### Marketing & ROAS
+- **Kéo chi phí quảng cáo** từ Facebook Marketing API và Google Ads API (6 tiếng một lần hoặc bấm "Đồng bộ ngay"); TikTok và nền tảng khác nhập CSV hoặc nhập tay.
+- KPI: **Tổng chi, Lead, CPL, Khách chốt, Doanh thu, ROAS, CAC**; biểu đồ chi phí và doanh thu theo ngày; bảng theo chiến dịch tô màu ROAS (đỏ < 1, cam 1–3, xanh > 3), so với **lead tự nhiên**.
+- **Marketing Analyst** nhận xét chiến dịch nên tăng hoặc giảm ngân sách.
+- **Kịch bản chăm sóc tự động**: dạng timeline "chờ X giờ → gửi qua kênh → nội dung có biến `{ten}`, `{ten_doanh_nghiep}`...". Kích hoạt khi có khách mới, đổi trạng thái, khách im lặng N ngày hoặc thêm tay. 4 mẫu sẵn: chào lead mới, chưa chốt sau 3 ngày, xin đánh giá sau mua, khách im lặng 14 ngày. **AI viết nội dung**.
+- Kênh gửi: **Zalo OA**, **Zalo ZNS**, **SMS** (eSMS, SpeedSMS hoặc API tuỳ biến), **email SMTP**. Nhật ký gửi đầy đủ; đặt `MESSAGING_DRY_RUN=1` để chạy thử không gửi thật.
+
+### Dashboard tự chọn widget
+- 12 loại widget: số KPI (so với kỳ trước), cột, đường, vùng, tròn, phễu, bảng xếp hạng, bảng, mục tiêu, việc quá hạn, hoạt động.
+- Mỗi widget có bộ lọc riêng (bảng, khoảng thời gian, người phụ trách, kênh). Chế độ **Chỉnh sửa**: kéo thả sắp xếp, kéo góc đổi kích thước.
+- **AI tạo dashboard** từ một câu mô tả; 3 mẫu sẵn: Tổng quan kinh doanh, Telesales, Marketing & ROAS.
+
+### Tự động hoá "Khi… thì…"
+- Trình tạo dạng câu kiểu monday: **Khi** [sự kiện] **và** [điều kiện] **thì** [hành động] **và** [hành động]. Bấm từng phần để chọn, kéo thả sắp thứ tự hành động.
+- 7 sự kiện: có mục mới, đổi trạng thái (từ → sang), đổi trường, điểm AI vượt ngưỡng, có cuộc gọi với kết quả…, khách nhắn tin, đến ngày (trước/sau N ngày của một trường ngày).
+- 10 hành động: tạo việc (giao cho ai), thông báo, giao người phụ trách (xoay vòng / ít việc nhất), đổi trạng thái, đổi trường, **gửi tin Zalo/ZNS/SMS/email**, **đưa vào kịch bản chăm sóc**, **gọi webhook** (n8n, Make...), ghi chú, tạo giao dịch từ khách.
+- Chống vòng lặp, lịch sử 20 lần chạy gần nhất, thư viện mẫu theo ngành. **Mô tả bằng lời → AI tạo luật**.
 
 ### Đội AI Agent
 
@@ -93,6 +127,12 @@ Giao diện theo phong cách Work OS (board chia nhóm màu, ô trạng thái t�
 | Call Analyst | Chép lời ghi âm, chấm điểm cuộc gọi theo phiếu, trích bằng chứng, giao việc luyện kỹ năng | Đang chạy |
 | Vòng phản hồi | Học từ cuộc gọi thắng/thua và điểm quản lý chấm lại, đề xuất phiếu chấm và kịch bản mới | Đang chạy |
 | Hub nguồn khách | Nhận lead từ Ads, Zalo OA, sàn TMĐT, website; chống trùng, gắn kênh, chiến dịch | Đang chạy |
+| Inbox Assistant | Soạn câu trả lời Zalo/Messenger theo ngữ cảnh khách | Đang chạy |
+| Live Call Assist | Nghe cuộc gọi, nhận ra lời từ chối, gợi ý câu nói tiếp | Đang chạy |
+| Marketing Analyst | Phân tích CPL/ROAS, đề xuất tăng giảm ngân sách | Đang chạy |
+| Nurture Writer | Viết nội dung kịch bản chăm sóc | Đang chạy |
+| Forecast | Dự báo khả năng chốt từng giao dịch và doanh thu theo tháng | Đang chạy |
+| Dashboard Builder | Dựng dashboard từ một câu mô tả | Đang chạy |
 | Care & Retention, Data Analyst, Data Hygiene, Sales Chat 24/7, Content & Campaign, Document Agent, Manager Agent | | Sắp ra mắt |
 
 Mỗi agent có công tắc bật/tắt và **mức tự chủ** (Chỉ gợi ý / Làm rồi báo / Tự làm), kèm nhật ký hoạt động.
@@ -100,14 +140,22 @@ Mỗi agent có công tắc bật/tắt và **mức tự chủ** (Chỉ gợi ý
 > **Không có API key vẫn dùng được.** Khi chưa cấu hình Claude, các agent chạy bằng template ngành và luật có sẵn. Thêm key để agent hiểu mọi câu hỏi và viết nội dung tự nhiên hơn.
 
 ### Làm việc theo đội
-- Người đăng ký đầu tiên là **chủ workspace**.
-- Mời nhân viên bằng **link mời dùng một lần**, hết hạn sau 7 ngày.
-- Chủ workspace có thể đặt lại mật khẩu hoặc xoá thành viên.
-- **Việc của tôi**: gom việc theo Quá hạn / Hôm nay / Tuần này / Sau đó.
-- **Chuông thông báo**: việc đến hạn và hoạt động mới của agent.
+- 3 vai trò **Chủ / Quản lý / Nhân viên**, bảng quyền rõ ràng. Mời bằng **link dùng một lần** (chọn vai trò), hết hạn sau 7 ngày.
+- Công tắc **"Nhân viên chỉ thấy khách của mình"**: áp dụng cho bảng, tìm kiếm, hộp thư, telesales, dashboard, trợ lý AI và xuất Excel.
+- **Nhật ký thao tác**: ai tạo/sửa/xoá gì, lúc nào, xem giá trị cũ → mới; lọc, xuất CSV.
+- **Việc của tôi**: giao việc cho từng người, quản lý xem việc của mọi người.
+- **Thông báo**: được giao khách/việc, khách nhắn tin, việc sắp đến hạn và hẹn gọi lại (nhắc trước 30 phút), tự động hoá.
+- **Dự báo khả năng chốt**: học từ chính các giao dịch đã thắng/thua của bạn (hồi quy logistic khi có từ 20 giao dịch đã đóng, ít hơn thì dùng mô hình theo giai đoạn). Trang chủ có pipeline, doanh thu kỳ vọng theo tháng và top giao dịch.
+
+### Vận hành
+- **Docker một lệnh** (`docker compose up -d`), kèm tuỳ chọn chép lời (speaches), đường hầm webhook (cloudflared) và Postgres.
+- **Sao lưu tự động** mỗi ngày (giữ 14 bản), sao lưu/tải về/khôi phục ngay trong **Cài đặt → Sao lưu**.
+- Chuyển **SQLite ↔ Postgres** bằng một lệnh. **Kiểm thử tự động** (`npm test`, `npm run smoke`).
 
 ### Khác
-- Giao diện sáng và tối tự theo máy, dùng được trên điện thoại.
+- **Bảng lệnh Ctrl/⌘ + K**: tìm khách (không dấu cũng ra), số điện thoại, tài liệu, trang, và hành động nhanh.
+- Thanh bên thu gọn được; trên điện thoại có thanh điều hướng dưới cùng.
+- Giao diện sáng / tối / theo máy.
 - Dữ liệu nằm hoàn toàn trên máy hoặc server của bạn.
 
 ---
@@ -190,6 +238,45 @@ Mỗi agent có công tắc bật/tắt và **mức tự chủ** (Chỉ gợi ý
 |---|---|
 | ![Kết nối Zalo OA](docs/screenshots/27-ket-noi-zalo-oa.png) | <img src="docs/screenshots/28-telesales-dien-thoai.png" width="300" alt="Telesales trên điện thoại"> |
 
+### 7. Bản nâng cấp Work OS
+
+**Trang chủ trung tâm chỉ huy**: KPI có biểu đồ nhỏ 14 ngày, dự báo doanh thu, việc hôm nay, hẹn gọi lại, tin chưa đọc (ảnh đầu trang).
+
+**Hộp thư hợp nhất** Zalo OA + Messenger, thẻ khách bên phải, AI soạn trả lời:
+![Hộp thư](docs/screenshots/30-hop-thu.png)
+
+| Telesales: gọi trên trình duyệt, gọi liên tục, trợ lý từ chối | Hội thoại theo người nói + cảm xúc khách |
+|---|---|
+| ![Telesales](docs/screenshots/31-telesales-goi-lien-tuc.png) | ![Hội thoại](docs/screenshots/32-hoi-thoai-cam-xuc.png) |
+
+**Marketing & ROAS**: chi phí, CPL, ROAS từng chiến dịch, nhận xét của Marketing Analyst:
+![Marketing ROAS](docs/screenshots/33-marketing-roas.png)
+
+| Kịch bản chăm sóc tự động | Dashboard tự chọn widget |
+|---|---|
+| ![Chăm sóc tự động](docs/screenshots/34-cham-soc-tu-dong.png) | ![Dashboard](docs/screenshots/35-dashboard.png) |
+
+| Tự động hoá "Khi… thì…" | Gantt / Timeline |
+|---|---|
+| ![Tự động hoá](docs/screenshots/36-tu-dong-hoa-khi-thi.png) | ![Gantt](docs/screenshots/37-gantt.png) |
+
+| Kanban kèm % khả năng chốt | Tài liệu |
+|---|---|
+| ![Kanban](docs/screenshots/38-kanban-kha-nang-chot.png) | ![Tài liệu](docs/screenshots/39-tai-lieu.png) |
+
+| Bảng lệnh Ctrl+K | Phân quyền & thành viên |
+|---|---|
+| ![Bảng lệnh](docs/screenshots/40-bang-lenh.png) | ![Phân quyền](docs/screenshots/41-phan-quyen.png) |
+
+| Nhật ký thao tác | Sao lưu & khôi phục |
+|---|---|
+| ![Nhật ký](docs/screenshots/42-nhat-ky-thao-tac.png) | ![Sao lưu](docs/screenshots/43-sao-luu.png) |
+
+**Giao diện tối** và **điện thoại**:
+![Dashboard tối](docs/screenshots/45-dashboard-toi.png)
+
+<p align="center"><img src="docs/screenshots/46-dien-thoai-trang-chu.png" width="280" alt="Trang chủ trên điện thoại"> <img src="docs/screenshots/44-dien-thoai-hop-thu.png" width="280" alt="Hộp thư trên điện thoại"></p>
+
 ---
 
 ## Cài đặt và chạy
@@ -238,6 +325,26 @@ Nhân viên quên mật khẩu thì chủ workspace đặt lại trong **Cài đ
 npm run build
 npm start
 ```
+
+**Hoặc chạy bằng Docker** (không cần cài Node.js):
+
+```bash
+docker compose up -d
+```
+
+Thêm `--profile stt` để có chép lời tiếng Việt miễn phí, `--profile tunnel` để có địa chỉ https công khai cho webhook. Chi tiết, cách chuyển Postgres, sao lưu và kiểm thử: [docs/VAN-HANH.md](docs/VAN-HANH.md).
+
+**Kiểm tra mọi thứ chạy đúng:**
+
+```bash
+npm test
+```
+
+```bash
+npm run smoke
+```
+
+`npm test` chạy kiểm thử tự động; `npm run smoke` mở thử tất cả trang và API chính (cần đang chạy `npm run dev`).
 
 ---
 
@@ -291,6 +398,19 @@ Chọn một trong hai, điền vào `.env` rồi khởi động lại:
 
 Không cấu hình gì thì vẫn lưu được ghi âm; dán bản chép lời bằng tay để được chấm điểm.
 
+Máy chủ chép lời có tách người nói (ví dụ whisperX) thì CRM dùng luôn nhãn người nói; không có thì Claude (hoặc luật) tự gán câu nào của nhân viên, câu nào của khách.
+
+### 5. Gọi điện ngay trên trình duyệt
+**Telesales → Tổng đài**: điền địa chỉ WebSocket (`wss://...`) của tổng đài, tên miền SIP, số máy nhánh và mật khẩu. Thông tin này nhà cung cấp tổng đài cấp khi bạn bật WebRTC. Mật khẩu máy nhánh được dùng ở trình duyệt của nhân viên, nên mỗi nhân viên nên có máy nhánh riêng.
+
+### 6. Hộp thư Zalo OA và Messenger
+- **Zalo OA**: ở trang quản lý webhook của ứng dụng Zalo, bật thêm các sự kiện tin nhắn (`user_send_text`, `user_send_image`...) cho cùng URL webhook Zalo trong **Nguồn khách**.
+- **Messenger**: trong ứng dụng Facebook, đăng ký thêm `messages`, `messaging_postbacks`, `message_echoes` cho Trang; điền Page token trong **Nguồn khách → Facebook** để trả lời được.
+
+### 7. Chi phí quảng cáo và kênh gửi tin
+- **Marketing → Kết nối tài khoản quảng cáo**: Facebook (access token + ID tài khoản quảng cáo), Google Ads (developer token, OAuth client, refresh token, customer ID). Trong trang có hướng dẫn lấy từng khoá.
+- **Marketing → Kênh gửi tin**: mẫu ZNS mặc định, SMS (eSMS / SpeedSMS / API tuỳ biến), email SMTP. Có nút **Gửi thử**.
+
 ---
 
 ## Đưa lên mạng cho cả đội dùng
@@ -320,8 +440,11 @@ Không. Mọi dữ liệu nằm trong database của bạn. Chỉ khi bật AI, 
 **Thêm ngành mới thế nào?**
 Thêm một mục trong `INDUSTRIES` và `DNA_HINTS` ở `src/lib/dna.ts`, cùng một template trong `src/lib/config/templates.ts`. TypeScript sẽ báo lỗi nếu bạn quên một trong hai.
 
-**Đang dùng bản cũ, cập nhật lên bản có Telesales thế nào?**
-Chạy `git pull`, `npm install`, `npx prisma db push`. Các bảng mới được thêm vào, dữ liệu cũ giữ nguyên.
+**Đang dùng bản cũ, cập nhật lên bản mới thế nào?**
+Sao lưu trước (`npm run backup`), rồi chạy `git pull`, `npm install`, `npx prisma db push`. Các bảng mới được thêm vào, dữ liệu cũ giữ nguyên.
+
+**Việc chạy nền (gửi tin chăm sóc, nhắc việc, đồng bộ quảng cáo, sao lưu) có cần cài cron không?**
+Không. Các việc này tự chạy mỗi phút khi CRM đang chạy bằng `npm start`, `npm run dev` hoặc Docker. Muốn tắt thì đặt `CRM_JOBS=off`. Trên Vercel (không có tiến trình chạy liên tục), hãy chạy CRM trên VPS hoặc Docker.
 
 **Ghi âm cuộc gọi có hợp pháp không?**
 Hãy thông báo cho khách rằng cuộc gọi được ghi âm để nâng cao chất lượng dịch vụ, và chỉ dùng ghi âm cho mục đích đó. Ghi âm là dữ liệu cá nhân: giới hạn người được nghe và xoá khi không còn cần.
@@ -338,16 +461,28 @@ src/lib/dna.ts                 DNA schema, 10 ngành, gợi ý điền sẵn
 src/lib/config/schema.ts       WorkspaceConfig (Zod), trái tim của hệ thống tuỳ biến
 src/lib/config/templates.ts    10 template ngành (tầng 1, không cần AI)
 src/lib/ai.ts                  Claude tinh chỉnh cấu hình (tầng 2) + kiểm tra đầu ra
-src/lib/records.ts             Bản ghi, Lead Qualifier, bộ chạy tự động hoá
-src/lib/calls.ts               Telesales: phiếu chấm, chép lời, Call Analyst, vòng phản hồi
+src/lib/records.ts             Bản ghi, Lead Qualifier
+src/lib/automation.ts          Bộ chạy tự động hoá: sự kiện, điều kiện, 10 hành động
+src/lib/calls.ts               Telesales: phiếu chấm, chép lời, tách giọng, Call Analyst, vòng phản hồi
+src/lib/objections.ts          Thư viện xử lý từ chối cho trợ lý khi gọi
 src/lib/sources/               Hub nguồn khách: chuẩn hoá lead, chống trùng, 12 bộ đọc webhook
-src/lib/zalo.ts                Gửi tin Zalo OA, làm mới token
-src/components/board/          Board, ô dữ liệu, Kanban, Lịch, panel chi tiết, nhập Excel
-src/app/api/                   API: auth, dna, config, records, tasks, automations, agents,
-                               copilot, members, notifications, public lead form,
-                               calls (telesales), sources, hooks/[key]/[nguồn] (webhook)
-scripts/                       demo.ts, reset-password.ts
+src/lib/inbox.ts, messenger.ts Hộp thư Zalo OA + Messenger, AI soạn trả lời
+src/lib/marketing/             Chi phí quảng cáo, ROAS, gửi tin, kịch bản chăm sóc
+src/lib/widgets.ts             Tính dữ liệu widget dashboard
+src/lib/formula.ts             Bộ tính cột công thức (không dùng eval)
+src/lib/predict.ts             Dự báo khả năng chốt (hồi quy logistic)
+src/lib/permissions.ts         Vai trò, quyền, phạm vi dữ liệu
+src/lib/audit.ts, notify.ts    Nhật ký thao tác, thông báo, nhắc việc
+src/lib/backup.ts, xlsx.ts     Sao lưu/khôi phục, nhập xuất Excel
+src/lib/jobs.ts                Việc chạy nền (src/instrumentation.ts khởi động)
+src/components/board/          Board, Kanban, Gantt, Lịch, bảng ảo, panel chi tiết, tài liệu
+src/components/Softphone.tsx   Gọi điện trên trình duyệt (JsSIP)
+src/components/ui/             Thành phần dùng chung: Drawer, Tabs, Badge, EmptyState...
+src/app/api/                   API cho mọi module; hooks/[key]/[nguồn] là webhook
+scripts/                       demo, reset-password, backup, restore, use-db, smoke
+tests/, src/**/*.test.ts       Kiểm thử (vitest)
+Dockerfile, docker-compose.yml Chạy bằng Docker
 DESIGN.md                      Nguyên tắc giao diện
 ```
 
-**Công nghệ:** Next.js 15 · React 19 · TypeScript · Tailwind CSS · Prisma (SQLite / Postgres) · Zod · Claude API.
+**Công nghệ:** Next.js 15 · React 19 · TypeScript · Tailwind CSS · Prisma (SQLite / Postgres) · Zod · Claude API · JsSIP · dnd-kit · TanStack Virtual · Tiptap · Recharts · formula.js · ExcelJS · Nodemailer · Vitest. Tất cả thư viện đều giấy phép MIT (hoặc tương đương), dùng thương mại thoải mái.

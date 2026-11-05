@@ -15,6 +15,21 @@
   --line: #d0d4e4;
   --line-soft: #e7e9ef;
   --row-hover: #f5f6f8;
+  --accent: #a25ddc;
+  --accent-soft: #f3e8fd;
+  --success: #00a35c;
+  --success-soft: #d6f5e6;
+  --warning: #c27a00;
+  --warning-soft: #fff0d6;
+  --danger: #d83a52;
+  --danger-soft: #ffe0e5;
+  --info: #0073ea;
+  --info-soft: #dcebff;
+  --overlay: rgba(41, 47, 76, 0.45);
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.08);
+  --shadow-md: 0 4px 12px rgba(16, 24, 40, 0.1);
+  --shadow-lg: 0 12px 32px rgba(16, 24, 40, 0.18);
+  --scrollbar: #c3c6d4;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
@@ -30,6 +45,21 @@
     --line: #4b4e69;
     --line-soft: #3d4060;
     --row-hover: #383a56;
+    --accent: #b57de3;
+    --accent-soft: #3d3463;
+    --success: #33d391;
+    --success-soft: #1f4a3d;
+    --warning: #ffbd5c;
+    --warning-soft: #4d3d22;
+    --danger: #ff6b81;
+    --danger-soft: #4f2734;
+    --info: #5ea8ff;
+    --info-soft: #1d3a66;
+    --overlay: rgba(10, 12, 28, 0.6);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 14px 40px rgba(0, 0, 0, 0.55);
+    --scrollbar: #555874;
     color-scheme: dark;
   }
 }
@@ -45,6 +75,21 @@
   --line: #4b4e69;
   --line-soft: #3d4060;
   --row-hover: #383a56;
+  --accent: #b57de3;
+  --accent-soft: #3d3463;
+  --success: #33d391;
+  --success-soft: #1f4a3d;
+  --warning: #ffbd5c;
+  --warning-soft: #4d3d22;
+  --danger: #ff6b81;
+  --danger-soft: #4f2734;
+  --info: #5ea8ff;
+  --info-soft: #1d3a66;
+  --overlay: rgba(10, 12, 28, 0.6);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 14px 40px rgba(0, 0, 0, 0.55);
+  --scrollbar: #555874;
   color-scheme: dark;
 }
 
@@ -67,8 +112,68 @@ h3 {
 }
 :focus-visible {
   outline: 2px solid var(--primary);
-  outline-offset: 1px;
+  outline-offset: 2px;
+  border-radius: 4px;
 }
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline-offset: 0;
+}
+::selection {
+  background: var(--primary-selected);
+}
+
+/* Thanh cuộn mảnh */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--scrollbar);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hiệu ứng nhẹ */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes slide-in-right {
+  from { transform: translateX(24px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+@keyframes slide-in-up {
+  from { transform: translateY(16px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+@keyframes pop-in {
+  from { transform: scale(0.97) translateY(-4px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+@keyframes shimmer {
+  from { background-position: -200% 0; }
+  to { background-position: 200% 0; }
+}
+.anim-fade { animation: fade-in 0.16s ease-out both; }
+.anim-slide-right { animation: slide-in-right 0.2s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.anim-slide-up { animation: slide-in-up 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.anim-pop { animation: pop-in 0.14s ease-out both; }
 
 @layer components {
   .btn {
@@ -107,6 +212,66 @@ h3 {
   .tnum {
     font-variant-numeric: tabular-nums;
   }
+  /* Nhãn nhỏ dạng viên: badge (mặc định), badge-success/warning/danger/info/accent */
+  .badge {
+    @apply inline-flex h-5 items-center gap-1 whitespace-nowrap rounded-full bg-surface-2 px-2 text-[11.5px] font-medium leading-none text-ink-2;
+  }
+  .badge-success {
+    @apply badge bg-success-soft text-success;
+  }
+  .badge-warning {
+    @apply badge bg-warning-soft text-warning;
+  }
+  .badge-danger {
+    @apply badge bg-danger-soft text-danger;
+  }
+  .badge-info {
+    @apply badge bg-info-soft text-info;
+  }
+  .badge-accent {
+    @apply badge bg-accent-soft text-accent;
+  }
+  /* Số đếm tròn đỏ (tin chưa đọc...) */
+  .count-dot {
+    @apply inline-grid h-[18px] min-w-[18px] place-items-center rounded-full bg-danger px-1 text-[10.5px] font-semibold leading-none text-white;
+  }
+  /* Phím tắt */
+  .kbd {
+    @apply inline-flex h-5 min-w-5 items-center justify-center rounded border border-line bg-surface px-1 font-sans text-[11px] font-medium leading-none text-ink-2;
+    box-shadow: 0 1px 0 var(--line);
+  }
+  /* Segmented control: bọc nút trong .segmented, nút đang chọn thêm .segmented-on (hoặc aria-pressed) */
+  .segmented {
+    @apply inline-flex items-center gap-0.5 rounded-md bg-surface-2 p-0.5;
+  }
+  .segmented > button,
+  .segmented > a {
+    @apply inline-flex h-7 items-center gap-1.5 rounded px-2.5 text-[13px] text-ink-2 transition-colors hover:text-ink;
+  }
+  .segmented > .segmented-on,
+  .segmented > [aria-pressed="true"],
+  .segmented > [aria-selected="true"] {
+    @apply bg-surface text-ink;
+    box-shadow: var(--shadow-sm);
+  }
+  /* Khung xương khi đang tải */
+  .skeleton {
+    @apply rounded bg-surface-2;
+    background-image: linear-gradient(90deg, transparent 0, var(--line-soft) 50%, transparent 100%);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s linear infinite;
+  }
+  /* Thẻ nổi khi hover */
+  .card-hover {
+    @apply transition-shadow hover:border-line;
+  }
+  .card-hover:hover {
+    box-shadow: var(--shadow-md);
+  }
+  /* Tiêu đề nhỏ của khối */
+  .section-title {
+    @apply text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-2;
+  }
 }
 
 /* Bảng kiểu Work OS */
@@ -140,4 +305,27 @@ h3 {
     transition: none !important;
     animation: none !important;
   }
+}
+
+/* Khung sidebar: thu gọn thành thanh icon (html[data-sidebar="collapsed"], đặt sớm bằng script trong layout) */
+.sb {
+  width: 248px;
+  transition: width 0.18s ease;
+}
+html[data-sidebar="collapsed"] .sb {
+  width: 60px;
+}
+html[data-sidebar="collapsed"] .sb-text {
+  display: none;
+}
+html[data-sidebar="collapsed"] .sb-item {
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+}
+html:not([data-sidebar="collapsed"]) .sb-only-collapsed {
+  display: none;
+}
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
 }

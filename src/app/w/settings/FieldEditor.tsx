@@ -1,11 +1,13 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { COLOR_KEYS, FIELD_TYPES, type ColorKey, type FieldDef, type ObjectDef, type WorkspaceConfig } from "@/lib/config/schema";
 import { color } from "@/lib/colors";
 import { slug } from "@/lib/config/templates";
 import { Icon } from "@/components/Icon";
+import { BUILTIN_REFS, evalFormula, formatFormulaValue, isMoneyFormula, validateFormula, type FormulaRecord } from "@/lib/formula";
+import { vnd } from "@/lib/format";
 
 const TYPE_LABEL: Record<FieldDef["type"], string> = {
   text: "Chữ",
@@ -40,6 +42,16 @@ export function FieldEditor({ config }: { config: WorkspaceConfig }) {
   const update = (patch: Partial<ObjectDef>) => setObjects((os) => os.map((x) => (x.key === tab ? { ...x, ...patch } : x)));
 
   async function save() {
+    for (const x of objects)
+      for (const f of x.fields)
+        if (f.type === "formula") {
+          const e = validateFormula(f.formula ?? "", x, f.key);
+          if (e) {
+            setTab(x.key);
+            setMsg(`Cột “${f.label}” (${x.label}): ${e}`);
+            return;
+          }
+        }
     setBusy(true);
     const res = await fetch("/api/config/edit", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ objects }) });
     const d = await res.json().catch(() => ({}));
@@ -132,6 +144,7 @@ export function FieldEditor({ config }: { config: WorkspaceConfig }) {
                     <Icon name="trash" size={15} />
                   </button>
                 </div>
+                {f.type === "formula" && <FormulaInput obj={o} field={f} onChange={(formula) => update({ fields: o.fields.map((x, k) => (k === i ? { ...x, formula } : x)) })} />}
                 {f.type === "select" && (
                   <input
                     id={`ed-fo-${f.key}`}
@@ -156,7 +169,12 @@ export function FieldEditor({ config }: { config: WorkspaceConfig }) {
           </ul>
           <AddField
             onAdd={(label, type) =>
-              update({ fields: [...o.fields, { key: uniqueKey(label, o.fields.map((f) => f.key)), label, type, options: type === "select" ? [{ key: "lua_chon_1", label: "Lựa chọn 1", color: "blue" }] : [] }] })
+              update({
+                fields: [
+                  ...o.fields,
+                  { key: uniqueKey(label, o.fields.map((f) => f.key)), label, type, options: type === "select" ? [{ key: "lua_chon_1", label: "Lựa chọn 1", color: "blue" }] : [], ...(type === "formula" ? { formula: o.amountLabel ? "{gia_tri} * 0.1" : "" } : {}) },
+                ],
+              })
             }
           />
         </div>
@@ -189,6 +207,119 @@ function AddField({ onAdd }: { onAdd: (label: string, type: FieldDef["type"]) =>
       >
         <Icon name="plus" size={16} /> Thêm cột
       </button>
+    </div>
+  );
+}
+
+// Bản ghi mẫu để xem trước công thức: lấy mục đầu tiên của bảng, không có thì dựng giá trị giả theo kiểu trường.
+const sampleCache = new Map<string, Promise<FormulaRecord | null>>();
+function loadSample(key: string) {
+  if (!sampleCache.has(key))
+    sampleCache.set(
+      key,
+      fetch(`/api/records?object=${key}`)
+        .then((r) => (r.ok ? r.json() : []))
+        .then((rows: FormulaRecord[]) => rows[0] ?? null)
+        .catch(() => null),
+    );
+  return sampleCache.get(key)!;
+}
+
+function fakeRecord(obj: ObjectDef): FormulaRecord {
+  const data: Record<string, string | number> = {};
+  for (const f of obj.fields) {
+    if (f.type === "number" || f.type === "rating") data[f.key] = 3;
+    else if (f.type === "money") data[f.key] = 1_500_000;
+    else if (f.type === "date") data[f.key] = new Date(Date.now() + 5 * 864e5).toISOString().slice(0, 10);
+    else if (f.type === "select") data[f.key] = f.options[0]?.label ?? "";
+    else if (f.type !== "formula") data[f.key] = `${f.label} mẫu`;
+  }
+  return { title: `${obj.itemLabel} mẫu`, status: obj.statuses[0]?.key ?? "", ownerName: "Bạn", amount: 10_000_000, score: 65, winProb: 55, createdAt: new Date(Date.now() - 3 * 864e5).toISOString(), data };
+}
+
+const EXAMPLES = ["{gia_tri} * {kha_nang_chot} / 100", 'IF({diem} >= 70, "Nóng", "Theo dõi")', "DAYS(TODAY(), {tao_luc})", "ROUND({gia_tri} * 0.08, 0)"];
+
+/** Ô nhập công thức: chèn trường, kiểm tra cú pháp, xem trước trên bản ghi mẫu. */
+function FormulaInput({ obj, field, onChange }: { obj: ObjectDef; field: FieldDef; onChange: (v: string) => void }) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  const [sample, setSample] = useState<FormulaRecord | null>(null);
+  const [real, setReal] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    loadSample(obj.key).then((r) => {
+      if (!alive) return;
+      setSample(r ?? fakeRecord(obj));
+      setReal(!!r);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [obj]);
+  const src = field.formula ?? "";
+  const err = src.trim() ? validateFormula(src, obj, field.key) : "Nhập biểu thức, ví dụ {so_luong} * {don_gia}";
+  const res = !err && sample ? evalFormula(src, sample, obj, [field.key]) : null;
+  const money = isMoneyFormula(field, obj);
+
+  const insert = (text: string) => {
+    const el = ref.current;
+    const a = el?.selectionStart ?? src.length;
+    const b = el?.selectionEnd ?? src.length;
+    const next = src.slice(0, a) + text + src.slice(b);
+    onChange(next);
+    requestAnimationFrame(() => {
+      el?.focus();
+      el?.setSelectionRange(a + text.length, a + text.length);
+    });
+  };
+  const refs = [...BUILTIN_REFS.filter((b) => obj.amountLabel || (b.key !== "gia_tri" && b.key !== "kha_nang_chot")).filter((b) => obj.key === "contacts" || b.key !== "diem"), ...obj.fields.filter((f) => f.key !== field.key).map((f) => ({ key: f.key, label: f.label }))];
+
+  return (
+    <div className="grid gap-1.5 rounded bg-surface-2 p-2">
+      <label className="grid gap-1">
+        <span className="flex items-center gap-1 text-[12px] text-ink-2">
+          <Icon name="formula" size={13} /> Biểu thức (kiểu Excel)
+        </span>
+        <textarea
+          ref={ref}
+          id={`ed-ff-${field.key}`}
+          value={src}
+          onChange={(e) => onChange(e.target.value)}
+          spellCheck={false}
+          rows={2}
+          placeholder="{so_luong} * {don_gia}"
+          className={`textarea font-mono text-[13px] ${err && src.trim() ? "border-[#df2f4a]" : ""}`}
+        />
+      </label>
+      <div className="flex flex-wrap gap-1" aria-label="Chèn trường">
+        {refs.map((r) => (
+          <button key={r.key} type="button" onClick={() => insert(`{${r.key}}`)} className="rounded border border-line-soft bg-surface px-1.5 py-0.5 text-[12px] hover:border-primary" title={`Chèn {${r.key}}`}>
+            {r.label}
+          </button>
+        ))}
+        {["IF(", "ROUND(", "SUM(", "DAYS(", "TODAY()", "CONCAT("].map((fn) => (
+          <button key={fn} type="button" onClick={() => insert(fn)} className="rounded border border-line-soft bg-surface px-1.5 py-0.5 font-mono text-[11.5px] text-ink-2 hover:border-primary">
+            {fn}
+          </button>
+        ))}
+      </div>
+      {err ? (
+        <p className={`text-[12.5px] ${src.trim() ? "text-[#df2f4a]" : "text-ink-2"}`}>{err}</p>
+      ) : res ? (
+        <p className="text-[12.5px]">
+          <span className="text-[#00a35c]">✓ Hợp lệ.</span> <span className="text-ink-2">Thử trên {real ? `“${sample?.title}”` : "dữ liệu giả"}:</span>{" "}
+          {res.ok ? <b className="tnum">{formatFormulaValue(res.value, { money, vnd }) || "(trống)"}</b> : <b className="text-[#df2f4a]" title={res.error}>#LỖI · {res.error}</b>}
+        </p>
+      ) : null}
+      {!src.trim() && (
+        <p className="flex flex-wrap gap-1 text-[12px] text-ink-2">
+          Ví dụ:
+          {EXAMPLES.map((x) => (
+            <button key={x} type="button" className="font-mono text-primary hover:underline" onClick={() => onChange(x)}>
+              {x}
+            </button>
+          ))}
+        </p>
+      )}
     </div>
   );
 }

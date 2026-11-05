@@ -135,6 +135,10 @@ Ký hiệu giấy phép: ✅ MIT, Apache, BSD, ISC: được đóng gói cùng c
 
 ## 4. Lộ trình lên tầm Work OS
 
+> **Cập nhật đợt nâng cấp lớn (11/2026):** đã làm xong phần lớn giai đoạn 2 và 3 bên dưới:
+> - **Đã có:** cột công thức (formula.js); Gantt/Timeline (tự viết, không dùng SVAR); Dashboard kéo thả widget (Recharts); bảng ảo (TanStack Virtual); kanban dnd-kit; tài liệu Tiptap; tự động hoá 7 sự kiện / 10 hành động (gửi Zalo/ZNS/SMS/email, webhook, đến ngày); vai trò Chủ/Quản lý/Nhân viên + "chỉ thấy khách của mình"; nhật ký thao tác; Hộp thư Zalo OA + Messenger có AI soạn trả lời (người duyệt trước khi gửi); softphone JsSIP + gọi liên tục + gợi ý xử lý từ chối khi đang gọi; tách người nói + cảm xúc + tỉ lệ nói; chi phí quảng cáo Facebook/Google + CPL/CAC/ROAS; kịch bản chăm sóc tự động; dự báo khả năng chốt; Docker, Postgres, sao lưu, kiểm thử.
+> - **Còn lại:** board tuỳ ý ngoài 3 đối tượng; liên kết giữa board, file đính kèm, cột phụ thuộc; quyền theo cột; form builder, bản đồ; kéo chi tiết đơn sàn (Shopee/TikTok Shop API); TikTok Ads API; Sales Chat 24/7 tự trả lời; PWA + thông báo đẩy; "khách ảo" luyện gọi.
+
 ### Giai đoạn 2: lõi Work OS (4–6 tuần)
 1. **Board tuỳ ý**: không giới hạn 3 đối tượng; tạo board mới từ mẫu (dự án, tuyển dụng, chăm sóc sau bán).
 2. **Thêm kiểu cột**: công thức (formula.js), liên kết giữa board (khách ↔ đơn ↔ lịch hẹn), file đính kèm, timeline, phụ thuộc, người nhiều lựa chọn, tag.

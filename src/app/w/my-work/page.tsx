@@ -1,15 +1,28 @@
 import { requireApp } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { can, getRole, taskScope } from "@/lib/permissions";
 import { MyWork } from "./MyWork";
 
-export default async function MyWorkPage() {
-  const { workspace } = await requireApp();
-  const tasks = await db.task.findMany({ where: { workspaceId: workspace.id }, orderBy: [{ dueAt: "asc" }, { createdAt: "desc" }] });
+export default async function MyWorkPage({ searchParams }: { searchParams: Promise<{ who?: string; task?: string }> }) {
+  const ctx = await requireApp();
+  const { workspace, user, config } = ctx;
+  const sp = await searchParams;
+  const role = await getRole(user.id, workspace.id);
+  const seeAll = can(role, "see_all");
+  const who = seeAll ? (sp.who ?? "mine") : "mine";
+  const tasks = await db.task.findMany({ where: await taskScope(ctx, who), orderBy: [{ dueAt: "asc" }, { createdAt: "desc" }] });
   const recIds = [...new Set(tasks.map((t) => t.recordId).filter((x): x is string => !!x))];
   const recs = await db.record.findMany({ where: { id: { in: recIds } }, select: { id: true, title: true, objectKey: true } });
+  const team = [...new Set([user.name, ...config.team])];
   return (
     <MyWork
-      initial={tasks.map((t) => ({ id: t.id, title: t.title, done: t.done, source: t.source, dueAt: t.dueAt?.toISOString() ?? null, record: recs.find((r) => r.id === t.recordId) ?? null }))}
+      key={who}
+      me={user.name}
+      team={team}
+      who={who}
+      canSeeAll={seeAll}
+      highlight={sp.task ?? null}
+      initial={tasks.map((t) => ({ id: t.id, title: t.title, done: t.done, source: t.source, assignee: t.assignee, dueAt: t.dueAt?.toISOString() ?? null, record: recs.find((r) => r.id === t.recordId) ?? null }))}
     />
   );
 }

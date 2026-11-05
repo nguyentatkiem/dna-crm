@@ -1,4 +1,5 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
+import { THEME_SCRIPT } from "@/components/ui/theme";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -6,10 +7,21 @@ export const metadata: Metadata = {
   description: "CRM đa ngành tự may đo theo DNA doanh nghiệp",
 };
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#eceff8" },
+    { media: "(prefers-color-scheme: dark)", color: "#181b34" },
+  ],
+};
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="vi">
+    <html lang="vi" suppressHydrationWarning>
       <head>
+        {/* Đặt data-theme trước khi vẽ để không nháy màu */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link
           rel="stylesheet"

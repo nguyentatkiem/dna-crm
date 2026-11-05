@@ -1,5 +1,7 @@
 export async function register() {
-  if (process.env.NEXT_RUNTIME !== "nodejs") return;
-  const { startJobs } = await import("./lib/jobs");
-  startJobs();
+  // Import nằm trong if để bản Edge bỏ hẳn nhánh này (jobs kéo theo module node:*).
+  if (process.env.NEXT_RUNTIME === "nodejs") {
+    const { startJobs } = await import("./lib/jobs");
+    startJobs();
+  }
 }
