@@ -2,6 +2,11 @@ import { db } from "./db";
 import type { FieldDef, WorkspaceConfig } from "./config/schema";
 import { scoreContact } from "./records";
 import { getScorecard, scoreCall } from "./calls";
+import { seedInbox } from "./inbox";
+import { seedMarketing } from "./marketing/sequences";
+import { seedDocs } from "./docs";
+import { seedDashboards } from "./dashboards";
+import { refreshPredictions } from "./predict";
 
 const NAMES = ["Nguyễn Thị Lan", "Trần Minh Khoa", "Lê Thu Hà", "Phạm Quốc Bảo", "Hoàng Ngọc Mai", "Vũ Đức Anh", "Đặng Thảo Vy", "Bùi Gia Huy", "Đỗ Phương Linh", "Ngô Thanh Tùng", "Dương Mỹ Duyên", "Lý Hoàng Nam", "Trịnh Khánh Ngân", "Phan Tuấn Kiệt"];
 const COMPANIES = ["Cty TNHH Minh Phát", "CP Đại Tín", "Tân Hưng Logistics", "Hoàng Gia Foods", "An Khang Pharma", "Việt Á Steel"];
@@ -86,6 +91,16 @@ export async function seedSample(workspaceId: string, cfg: WorkspaceConfig) {
     ],
   });
   await seedCalls(workspaceId, cfg);
+  // Mỗi module tự gieo dữ liệu mẫu của mình; lỗi ở một module không chặn các module khác.
+  for (const [name, fn] of [
+    ["inbox", seedInbox],
+    ["marketing", seedMarketing],
+    ["docs", seedDocs],
+    ["dashboards", seedDashboards],
+  ] as const) {
+    await fn(workspaceId, cfg).catch((e) => console.error(`[sample ${name}]`, e instanceof Error ? e.message : e));
+  }
+  await refreshPredictions(workspaceId).catch(() => undefined);
 }
 
 /** Bản chép lời mẫu: tốt, trung bình, yếu. Đủ để thấy Call Analyst, bảng xếp hạng và vòng phản hồi hoạt động. */

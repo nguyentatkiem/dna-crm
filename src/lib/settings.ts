@@ -17,6 +17,18 @@ export type Integrations = {
   tiktokshop?: { appKey?: string; appSecret?: string };
   webhook?: { secret?: string };
   call?: { secret?: string };
+  // Gọi điện trên trình duyệt qua tổng đài SIP (WebRTC).
+  sip?: { wsUri?: string; domain?: string; extension?: string; password?: string; displayName?: string };
+  // Gửi tin: Zalo ZNS, SMS (eSMS / SpeedSMS / HTTP tuỳ biến), email SMTP.
+  zns?: { defaultTemplateId?: string };
+  sms?: { provider?: string; apiKey?: string; secretKey?: string; brandname?: string; url?: string };
+  email?: { host?: string; port?: string; user?: string; pass?: string; from?: string };
+  // Kéo chi phí quảng cáo.
+  fbAds?: { accessToken?: string; adAccountId?: string };
+  googleAds?: { developerToken?: string; clientId?: string; clientSecret?: string; refreshToken?: string; customerId?: string; loginCustomerId?: string };
+  // Phân quyền và vận hành (không phải khoá bí mật nhưng lưu chung cho gọn).
+  permissions?: { memberSeesOwnOnly?: string };
+  backup?: { enabled?: string; keep?: string };
 };
 
 export const getSettings = (ws: Pick<Workspace, "settingsJson">) => parseJson<Integrations>(ws.settingsJson, {});

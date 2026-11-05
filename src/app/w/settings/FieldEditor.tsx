@@ -10,6 +10,7 @@ import { Icon } from "@/components/Icon";
 const TYPE_LABEL: Record<FieldDef["type"], string> = {
   text: "Chữ",
   longtext: "Đoạn văn",
+  formula: "Công thức",
   phone: "Số điện thoại",
   email: "Email",
   number: "Số",

@@ -6,7 +6,7 @@ export const ColorKey = z.enum(COLOR_KEYS);
 export const OBJECT_KEYS = ["contacts", "deals", "appointments"] as const;
 export const ObjectKey = z.enum(OBJECT_KEYS);
 
-export const FIELD_TYPES = ["text", "longtext", "phone", "email", "number", "money", "date", "select", "rating"] as const;
+export const FIELD_TYPES = ["text", "longtext", "phone", "email", "number", "money", "date", "select", "rating", "formula"] as const;
 
 export const Option = z.object({ key: z.string(), label: z.string(), color: ColorKey });
 
@@ -15,6 +15,8 @@ export const FieldDef = z.object({
   label: z.string(),
   type: z.enum(FIELD_TYPES),
   options: z.array(Option),
+  // Chỉ dùng cho type = "formula": biểu thức kiểu Excel, ví dụ {so_luong} * {don_gia}.
+  formula: z.string().optional(),
 });
 
 export const ObjectDef = z.object({

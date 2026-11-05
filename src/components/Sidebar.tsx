@@ -25,8 +25,12 @@ export function Sidebar({ workspace, industry, boards, openTasks }: { workspace:
     ["/w", "Trang chủ"],
     ["/w/my-work", "Việc của tôi"],
     ...boards.map((b) => [`/w/b/${b.key}`, b.label]),
+    ["/w/inbox", "Hộp thư"],
     ["/w/telesales", "Telesales"],
     ["/w/sources", "Nguồn khách"],
+    ["/w/marketing", "Marketing"],
+    ["/w/dashboards", "Dashboard"],
+    ["/w/docs", "Tài liệu"],
     ["/w/automations", "Tự động hoá"],
     ["/w/agents", "AI Agent"],
     ["/w/settings", "DNA"],
@@ -58,8 +62,13 @@ export function Sidebar({ workspace, industry, boards, openTasks }: { workspace:
       </button>
       {open && <div className="grid gap-0.5 pl-2">{boards.map((b) => item(`/w/b/${b.key}`, b.label, BOARD_ICON[b.key] ?? "board", b.count))}</div>}
       <div className="my-2 border-t border-line" />
+      {item("/w/inbox", "Hộp thư", "chat")}
       {item("/w/telesales", "Telesales", "phone")}
       {item("/w/sources", "Nguồn khách", "inbox")}
+      {item("/w/marketing", "Marketing & ROAS", "megaphone")}
+      <div className="my-2 border-t border-line" />
+      {item("/w/dashboards", "Dashboard", "chart")}
+      {item("/w/docs", "Tài liệu", "doc")}
       <div className="my-2 border-t border-line" />
       {item("/w/automations", "Tự động hoá", "bolt")}
       {item("/w/agents", "AI Agent", "bot")}

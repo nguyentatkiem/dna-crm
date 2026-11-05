@@ -40,6 +40,14 @@ model Workspace {
   calls       Call[]
   scorecards  Scorecard[]
   lessons     Lesson[]
+  conversations Conversation[]
+  adSpends    AdSpend[]
+  sequences   Sequence[]
+  outMessages OutMessage[]
+  dashboards  Dashboard[]
+  docs        Doc[]
+  auditLogs   AuditLog[]
+  notifications Notification[]
 }
 
 model Membership {
@@ -92,6 +100,7 @@ model Record {
   ownerName   String     @default("")
   amount      Float      @default(0)
   score       Int        @default(0)
+  winProb     Int?
   dataJson    String     @default("{}")
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
@@ -116,6 +125,7 @@ model Task {
   workspaceId String
   recordId    String?
   title       String
+  assignee    String    @default("")
   dueAt       DateTime?
   done        Boolean   @default(false)
   source      String    @default("Bạn")
@@ -131,6 +141,10 @@ model Automation {
   triggerValue  String    @default("")
   actionType    String
   actionValue   String
+  name          String    @default("")
+  // Bản mở rộng: nhiều điều kiện và nhiều hành động. Rỗng thì dùng các cột trigger/action cũ.
+  conditionsJson String   @default("[]")
+  actionsJson   String    @default("[]")
   enabled       Boolean   @default(true)
   runs          Int       @default(0)
   createdAt     DateTime  @default(now())
@@ -193,6 +207,8 @@ model Call {
   transcript       String    @default("")
   summary          String    @default("")
   aiScore          Int?
+  sentiment        Int?
+  segmentsJson     String    @default("")
   scoreJson        String    @default("")
   scorecardVersion Int       @default(0)
   reviewScore      Int?
@@ -233,4 +249,177 @@ model Lesson {
   status       String    @default("new")
   createdAt    DateTime  @default(now())
   workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+
+// Hộp thư hợp nhất: mỗi người nhắn Zalo OA / Facebook Messenger là một hội thoại.
+model Conversation {
+  id          String    @id @default(cuid())
+  workspaceId String
+  channel     String
+  externalId  String
+  pageId      String    @default("")
+  recordId    String?
+  name        String    @default("")
+  avatar      String    @default("")
+  lastText    String    @default("")
+  lastAt      DateTime  @default(now())
+  unread      Int       @default(0)
+  assignee    String    @default("")
+  status      String    @default("open")
+  tagsJson    String    @default("[]")
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  messages    Message[]
+
+  @@unique([workspaceId, channel, externalId])
+  @@index([workspaceId, lastAt])
+}
+
+model Message {
+  id              String       @id @default(cuid())
+  conversationId  String
+  direction       String
+  text            String       @default("")
+  attachmentsJson String       @default("[]")
+  externalId      String       @default("")
+  author          String       @default("")
+  status          String       @default("sent")
+  error           String       @default("")
+  createdAt       DateTime     @default(now())
+  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+}
+
+// Chi phí quảng cáo theo ngày và chiến dịch: kéo từ Facebook/Google Ads hoặc nhập tay, để tính CPL và ROAS.
+model AdSpend {
+  id          String    @id @default(cuid())
+  workspaceId String
+  date        DateTime
+  provider    String
+  accountId   String    @default("")
+  campaignId  String
+  campaign    String
+  spend       Float     @default(0)
+  impressions Int       @default(0)
+  clicks      Int       @default(0)
+  leads       Int       @default(0)
+  source      String    @default("manual")
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, provider, campaignId, date])
+  @@index([workspaceId, date])
+}
+
+// Kịch bản chăm sóc tự động: chuỗi tin Zalo/ZNS/SMS/email theo thời gian.
+model Sequence {
+  id           String       @id @default(cuid())
+  workspaceId  String
+  name         String
+  triggerType  String
+  objectKey    String       @default("contacts")
+  triggerValue String       @default("")
+  stepsJson    String       @default("[]")
+  enabled      Boolean      @default(true)
+  stopOnReply  Boolean      @default(true)
+  createdAt    DateTime     @default(now())
+  workspace    Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  enrollments  Enrollment[]
+}
+
+model Enrollment {
+  id          String    @id @default(cuid())
+  sequenceId  String
+  workspaceId String
+  recordId    String
+  step        Int       @default(0)
+  nextAt      DateTime
+  status      String    @default("active")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  sequence    Sequence  @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+
+  @@unique([sequenceId, recordId])
+  @@index([status, nextAt])
+}
+
+// Nhật ký mọi tin gửi ra ngoài (ZNS, SMS, email, Zalo OA, Messenger).
+model OutMessage {
+  id          String    @id @default(cuid())
+  workspaceId String
+  recordId    String?
+  sequenceId  String?
+  channel     String
+  to          String
+  subject     String    @default("")
+  body        String
+  status      String
+  error       String    @default("")
+  provider    String    @default("")
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
+}
+
+// Dashboard tự chọn widget.
+model Dashboard {
+  id          String    @id @default(cuid())
+  workspaceId String
+  name        String
+  widgetsJson String    @default("[]")
+  isDefault   Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+// Tài liệu soạn thảo (Tiptap), có thể gắn vào một khách/giao dịch.
+model Doc {
+  id          String    @id @default(cuid())
+  workspaceId String
+  recordId    String?
+  title       String
+  contentJson String    @default("")
+  contentText String    @default("")
+  updatedBy   String    @default("")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, recordId])
+}
+
+// Nhật ký ai sửa gì.
+model AuditLog {
+  id          String    @id @default(cuid())
+  workspaceId String
+  userId      String    @default("")
+  userName    String
+  action      String
+  entity      String
+  entityId    String    @default("")
+  summary     String
+  diffJson    String    @default("")
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
+}
+
+// Thông báo trong app. userId rỗng = gửi cả workspace.
+model Notification {
+  id          String    @id @default(cuid())
+  workspaceId String
+  userId      String    @default("")
+  kind        String
+  text        String
+  href        String    @default("")
+  readAt      DateTime?
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, userId, readAt])
 }

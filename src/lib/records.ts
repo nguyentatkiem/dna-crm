@@ -1,6 +1,7 @@
 import type { Record as DbRecord } from "@prisma/client";
 import { db, parseJson } from "./db";
 import { getObject, type WorkspaceConfig } from "./config/schema";
+import { onSequenceEvent } from "./marketing/sequences";
 
 export type FieldValue = string | number;
 export type RecordDTO = {
@@ -48,6 +49,7 @@ type Event = { kind: "record_created" | "status_changed"; record: DbRecord };
 
 /** Chạy các công thức tự động hoá khớp sự kiện. */
 export async function runAutomations(workspaceId: string, cfg: WorkspaceConfig, ev: Event) {
+  await onSequenceEvent(workspaceId, ev).catch((e) => console.error("[sequences]", e instanceof Error ? e.message : e));
   const rules = await db.automation.findMany({
     where: { workspaceId, enabled: true, triggerType: ev.kind, triggerObject: ev.record.objectKey },
   });
