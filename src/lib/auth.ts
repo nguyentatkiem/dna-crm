@@ -66,3 +66,8 @@ export async function apiContext() {
   const ctx = await getContext();
   return ctx;
 }
+
+export async function isOwner(userId: string, workspaceId: string) {
+  const m = await db.membership.findUnique({ where: { userId_workspaceId: { userId, workspaceId } } });
+  return m?.role === "owner";
+}

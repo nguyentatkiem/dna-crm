@@ -25,6 +25,8 @@ export function Sidebar({ workspace, industry, boards, openTasks }: { workspace:
     ["/w", "Trang chủ"],
     ["/w/my-work", "Việc của tôi"],
     ...boards.map((b) => [`/w/b/${b.key}`, b.label]),
+    ["/w/telesales", "Telesales"],
+    ["/w/sources", "Nguồn khách"],
     ["/w/automations", "Tự động hoá"],
     ["/w/agents", "AI Agent"],
     ["/w/settings", "DNA"],
@@ -55,6 +57,9 @@ export function Sidebar({ workspace, industry, boards, openTasks }: { workspace:
         <Icon name="chevron" size={15} className={`text-ink-2 transition-transform ${open ? "" : "-rotate-90"}`} />
       </button>
       {open && <div className="grid gap-0.5 pl-2">{boards.map((b) => item(`/w/b/${b.key}`, b.label, BOARD_ICON[b.key] ?? "board", b.count))}</div>}
+      <div className="my-2 border-t border-line" />
+      {item("/w/telesales", "Telesales", "phone")}
+      {item("/w/sources", "Nguồn khách", "inbox")}
       <div className="my-2 border-t border-line" />
       {item("/w/automations", "Tự động hoá", "bolt")}
       {item("/w/agents", "AI Agent", "bot")}

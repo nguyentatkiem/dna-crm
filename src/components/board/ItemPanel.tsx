@@ -20,6 +20,7 @@ export function ItemPanel({ obj, team, record, onClose, onPatch, onDelete }: { o
   const [text, setText] = useState("");
   const [coach, setCoach] = useState<{ next: string; draft: string; source: string } | null>(null);
   const [coaching, setCoaching] = useState(false);
+  const [zaloMsg, setZaloMsg] = useState("");
   const [taskTitle, setTaskTitle] = useState("");
   const [confirmDel, setConfirmDel] = useState(false);
 
@@ -99,6 +100,11 @@ export function ItemPanel({ obj, team, record, onClose, onPatch, onDelete }: { o
                 </span>
               )}
               <span suppressHydrationWarning>Tạo {ago(record.createdAt)}</span>
+              {obj.key === "contacts" && (
+                <a href={`/w/telesales?record=${record.id}`} className="btn-outline h-7 gap-1.5 text-[13px]">
+                  <Icon name="phone" size={14} /> Gọi & ghi nhận
+                </a>
+              )}
             </div>
             <div className="mt-3 flex gap-1">
               {(
@@ -137,10 +143,24 @@ export function ItemPanel({ obj, team, record, onClose, onPatch, onDelete }: { o
                       <b>Bước tiếp theo:</b> {coach.next}
                     </p>
                     <p className="whitespace-pre-line rounded bg-surface-2 px-3 py-2.5">{coach.draft}</p>
+                    {zaloMsg && <p className="text-[13px] text-ink-2">{zaloMsg}</p>}
                     <div className="flex flex-wrap gap-2">
                       <button type="button" className="btn-primary h-7 text-[13px]" onClick={() => navigator.clipboard?.writeText(coach.draft).catch(() => undefined)}>
                         Sao chép tin nhắn
                       </button>
+                      {record.data._zalo_uid && (
+                        <button
+                          type="button"
+                          className="btn-outline h-7 text-[13px]"
+                          onClick={async () => {
+                            const r = await fetch(`/api/records/${record.id}/zalo`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: coach.draft }) });
+                            const j = await r.json();
+                            setZaloMsg(r.ok ? "Đã gửi qua Zalo OA." : j.error);
+                          }}
+                        >
+                          Gửi qua Zalo OA
+                        </button>
+                      )}
                       <button type="button" className="btn-outline h-7 text-[13px]" onClick={() => post(`Sales Coach gợi ý: ${coach.next}`)}>
                         Lưu thành cập nhật
                       </button>

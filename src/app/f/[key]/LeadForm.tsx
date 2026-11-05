@@ -19,7 +19,7 @@ export function LeadForm({ formKey, selects }: { formKey: string; selects: { key
     const res = await fetch(`/api/public/lead/${formKey}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: fd.get("name"), phone: fd.get("phone"), email: fd.get("email") || undefined, need: fd.get("need") || undefined, website: fd.get("website") || undefined, extra }),
+      body: JSON.stringify({ name: fd.get("name"), phone: fd.get("phone"), email: fd.get("email") || undefined, need: fd.get("need") || undefined, website: fd.get("website") || undefined, extra, utm: utm() }),
     });
     const d = await res.json().catch(() => ({}));
     if (!res.ok) {
@@ -70,4 +70,16 @@ export function LeadForm({ formKey, selects }: { formKey: string; selects: { key
       </button>
     </form>
   );
+}
+
+/** Đọc utm_* và referrer để biết lead đến từ quảng cáo hay tự nhiên. */
+function utm() {
+  const q = new URLSearchParams(window.location.search);
+  const out: Record<string, string> = {};
+  for (const k of ["utm_source", "utm_medium", "utm_campaign", "utm_content", "gclid", "fbclid", "ttclid"]) {
+    const v = q.get(k);
+    if (v) out[k] = v.slice(0, 200);
+  }
+  if (document.referrer && !document.referrer.startsWith(window.location.origin)) out.referrer = document.referrer.slice(0, 200);
+  return out;
 }

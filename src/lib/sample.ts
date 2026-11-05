@@ -1,6 +1,7 @@
 import { db } from "./db";
 import type { FieldDef, WorkspaceConfig } from "./config/schema";
 import { scoreContact } from "./records";
+import { getScorecard, scoreCall } from "./calls";
 
 const NAMES = ["Nguyễn Thị Lan", "Trần Minh Khoa", "Lê Thu Hà", "Phạm Quốc Bảo", "Hoàng Ngọc Mai", "Vũ Đức Anh", "Đặng Thảo Vy", "Bùi Gia Huy", "Đỗ Phương Linh", "Ngô Thanh Tùng", "Dương Mỹ Duyên", "Lý Hoàng Nam", "Trịnh Khánh Ngân", "Phan Tuấn Kiệt"];
 const COMPANIES = ["Cty TNHH Minh Phát", "CP Đại Tín", "Tân Hưng Logistics", "Hoàng Gia Foods", "An Khang Pharma", "Việt Á Steel"];
@@ -16,6 +17,17 @@ const AMOUNTS: Record<string, [number, number]> = {
   insurance: [1e7, 6e7],
   interior: [8e7, 1.2e9],
 };
+
+const SOURCES = [
+  { _kenh: "ads", _nguon: "Facebook", _chien_dich: "Ưu đãi tháng này" },
+  { _kenh: "zalo", _nguon: "Zalo OA" },
+  { _kenh: "ads", _nguon: "Google Ads", _chien_dich: "Từ khoá thương hiệu" },
+  { _kenh: "organic", _nguon: "Google" },
+  { _kenh: "ads", _nguon: "TikTok", _chien_dich: "Video review" },
+  { _kenh: "ecommerce", _nguon: "Shopee" },
+  { _kenh: "website", _nguon: "Website" },
+  { _kenh: "ads", _nguon: "Facebook", _chien_dich: "Khách quay lại" },
+];
 
 /** Dữ liệu mẫu đánh dấu rõ là mẫu để học viên thử ngay; có thể xoá trong Cài đặt. */
 export async function seedSample(workspaceId: string, cfg: WorkspaceConfig) {
@@ -41,6 +53,7 @@ export async function seedSample(workspaceId: string, cfg: WorkspaceConfig) {
       const name = NAMES[(i + (obj.key === "deals" ? 0 : obj.key === "appointments" ? 3 : 0)) % NAMES.length];
       const data: Record<string, string | number> = {};
       obj.fields.forEach((f) => (data[f.key] = val(f, i, name)));
+      if (obj.key === "contacts") Object.assign(data, SOURCES[i % SOURCES.length]);
       const raw = lo + rnd() * (hi - lo);
       const step = raw > 1e9 ? 1e8 : raw > 1e7 ? 1e6 : 1e5;
       const created = new Date(Date.now() - rnd() * 14 * 864e5);
@@ -72,4 +85,79 @@ export async function seedSample(workspaceId: string, cfg: WorkspaceConfig) {
       { workspaceId, title: `Xin đánh giá từ ${NAMES[2]}`, dueAt: null, source: "Tự động hoá" },
     ],
   });
+  await seedCalls(workspaceId, cfg);
+}
+
+/** Bản chép lời mẫu: tốt, trung bình, yếu. Đủ để thấy Call Analyst, bảng xếp hạng và vòng phản hồi hoạt động. */
+function transcripts(biz: string, name: string) {
+  const first = name.split(" ").pop();
+  return {
+    good: `NV: Dạ em chào chị ${first}, em là Thảo bên ${biz}. Chị cho em xin 2 phút, mình có tiện nghe máy không ạ?
+KH: Ừ em nói đi.
+NV: Dạ em thấy chị vừa để lại thông tin quan tâm bên em. Hiện tại chị đang mong muốn cải thiện điều gì nhất ạ?
+KH: Chị muốn tìm gói phù hợp, nhưng sợ giá cao.
+NV: Dạ em hiểu ạ. Chị dự định khi nào bắt đầu, ngân sách khoảng bao nhiêu để em tư vấn đúng nhu cầu?
+KH: Tầm tháng này, khoảng vài triệu thôi.
+NV: Dạ vậy gói cơ bản rất phù hợp với chị, giúp chị tiết kiệm mà vẫn hiệu quả. Nhiều khách lúc đầu cũng băn khoăn về giá, nhưng bên em có cam kết rõ ràng nên chị yên tâm ạ.
+KH: Nghe được đó.
+NV: Dạ vậy em đặt lịch cho chị vào thứ bảy lúc 10 giờ nhé, em gửi tin xác nhận qua Zalo cho chị ạ. Cảm ơn chị nhiều ạ!`,
+    ok: `NV: Alo chị ${first} phải không ạ, em bên ${biz}.
+KH: Ừ.
+NV: Dạ bên em đang có ưu đãi, chị quan tâm không ạ?
+KH: Ưu đãi gì em?
+NV: Dạ giảm 20% cho khách mới, gói này hiệu quả lắm chị.
+KH: Để chị suy nghĩ đã.
+NV: Dạ vâng, có gì chị nhắn em nha. Cảm ơn chị ạ.`,
+    weak: `NV: Alo, bên ${biz} đây.
+KH: Ai đấy?
+NV: Bên em bán dịch vụ, chị có muốn mua không?
+KH: Giá bao nhiêu?
+NV: Tuỳ gói, chị lên web xem nha.
+KH: Thôi chị bận.
+NV: Vâng.`,
+  };
+}
+
+async function seedCalls(workspaceId: string, cfg: WorkspaceConfig) {
+  const contacts = await db.record.findMany({ where: { workspaceId, objectKey: "contacts" }, take: 12, orderBy: { createdAt: "asc" } });
+  const team = cfg.team.length ? cfg.team : ["Bạn"];
+  await getScorecard(workspaceId, cfg);
+  const plan: [keyof ReturnType<typeof transcripts> | null, string, number][] = [
+    ["good", "appointment", 312],
+    ["ok", "callback", 96],
+    ["weak", "not_interested", 41],
+    ["good", "won", 420],
+    [null, "no_answer", 0],
+    ["ok", "connected", 133],
+    ["good", "appointment", 285],
+    ["weak", "callback", 52],
+    [null, "busy", 0],
+    ["ok", "not_interested", 88],
+  ];
+  for (let i = 0; i < Math.min(plan.length, contacts.length); i++) {
+    const [kind, outcome, duration] = plan[i];
+    const r = contacts[i];
+    const call = await db.call.create({
+      data: {
+        workspaceId,
+        recordId: r.id,
+        phone: "",
+        agentName: team[i % team.length],
+        outcome,
+        durationSec: duration,
+        transcript: kind ? transcripts(cfg.businessName, r.title)[kind] : "",
+        callbackAt: outcome === "callback" ? new Date(Date.now() - 3600e3) : null,
+        startedAt: new Date(Date.now() - (i * 7 + 2) * 3600e3),
+      },
+    });
+    if (kind) await scoreCall(call, { rulesOnly: true });
+  }
+  const reviews: [string, number, string][] = [
+    ["appointment", -8, "Chốt lịch tốt nhưng chưa hỏi ai cùng quyết định, dễ bị huỷ lịch."],
+    ["callback", -15, "Chưa hỏi nhu cầu và ngân sách, hẹn gọi lại không có giờ cụ thể."],
+  ];
+  for (const [outcome, delta, note] of reviews) {
+    const c = await db.call.findFirst({ where: { workspaceId, outcome, aiScore: { not: null } }, orderBy: { startedAt: "asc" } });
+    if (c) await db.call.update({ where: { id: c.id }, data: { reviewScore: Math.max(0, Math.min(100, (c.aiScore ?? 50) + delta)), reviewNote: note, reviewedBy: "Chủ Demo", reviewedAt: new Date() } });
+  }
 }

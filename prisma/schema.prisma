@@ -24,6 +24,8 @@ model Workspace {
   industry    String            @default("")
   onboarded   Boolean           @default(false)
   formKey     String            @unique @default(cuid())
+  hookKey     String?           @unique
+  settingsJson String           @default("{}")
   createdAt   DateTime          @default(now())
   memberships Membership[]
   dnas        Dna[]
@@ -34,6 +36,10 @@ model Workspace {
   agents      AgentSetting[]
   logs        AgentLog[]
   invites     Invite[]
+  leadEvents  LeadEvent[]
+  calls       Call[]
+  scorecards  Scorecard[]
+  lessons     Lesson[]
 }
 
 model Membership {
@@ -148,4 +154,83 @@ model AgentLog {
   message     String
   createdAt   DateTime  @default(now())
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+// Nhật ký mọi lead đổ về từ Ads, Zalo OA, sàn TMĐT, website... để đối soát và chống trùng.
+model LeadEvent {
+  id          String    @id @default(cuid())
+  workspaceId String
+  provider    String
+  channel     String
+  externalId  String    @default("")
+  status      String
+  message     String    @default("")
+  recordId    String?
+  payloadJson String    @default("{}")
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
+  @@index([workspaceId, provider, externalId])
+}
+
+// Một cuộc gọi telesales: kết quả, ghi âm, bản chép lời, điểm AI và điểm quản lý chấm lại.
+model Call {
+  id               String    @id @default(cuid())
+  workspaceId      String
+  recordId         String?
+  phone            String    @default("")
+  direction        String    @default("out")
+  agentName        String
+  outcome          String
+  durationSec      Int       @default(0)
+  note             String    @default("")
+  callbackAt       DateTime?
+  recordingPath    String    @default("")
+  recordingUrl     String    @default("")
+  provider         String    @default("manual")
+  externalId       String    @default("")
+  transcript       String    @default("")
+  summary          String    @default("")
+  aiScore          Int?
+  scoreJson        String    @default("")
+  scorecardVersion Int       @default(0)
+  reviewScore      Int?
+  reviewNote       String    @default("")
+  reviewedBy       String    @default("")
+  reviewedAt       DateTime?
+  startedAt        DateTime  @default(now())
+  createdAt        DateTime  @default(now())
+  workspace        Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, startedAt])
+  @@index([recordId])
+}
+
+// Phiếu chấm điểm cuộc gọi + kịch bản gọi, có phiên bản để vòng phản hồi cập nhật.
+model Scorecard {
+  id           String    @id @default(cuid())
+  workspaceId  String
+  version      Int
+  criteriaJson String
+  scriptText   String    @default("")
+  source       String    @default("template")
+  note         String    @default("")
+  isActive     Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, isActive])
+}
+
+// Bài học rút ra từ cuộc gọi thắng/thua: đề xuất sửa phiếu chấm, kịch bản; chủ duyệt mới áp dụng.
+model Lesson {
+  id           String    @id @default(cuid())
+  workspaceId  String
+  title        String
+  body         String
+  proposalJson String    @default("")
+  status       String    @default("new")
+  createdAt    DateTime  @default(now())
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }

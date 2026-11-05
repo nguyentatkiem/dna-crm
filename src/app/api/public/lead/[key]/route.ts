@@ -10,6 +10,7 @@ const Body = z.object({
   email: z.string().trim().max(120).optional(),
   need: z.string().trim().max(2000).optional(),
   extra: z.record(z.string(), z.string().max(200)).optional(),
+  utm: z.record(z.string(), z.string().max(200)).optional(),
   website: z.string().optional(), // bẫy bot: người thật không thấy ô này
 });
 
@@ -38,6 +39,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ key: st
     if (v && f.options.some((o) => o.label === v)) data[f.key] = v;
   }
   if (obj.fields.some((f) => f.key === "nguon")) data["nguon"] = "Website";
+  const u = b.utm ?? {};
+  const medium = (u.utm_medium ?? "").toLowerCase();
+  const paid = /cpc|ppc|paid|ads?$|cpm/.test(medium) || !!(u.gclid || u.fbclid || u.ttclid);
+  const ref = u.referrer ? new URL(u.referrer, "https://x").hostname.replace(/^www\./, "") : "";
+  data._kenh = paid ? "ads" : u.utm_source || ref ? "organic" : "website";
+  data._nguon = u.utm_source || (u.gclid ? "Google" : u.fbclid ? "Facebook" : u.ttclid ? "TikTok" : ref || "Website");
+  if (u.utm_campaign) data._chien_dich = u.utm_campaign;
 
   const rec = await createRecord(ws.id, cfg, { objectKey: "contacts", title: b.name, data }, "Form website");
   if (b.need) await db.activity.create({ data: { recordId: rec.id, kind: "update", body: `Nhu cầu khách để lại: ${b.need}`, author: b.name } });
