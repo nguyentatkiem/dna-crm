@@ -24,7 +24,8 @@ export async function seedCare(workspaceId: string, config?: WorkspaceConfig): P
   if (!(await db.pref.findUnique({ where: { workspaceId_key: { workspaceId, key: "ticket" } } }))) await setPref(workspaceId, "ticket", TICKET_DEFAULT);
 
   // Điểm thưởng: khách đầu nhiều điểm (đủ lên Vàng/Kim cương), có một lần đổi quà.
-  if (!(await db.loyaltyTxn.count({ where: { workspaceId } }))) {
+  // Chỉ tính điểm cộng tay: điểm từ đơn hàng mẫu (bán hàng gieo trước) không được chặn bước này.
+  if (!(await db.loyaltyTxn.count({ where: { workspaceId, orderId: null } }))) {
     const plan = [5400, 2600, 1200, 650, 320, 120];
     const txns: { workspaceId: string; recordId: string; points: number; reason: string; createdBy: string; createdAt: Date }[] = [];
     contacts.slice(0, plan.length).forEach((c, i) => {

@@ -148,7 +148,38 @@ Mỗi agent có công tắc bật/tắt và **mức tự chủ** (Chỉ gợi ý
 
 > **Không có API key vẫn dùng được.** Khi chưa cấu hình Claude, các agent chạy bằng template ngành và luật có sẵn. Thêm key để agent hiểu mọi câu hỏi và viết nội dung tự nhiên hơn.
 
+### Bán hàng: báo giá → đơn hàng → thu tiền
+- **Sản phẩm/dịch vụ**: mã, đơn giá, VAT, thời hạn bảo hành, nhóm hàng. **Thông tin doanh nghiệp** (Cài đặt) in lên mọi chứng từ.
+- **Báo giá**: chọn khách/giao dịch, dòng hàng có chiết khấu và VAT, số BG tự tăng. Nhân viên **gửi duyệt**, quản lý **duyệt**. **In A4 / lưu PDF**, nhân bản.
+- **Link báo giá cho khách** (`/q/…`): khách xem và bấm **Chấp nhận** hoặc **Từ chối**. Chấp nhận thì giao dịch tự chuyển sang thắng và CRM tạo đơn hàng ngay.
+- **Đơn hàng**: Mới → Xác nhận → Đang giao → Hoàn tất, **thu tiền nhiều đợt**, lọc còn nợ/quá hạn, trang **công nợ phải thu** theo khách, tự nhắc khi quá hạn. Đơn hoàn tất và thu đủ thì tự **tích điểm** và **tạo phiếu bảo hành**.
+- **Hợp đồng**: số HD tự tăng, gắn khách/giao dịch/đơn, link file, **tự nhắc trước khi hết hạn**.
+- Trong hồ sơ khách/giao dịch có khối **Bán hàng** hiện báo giá, đơn, hợp đồng, số còn nợ.
+
+### Chăm sóc sau bán
+- **Phiếu hỗ trợ**: hạn xử lý theo **SLA** từng mức ưu tiên, quá hạn thì tự báo người xử lý và quản lý. Tạo nhanh từ **Hộp thư** hoặc **cuộc gọi**; trả lời gửi thẳng cho khách qua Zalo/email/SMS; ghi chú nội bộ.
+- **Khảo sát hài lòng (CSAT)**: phiếu đã xử lý có link để khách chấm 1–5 sao; dưới 4 sao thì báo người xử lý.
+- **Tích điểm và hạng thành viên**: mặc định 10.000đ = 1 điểm, hạng Thành viên / Bạc / Vàng / Kim cương có % ưu đãi, đổi quà, cộng/trừ tay. Hạng xét theo tổng điểm đã tích nên đổi quà không làm tụt hạng.
+- **Bảo hành**: tự tạo từ đơn hàng, nhắc trước 30 ngày khi sắp hết hạn, **khách tự tra cứu** bằng số điện thoại tại `/bh/<mã>`.
+- **Nhóm khách động**: lưu bộ lọc thành nhóm (nút **Lưu thành nhóm khách** trên bảng), tự cập nhật thành viên, dùng làm danh sách nhận cho Gửi hàng loạt.
+
+### Marketing hàng loạt
+- **Gửi hàng loạt** email/SMS/Zalo ZNS/Zalo OA cho một nhóm khách:
+  - tự bỏ người thiếu địa chỉ, đã từ chối nhận tin, trùng số;
+  - xem trước theo khách thật, **gửi thử**, hẹn giờ, huỷ giữa chừng;
+  - gửi tối đa 30 tin mỗi phút mỗi đợt, khởi động lại không gửi trùng;
+  - email có link **ngừng nhận tin**, đếm **lượt mở và lượt nhấp**.
+- **Landing page**: 7 loại khối (ảnh bìa, lợi ích, hình ảnh, cảm nhận, form, hỏi đáp, kêu gọi), chọn màu, xem trước trên điện thoại, **AI tạo trang** theo DNA. Khách điền form là vào thẳng CRM kèm nguồn và `utm_campaign`; đếm lượt xem, đăng ký, tỉ lệ chuyển đổi.
+- **Phễu chuyển đổi**: khách mới → đã liên hệ → có giao dịch → chốt → mua lại, theo kênh hoặc nguồn, kèm bảng cohort theo tháng.
+
 ### Làm việc theo đội
+- **Chỉ tiêu KPI theo tháng**:
+  - chủ/quản lý đặt chỉ tiêu cho từng người và cả công ty: doanh thu, giao dịch thắng, khách mới, cuộc gọi, tỉ lệ chốt, phiếu đã xử lý;
+  - thanh tiến độ có vạch nhịp, nhãn **Vượt / Đúng nhịp / Đang chậm**, bảng xếp hạng;
+  - thứ Hai hằng tuần tự nhắc người đang chậm.
+- **Bảng tin nội bộ**: bài viết, thông báo ghim, kênh, thả cảm xúc, bình luận, @nhắc tên. Chốt giao dịch hay hoàn tất đơn thì **tự đăng bài khoe**.
+- **Bảo mật dữ liệu**: che SĐT/email với nhân viên (0912•••678), giới hạn số dòng xuất Excel mỗi người mỗi ngày, báo chủ khi có người xuất nhiều.
+- **Cài app trên điện thoại** (PWA): mở bằng Chrome/Safari rồi "Cài app" / "Thêm vào MH chính"; chạy toàn màn hình, xem lại trang đã mở khi mất mạng. **Thông báo đẩy** khi điền khoá VAPID.
 - 3 vai trò **Chủ / Quản lý / Nhân viên**, bảng quyền rõ ràng. Mời bằng **link dùng một lần** (chọn vai trò), hết hạn sau 7 ngày.
 - Công tắc **"Nhân viên chỉ thấy khách của mình"**: áp dụng cho bảng, tìm kiếm, hộp thư, telesales, dashboard, trợ lý AI và xuất Excel.
 - **Nhật ký thao tác**: ai tạo/sửa/xoá gì, lúc nào, xem giá trị cũ → mới; lọc, xuất CSV.
@@ -311,6 +342,38 @@ Mỗi agent có công tắc bật/tắt và **mức tự chủ** (Chỉ gợi ý
 | Thùng rác | @nhắc tên trong cập nhật |
 |---|---|
 | ![Thùng rác](docs/screenshots/56-thung-rac.png) | ![Nhắc tên](docs/screenshots/57-nhac-ten.png) |
+
+### 8. Bán hàng, chăm sóc, marketing hàng loạt, KPI
+
+So sánh đầy đủ với Getfly CRM trong [docs/SO-SANH-GETFLY.md](docs/SO-SANH-GETFLY.md).
+
+| Báo giá: duyệt, gửi link cho khách | Bản in A4 / PDF |
+|---|---|
+| ![Báo giá](docs/screenshots/58-bao-gia.png) | ![In báo giá](docs/screenshots/59-bao-gia-in.png) |
+
+| Đơn hàng, thu tiền nhiều đợt | Công nợ phải thu |
+|---|---|
+| ![Đơn hàng](docs/screenshots/60-don-hang-thu-tien.png) | ![Công nợ](docs/screenshots/61-cong-no.png) |
+
+| Phiếu hỗ trợ có SLA | Tích điểm và hạng thành viên |
+|---|---|
+| ![Phiếu hỗ trợ](docs/screenshots/62-phieu-ho-tro.png) | ![Tích điểm](docs/screenshots/63-tich-diem.png) |
+
+| Bảo hành | Gửi hàng loạt |
+|---|---|
+| ![Bảo hành](docs/screenshots/64-bao-hanh.png) | ![Gửi hàng loạt](docs/screenshots/65-gui-hang-loat.png) |
+
+| Landing page | Phễu chuyển đổi |
+|---|---|
+| ![Landing page](docs/screenshots/66-landing-page.png) | ![Phễu](docs/screenshots/67-pheu-chuyen-doi.png) |
+
+| Chỉ tiêu KPI | Bảng tin nội bộ |
+|---|---|
+| ![KPI](docs/screenshots/68-kpi.png) | ![Bảng tin](docs/screenshots/69-bang-tin.png) |
+
+| Bảo mật dữ liệu | Báo giá trên điện thoại |
+|---|---|
+| ![Bảo mật](docs/screenshots/70-bao-mat-du-lieu.png) | <img src="docs/screenshots/71-dien-thoai-bao-gia.png" width="280" alt="Báo giá trên điện thoại"> |
 
 ---
 

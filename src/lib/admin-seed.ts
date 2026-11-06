@@ -31,7 +31,8 @@ export async function seedAdmin(workspaceId: string) {
   if (newCells.length) await db.kpiTarget.createMany({ data: newCells.map((c) => ({ workspaceId, period, ...c })) });
 
   // Bảng tin.
-  if (await db.post.count({ where: { workspaceId } })) return { targets: newCells.length, posts: 0 };
+  // Bỏ qua bài "chốt đơn" do dữ liệu mẫu bán hàng tự đăng trước đó.
+  if (await db.post.count({ where: { workspaceId, kind: { not: "win" } } })) return { targets: newCells.length, posts: 0 };
   const a = people[0] ?? boss;
   const b = people[1] ?? boss;
   const c = people[2] ?? a;
