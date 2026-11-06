@@ -25,7 +25,9 @@ export async function POST(req: Request, { params }: P) {
   const { recordId, segmentId, channel } = p.data;
   if (segmentId) {
     if (!(await canManageSurveys(a.ctx))) return fail("Chỉ chủ hoặc quản lý gửi được cho cả nhóm", 403);
+    if (!(await db.segment.findFirst({ where: { id: segmentId, workspaceId: wid }, select: { id: true } }))) return fail("Không tìm thấy nhóm khách", 404);
     const r = await sendSurveyToSegment(wid, s.id, segmentId, channel);
+    if (!r.total) return fail("Nhóm khách chưa có khách nào", 400);
     await audit({ workspaceId: wid, user: a.ctx.user }, "survey.send", "survey", s.id, `Gửi khảo sát “${s.name}” cho ${r.sent} khách`);
     return ok(r);
   }

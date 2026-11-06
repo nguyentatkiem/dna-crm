@@ -182,7 +182,7 @@ function LayoutEditor({ obj, initial }: { obj: Obj; initial: FormLayout | null }
       setOver(null);
     },
   });
-  const targets = [...sections.map((x, i) => ({ to: i, label: `Phần: ${x.title || "Chưa đặt tên"}` })), { to: LOOSE, label: `Chưa xếp (hiện ở “${OTHER_TITLE}”)` }, { to: HIDDEN, label: "Ẩn khỏi hồ sơ" }];
+  const targets = [...sections.map((x, i) => ({ to: i, label: `Phần: ${x.title || "Chưa đặt tên"}` })), { to: LOOSE, label: `Chưa xếp (${OTHER_TITLE})` }, { to: HIDDEN, label: "Ẩn khỏi hồ sơ" }];
   const where = (k: string) => (hidden.includes(k) ? HIDDEN : sections.findIndex((x) => x.fields.includes(k)));
 
   const chip = (k: string, sectionIdx: number) => (
@@ -211,7 +211,7 @@ function LayoutEditor({ obj, initial }: { obj: Obj; initial: FormLayout | null }
     >
       <Icon name="grip" size={14} className="flex-none text-ink-2" />
       <span className="min-w-0 flex-1 truncate">{label(k)}</span>
-      <select aria-label={`Chuyển ${label(k)} tới`} className="h-7 max-w-[130px] rounded border border-line-soft bg-surface-2 px-1 text-[12px] text-ink-2" value={String(where(k) < 0 && !hidden.includes(k) ? LOOSE : where(k))} onChange={(e) => move(k, Number(e.target.value))}>
+      <select aria-label={`Chuyển ${label(k)} tới`} className="h-7 w-[118px] flex-none rounded border border-line-soft bg-surface-2 px-1 text-[12px] text-ink-2" value={String(where(k) < 0 && !hidden.includes(k) ? LOOSE : where(k))} onChange={(e) => move(k, Number(e.target.value))}>
         {targets.map((t) => (
           <option key={t.to} value={t.to}>
             {t.label}

@@ -7,6 +7,7 @@ import { moveToTrash } from "../trash";
 import { notifyOnce } from "../notify";
 import type { WorkspaceConfig } from "../config/schema";
 import { loadCfg } from "../marketing/store";
+import { recomputeScores } from "./behavior";
 import { activeWorkspaces, contactKeys, dataOf, type C360Ctx } from "./common";
 import { findDuplicateGroups, groupKey, mergeData, normEmail, normName, normPhoneVN, type DupContact, type DupGroup } from "./dedupe";
 
@@ -15,7 +16,7 @@ type DupPref = { ignored: string[]; notified: string[] };
 const DUP_DEFAULT: DupPref = { ignored: [], notified: [] };
 export const dupPref = (wid: string) => getPref<DupPref>(wid, "dupes", DUP_DEFAULT);
 
-function toDup(cfg: WorkspaceConfig, r: DbRecord): DupContact {
+function toDup(cfg: WorkspaceConfig, r: Pick<DbRecord, "id" | "title" | "dataJson" | "createdAt" | "score">): DupContact {
   const { phoneKey, emailKey } = contactKeys(cfg);
   const d = dataOf(r);
   return { id: r.id, title: r.title, phone: phoneKey ? String(d[phoneKey] ?? "") : "", email: emailKey ? String(d[emailKey] ?? "") : "", createdAt: r.createdAt, score: r.score };
@@ -46,13 +47,13 @@ export async function findDuplicatesFor(workspaceId: string, input: { phone?: st
   const name = normName(input.name);
   if (!phone && !email) return [];
   const { phoneKey, emailKey } = contactKeys(c);
-  // Lọc thô bằng SQL theo 3 số cuối (số viết có dấu cách/chấm vẫn giữ cụm cuối) / phần trước @ của email, rồi so chính xác sau khi chuẩn hoá.
+  // Lọc thô bằng SQL theo 2 số cuối (số viết "096 845 14 54" vẫn giữ cụm 2 số cuối) / phần trước @ của email, rồi so chính xác sau khi chuẩn hoá.
   const or = [
-    ...(phone && phoneKey ? [{ dataJson: { contains: phone.slice(-3) } }] : []),
+    ...(phone && phoneKey ? [{ dataJson: { contains: phone.slice(-2) } }] : []),
     ...(email && emailKey ? [{ dataJson: { contains: email.split("@")[0] } }] : []),
   ];
   if (!or.length) return [];
-  const recs = await db.record.findMany({ where: { workspaceId, objectKey: "contacts", OR: or, ...(excludeId ? { id: { not: excludeId } } : {}) }, take: 2000 });
+  const recs = await db.record.findMany({ where: { workspaceId, objectKey: "contacts", OR: or, ...(excludeId ? { id: { not: excludeId } } : {}) }, select: { id: true, title: true, ownerName: true, dataJson: true, createdAt: true, score: true }, take: 10000 });
   const out: { id: string; title: string; owner: string; reason: string }[] = [];
   for (const r of recs) {
     const d = toDup(c, r);
@@ -104,6 +105,15 @@ export async function mergeContacts(ctx: C360Ctx, survivorId: string, loserIds: 
   const moved: Record<string, number> = {};
 
   await dbRaw.$transaction(async (tx) => {
+    // Kịch bản chăm sóc: mỗi khách chỉ ghi danh một lần vào một kịch bản (unique sequenceId+recordId).
+    // Hồ sơ giữ lại đã có (hoặc hai hồ sơ phụ cùng có) kịch bản đó thì bỏ bản ghi danh thừa trước khi chuyển.
+    const enrolled = new Set((await tx.enrollment.findMany({ where: { recordId: survivorId }, select: { sequenceId: true } })).map((e) => e.sequenceId));
+    const extra: string[] = [];
+    for (const e of await tx.enrollment.findMany({ where: { recordId: { in: ids } }, orderBy: { createdAt: "asc" }, select: { id: true, sequenceId: true } })) {
+      if (enrolled.has(e.sequenceId)) extra.push(e.id);
+      else enrolled.add(e.sequenceId);
+    }
+    if (extra.length) await tx.enrollment.deleteMany({ where: { id: { in: extra } } });
     for (const [label, model, cols] of LINKS) {
       const del = (tx as unknown as Record<string, AnyDelegate>)[model];
       let n = 0;
@@ -152,6 +162,8 @@ export async function mergeContacts(ctx: C360Ctx, survivorId: string, loserIds: 
   });
 
   for (const id of ids) await moveToTrash(wid, id, ctx.user.name);
+  // Hồ sơ giữ lại vừa nhận thêm đơn, cuộc gọi, khảo sát… nên chấm lại điểm ngay (không chờ job hằng giờ).
+  await recomputeScores(wid, ctx.config, { ids: [survivorId] }).catch((e) => console.error("[merge] chấm lại điểm", e instanceof Error ? e.message : e));
   await audit({ workspaceId: wid, user: ctx.user }, "merge", "record", survivorId, `Gộp ${ids.length} hồ sơ trùng vào “${survivor.title}”`, { mergedIds: ids, moved });
   return { survivorId, merged: ids.length, moved };
 }

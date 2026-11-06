@@ -10,7 +10,7 @@ import { VOUCHER_PREF_DEFAULT, checkVoucher, fillVoucherTemplate, generateCode, 
 
 // HỢP ĐỒNG (đợt B hiện thực). Tự động hoá và đơn hàng gọi các hàm này.
 export type IssueInput = { campaignId: string; recordId: string; reason?: string; by?: string; send?: "zalo" | "zns" | "sms" | "email" | "" };
-export type IssuedVoucher = { id: string; code: string; expiresAt: Date };
+export type IssuedVoucher = { id: string; code: string; expiresAt: Date; /** Có chọn kênh gửi mà gửi không được (chưa cấu hình kênh, khách thiếu SĐT…). Mã vẫn được phát. */ sendError?: string };
 
 const D = 864e5;
 export const voucherPref = (wid: string) => getPref<VoucherPref>(wid, "voucher", VOUCHER_PREF_DEFAULT);
@@ -49,6 +49,7 @@ export async function issueVoucher(workspaceId: string, input: IssueInput): Prom
     const body = fillVoucherTemplate(tpl, { code: v.code, value: valueText(c), expiresAt, name: rec.title });
     const r = await sendMessage(workspaceId, { channel: input.send as Channel, recordId: rec.id, subject: `Quà tặng: ${c.name}`, body, params: { code: v.code, value: valueText(c), expiresAt: fmtDate(expiresAt) } });
     if (r.ok) await db.voucher.update({ where: { id: v.id }, data: { sentVia: input.send } });
+    else return { id: v.id, code: v.code, expiresAt, sendError: r.error || "Gửi tin không thành công" };
   }
   return { id: v.id, code: v.code, expiresAt };
 }
@@ -56,9 +57,18 @@ export async function issueVoucher(workspaceId: string, input: IssueInput): Prom
 /** Phát cho cả nhóm khách. Khách đã nhận đủ lượt thì bỏ qua. */
 export async function issueToSegment(workspaceId: string, input: Omit<IssueInput, "recordId"> & { segmentId: string }) {
   const rows = (await resolveSegment(workspaceId, input.segmentId)).filter((r) => r.objectKey === "contacts").slice(0, 2000);
-  let issued = 0;
-  for (const r of rows) if (await issueVoucher(workspaceId, { ...input, recordId: r.id })) issued++;
-  return { total: rows.length, issued, skipped: rows.length - issued };
+  let issued = 0, sendFailed = 0;
+  let sendError = "";
+  for (const r of rows) {
+    const v = await issueVoucher(workspaceId, { ...input, recordId: r.id });
+    if (!v) continue;
+    issued++;
+    if (v.sendError) {
+      sendFailed++;
+      sendError ||= v.sendError;
+    }
+  }
+  return { total: rows.length, issued, skipped: rows.length - issued, sendFailed, sendError };
 }
 
 export async function findVoucher(workspaceId: string, code: string) {
@@ -113,7 +123,7 @@ export async function orderVoucher(workspaceId: string, code: unknown, base: num
   const c = normCode(typeof code === "string" ? code : "");
   if (!c) return { code: "", discount: 0 } as const;
   const r = await validateCode(workspaceId, c, base, contactId, orderId);
-  if (!r.ok) return { error: `Mã giảm giá ${c}: ${r.error}` } as const;
+  if (!r.ok) return { error: `${r.error} (mã ${c})` } as const;
   return { code: c, discount: r.discount } as const;
 }
 

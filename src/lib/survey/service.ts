@@ -34,7 +34,10 @@ export async function sendSurvey(workspaceId: string, input: SendSurveyInput): P
   const pref = await surveyPref(workspaceId);
   const body = (pref.message || SURVEY_PREF_DEFAULT.message).replace(/\{link\}/g, url);
   const res = await sendMessage(workspaceId, { channel: channel as Channel, recordId: rec.id, subject: survey.name, body: body.includes(url) ? body : `${body}\n${url}`, params: { link: url } });
-  return res.ok ? { ok: true, url } : { ok: false, url, error: res.error };
+  if (res.ok) return { ok: true, url };
+  // Gửi không được: lời mời vẫn còn dưới dạng link, ghi đúng kênh để dòng thời gian không báo "đã gửi qua Zalo".
+  await db.surveyResponse.update({ where: { id: r.id }, data: { channel: "link" } });
+  return { ok: false, url, error: res.error };
 }
 
 /** Gửi khảo sát cho cả nhóm khách. Trả số lời mời đã tạo và số lỗi gửi. */

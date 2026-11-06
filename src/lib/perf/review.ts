@@ -100,7 +100,8 @@ export async function perfBoard(workspaceId: string, cfg: WorkspaceConfig, perio
       who,
       teams: teams.filter((t) => allMembers(t).includes(who)).map((t) => t.name),
       scores,
-      notes: auto[who]?.notes ?? {},
+      // Phiếu đã chốt: điểm tự động là bản chụp, ghi chú số liệu hiện tại sẽ mâu thuẫn với điểm nên thay bằng ghi chú chốt.
+      notes: done ? Object.fromEntries(criteria.filter((c) => c.source !== "manual" && scores[c.id] != null).map((c) => [c.id, "Điểm chụp lúc chốt"])) : (auto[who]?.notes ?? {}),
       total,
       rank: rankOf(total),
       comment: r?.comment ?? "",
@@ -127,6 +128,8 @@ export async function saveReview(
   const where = { workspaceId_period_who: { workspaceId, period: input.period, who: input.who } };
   const cur = await db.perfReview.findUnique({ where });
   const done = cur?.status === "done";
+  // Chỉ chấm người thuộc danh sách đánh giá của kỳ (tránh tạo phiếu “ma” cho tên gõ tuỳ ý).
+  if (!cur && !(await reviewPeople(workspaceId, cfg, input.period)).people.includes(input.who)) return { error: `“${input.who}” không có trong danh sách đánh giá` };
   if (done && !by.isOwner) return { error: "Phiếu đánh giá đã chốt. Chỉ chủ doanh nghiệp mở lại hoặc sửa được." };
   if (input.reopen) {
     if (!by.isOwner) return { error: "Chỉ chủ doanh nghiệp mở lại phiếu đã chốt" };

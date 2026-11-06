@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import type { ObjectDef } from "@/lib/config/schema";
 import { color } from "@/lib/colors";
 import { Icon } from "../Icon";
@@ -17,13 +17,24 @@ export function FilterMenu({ fields, filters, mode, onChange }: { fields: Filter
     onChange([...filters, { id: Math.random().toString(36).slice(2, 8), field: f.key, op: OPS[f.kind][0].op, value: "" }], mode);
   };
   const upd = (id: string, patch: Partial<Filter>) => onChange(filters.map((x) => (x.id === id ? { ...x, ...patch } : x)), mode);
+  // Bảng lọc rộng 560px mở từ nút Lọc: nếu tràn mép phải màn hình thì dịch sang trái cho vừa (không bị cắt ô giá trị).
+  const panel = useRef<HTMLDivElement>(null);
+  const [shift, setShift] = useState(0);
+  useLayoutEffect(() => {
+    if (!p.open || !panel.current || window.innerWidth < 640) return setShift(0);
+    const host = p.ref.current?.getBoundingClientRect();
+    const w = panel.current.offsetWidth;
+    if (!host) return;
+    const over = host.left + w - (window.innerWidth - 16);
+    setShift(over > 0 ? Math.min(over, Math.max(0, host.left - 16)) : 0);
+  }, [p.open, p.ref]);
   return (
     <div ref={p.ref} className="relative">
       <button type="button" className={`btn-ghost ${active ? "bg-primary-selected" : ""}`} onClick={() => { p.setOpen(!p.open); if (!filters.length) add(); }} aria-expanded={p.open}>
         <Icon name="filter" size={16} /> Lọc{active ? ` · ${active}` : ""}
       </button>
       {p.open && (
-        <div className="absolute left-0 top-full z-40 mt-1 w-[min(560px,calc(100vw-32px))] rounded-lg bg-surface p-3 shadow-panel max-sm:fixed max-sm:left-4 max-sm:top-24">
+        <div ref={panel} style={shift ? { left: -shift } : undefined} className="absolute left-0 top-full z-40 mt-1 w-[min(560px,calc(100vw-32px))] rounded-lg bg-surface p-3 shadow-panel max-sm:fixed max-sm:left-4 max-sm:top-24">
           <div className="mb-2 flex items-center justify-between gap-2">
             <b className="text-[14px]">Lọc nâng cao</b>
             {filters.length > 1 && (

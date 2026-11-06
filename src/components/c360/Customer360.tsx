@@ -52,16 +52,20 @@ export function Customer360({ recordId }: { recordId: string }) {
   const [more, setMore] = useState(false);
   const [why, setWhy] = useState(false);
   const sumFor = useRef("");
+  // Mỗi lần tải mới (đổi khách/bộ lọc) tăng số này; phản hồi cũ về muộn thì bỏ qua, không ghi đè/nối nhầm.
+  const seq = useRef(0);
 
   const load = useCallback(
     async (before?: string) => {
+      const my = before ? seq.current : ++seq.current;
       const q = new URLSearchParams();
       if (before) q.set("before", before);
       if (kinds.length) q.set("kinds", kinds.join(","));
       if (sumFor.current === recordId) q.set("summary", "0");
-      const r = await fetch(`/api/c360/${recordId}?${q}`);
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) return setErr(j.error ?? "Không tải được chân dung khách");
+      const r = await fetch(`/api/c360/${recordId}?${q}`).catch(() => null);
+      const j = r ? await r.json().catch(() => ({})) : {};
+      if (my !== seq.current) return;
+      if (!r || !r.ok) return setErr(j.error ?? "Không tải được chân dung khách");
       if (j.summary) {
         sumFor.current = recordId;
         setSum(j.summary);

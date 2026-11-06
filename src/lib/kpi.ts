@@ -405,9 +405,10 @@ export function buildTeamRows(teams: { id: string; name: string; color: string; 
 
 /** Toàn bộ dữ liệu cho trang KPI. view = "quarter"/"year" gộp các tháng của quý/năm chứa period. */
 export async function kpiBoard(workspaceId: string, cfg: WorkspaceConfig, period: string, now = new Date(), view: PeriodView = "month") {
-  const people = teamOf(cfg, await memberNames(workspaceId));
   const { from, to } = viewRange(view, period);
-  const [{ actuals, lost, revenueSource }, targets, teams] = await Promise.all([computeActualsRange(workspaceId, cfg, from, to), getTargetsFor(workspaceId, viewMonths(view, period)), listTeams(workspaceId)]);
+  const [{ actuals, lost, revenueSource }, targets, teams, names] = await Promise.all([computeActualsRange(workspaceId, cfg, from, to), getTargetsFor(workspaceId, viewMonths(view, period)), listTeams(workspaceId), memberNames(workspaceId)]);
+  // Người trong đội (kể cả chưa có tài khoản) cũng có hàng cá nhân, để số của đội khớp tổng các hàng cá nhân.
+  const people = [...new Set([...teamOf(cfg, names), ...teams.flatMap((t) => [t.leader, ...t.members]).map((s) => s.trim()).filter(Boolean)])];
   const { day, days } = viewDays(view, period, now);
   const rows = buildRows(people, actuals, targets, day, days);
   const teamRows = buildTeamRows(teams, actuals, lost, targets, day, days);

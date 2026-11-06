@@ -2,7 +2,8 @@ import { db } from "@/lib/db";
 import { appApi, fail, ok } from "@/lib/http";
 import { audit } from "@/lib/audit";
 import { SurveyBody, canManageSurveys, surveyDTO } from "@/lib/survey/api";
-import { surveyReport } from "@/lib/survey/service";
+import { surveyPref, surveyReport } from "@/lib/survey/service";
+import { setPref } from "@/lib/prefs";
 
 type P = { params: Promise<{ id: string }> };
 
@@ -43,6 +44,9 @@ export async function DELETE(_req: Request, { params }: P) {
   const s = await db.survey.findFirst({ where: { id: (await params).id, workspaceId: a.ctx.workspace.id } });
   if (!s) return fail("Không tìm thấy khảo sát", 404);
   await db.survey.delete({ where: { id: s.id } });
+  // Khảo sát đang được chọn để tự gửi sau phiếu hỗ trợ thì bỏ chọn, tránh cài đặt trỏ vào khảo sát đã xoá.
+  const pref = await surveyPref(a.ctx.workspace.id);
+  if (pref.afterTicketSurveyId === s.id) await setPref(a.ctx.workspace.id, "survey", { ...pref, afterTicketSurveyId: "" });
   await audit({ workspaceId: a.ctx.workspace.id, user: a.ctx.user }, "survey.delete", "survey", s.id, `Xoá khảo sát “${s.name}” và các câu trả lời`);
   return ok({ deleted: true });
 }

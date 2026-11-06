@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cleanAnswers, npsBreakdown, npsBucket, npsScore, questionStats, weekKey, weeklyTrend, type Question } from "./shared";
+import { QuestionsSchema, cleanAnswers, npsBreakdown, npsBucket, npsScore, questionStats, weekKey, weeklyTrend, type Question } from "./shared";
 
 describe("NPS", () => {
   it("phân nhóm theo điểm", () => {
@@ -59,5 +59,22 @@ describe("questionStats", () => {
     expect(s[1]).toMatchObject({ answered: 2, avg: 4 });
     expect(s[2].options).toEqual([{ label: "X", count: 2 }, { label: "Y", count: 0 }]);
     expect(s[3].options).toEqual([{ label: "X", count: 1 }, { label: "Y", count: 2 }, { label: "Z", count: 0 }]);
+  });
+});
+
+describe("kiểm tra bộ câu hỏi và câu trả lời", () => {
+  it("câu chọn phải có lựa chọn, mã câu không trùng", () => {
+    expect(QuestionsSchema.safeParse([{ id: "q1", type: "choice", label: "Chọn" }]).success).toBe(false);
+    expect(QuestionsSchema.safeParse([{ id: "q1", type: "multi", label: "Chọn", options: ["A", "A"] }]).success).toBe(false);
+    expect(QuestionsSchema.safeParse([{ id: "q1", type: "text", label: "a" }, { id: "q1", type: "text", label: "b" }]).success).toBe(false);
+    expect(QuestionsSchema.safeParse([{ id: "q1", type: "choice", label: "Chọn", options: ["A", "B"] }]).success).toBe(true);
+  });
+  it("điểm chỉ nhận số hoặc chuỗi số, không nhận true/khoảng trắng/mảng", () => {
+    const qs: Question[] = [{ id: "q1", type: "nps", label: "NPS", required: true }];
+    expect(cleanAnswers(qs, { q1: true })).toHaveProperty("error");
+    expect(cleanAnswers(qs, { q1: " " })).toHaveProperty("error");
+    expect(cleanAnswers(qs, { q1: [5] })).toHaveProperty("error");
+    expect(cleanAnswers(qs, { q1: "7" })).toMatchObject({ nps: 7 });
+    expect(cleanAnswers(qs, { q1: 0 })).toMatchObject({ nps: 0 });
   });
 });

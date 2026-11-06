@@ -19,7 +19,22 @@ export const QuestionSchema = z.object({
   options: z.array(z.string().trim().min(1).max(120)).max(20).optional(),
   required: z.boolean().optional(),
 });
-export const QuestionsSchema = z.array(QuestionSchema).min(1, "Khảo sát cần ít nhất một câu hỏi").max(30);
+export const QuestionsSchema = z
+  .array(QuestionSchema)
+  .min(1, "Khảo sát cần ít nhất một câu hỏi")
+  .max(30)
+  .superRefine((qs, ctx) => {
+    const ids = new Set<string>();
+    qs.forEach((q, i) => {
+      if (ids.has(q.id)) ctx.addIssue({ code: "custom", path: [i, "id"], message: "Mã câu hỏi bị trùng" });
+      ids.add(q.id);
+      if (q.type === "choice" || q.type === "multi") {
+        const opts = q.options ?? [];
+        if (!opts.length) ctx.addIssue({ code: "custom", path: [i, "options"], message: `Câu “${q.label}” cần ít nhất một lựa chọn` });
+        else if (new Set(opts).size !== opts.length) ctx.addIssue({ code: "custom", path: [i, "options"], message: `Câu “${q.label}” có lựa chọn bị trùng` });
+      }
+    });
+  });
 
 export const SURVEY_CHANNELS = ["link", "zalo", "zns", "sms", "email"] as const;
 export type SurveyChannel = (typeof SURVEY_CHANNELS)[number];
@@ -125,7 +140,7 @@ export function cleanAnswers(questions: Question[], raw: Record<string, unknown>
       continue;
     }
     if (q.type === "nps" || q.type === "rating") {
-      const n = Number(v);
+      const n = typeof v === "number" ? v : typeof v === "string" && /^\s*\d+\s*$/.test(v) ? Number(v) : NaN;
       const [lo, hi] = q.type === "nps" ? [0, 10] : [1, 5];
       if (!Number.isInteger(n) || n < lo || n > hi) return { error: `Điểm chưa hợp lệ ở câu “${q.label}”` };
       answers[q.id] = n;

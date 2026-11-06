@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { Badge, Drawer, EmptyState, Stat, Tabs } from "@/components/ui";
 import { IssueVoucherDrawer } from "@/components/voucher/IssueVoucherDrawer";
-import { VOUCHER_STATUSES, VOUCHER_STATUS_LABEL, VOUCHER_STATUS_TONE, valueText } from "@/lib/voucher/shared";
+import { SEND_LABEL, VOUCHER_STATUSES, VOUCHER_STATUS_LABEL, VOUCHER_STATUS_TONE, valueText, type SendChannel } from "@/lib/voucher/shared";
 import type { VoucherDTO } from "@/lib/voucher/api";
 import type { CampaignWithStats } from "@/lib/voucher/service";
 
@@ -46,7 +46,9 @@ export function VouchersClient() {
 
   async function toggle(c: Camp) {
     setCamps((x) => x?.map((i) => (i.id === c.id ? { ...i, active: !c.active } : i)) ?? null);
-    await fetch(`/api/vouchers/campaigns/${c.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ active: !c.active }) });
+    const r = await fetch(`/api/vouchers/campaigns/${c.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ active: !c.active }) }).catch(() => null);
+    // Lỗi thì trả lại trạng thái cũ.
+    if (!r?.ok) setCamps((x) => x?.map((i) => (i.id === c.id ? { ...i, active: c.active } : i)) ?? null);
   }
   async function voidCode(v: VoucherDTO) {
     if (!confirm(`Huỷ mã ${v.code}? Khách sẽ không dùng được mã này nữa.`)) return;
@@ -203,7 +205,7 @@ export function VouchersClient() {
                         <span className="font-mono font-semibold">{v.code}</span>
                         <p className="text-[12px] text-ink-2">
                           {v.reason}
-                          {v.sentVia ? ` · đã gửi ${v.sentVia.toUpperCase()}` : ""}
+                          {v.sentVia ? ` · đã gửi qua ${SEND_LABEL[v.sentVia as SendChannel] ?? v.sentVia}` : ""}
                         </p>
                       </td>
                       <td className="px-2 py-2">
@@ -263,14 +265,17 @@ function CampaignDrawer({ id, initial, onClose, onSaved }: { id?: string; initia
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setD((x) => ({ ...x, [k]: v }));
-  const num = (s: string) => Number(String(s).replace(/[^\d.]/g, "")) || 0;
-  const preview = { kind: d.kind, value: num(d.value), maxDiscount: num(d.maxDiscount), minOrder: num(d.minOrder) };
+  // Tiền gõ kiểu Việt "500.000" hay "500,000": chỉ lấy chữ số. Phần trăm cho phép số lẻ "12,5".
+  const num = (s: string) => Number(String(s).replace(/\D/g, "")) || 0;
+  const pct = (s: string) => Number(String(s).replace(",", ".").replace(/[^\d.]/g, "")) || 0;
+  const val = (s: string) => (d.kind === "percent" ? pct(s) : num(s));
+  const preview = { kind: d.kind, value: val(d.value), maxDiscount: num(d.maxDiscount), minOrder: num(d.minOrder) };
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     setErr("");
-    const body = { ...d, value: num(d.value), maxDiscount: num(d.maxDiscount), minOrder: num(d.minOrder), validDays: num(d.validDays), perCustomer: num(d.perCustomer) || 1 };
+    const body = { ...d, value: val(d.value), maxDiscount: num(d.maxDiscount), minOrder: num(d.minOrder), validDays: num(d.validDays), perCustomer: num(d.perCustomer) || 1 };
     const r = await fetch(id ? `/api/vouchers/campaigns/${id}` : "/api/vouchers/campaigns", { method: id ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     const j = await r.json().catch(() => ({}));
     setBusy(false);

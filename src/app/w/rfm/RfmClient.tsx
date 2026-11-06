@@ -36,6 +36,7 @@ export function RfmClient({ summary, customers, totalContacts, lastRun, canRecom
     const { r, j } = await post({ action: "segment", key: sel }, "seg");
     if (!r.ok) return setMsg({ ok: false, text: j.error ?? "Không lưu được nhóm" });
     setMsg({ ok: true, text: `${j.existed ? "Nhóm đã có sẵn" : "Đã lưu nhóm"} “${j.name}” (${j.count} khách). Nhóm tự cập nhật mỗi ngày theo RFM.`, segId: j.id });
+    router.refresh();
   }
 
   async function recompute() {

@@ -284,7 +284,7 @@ export function sentence(rule: Rule, cfg: WorkspaceConfig, extra?: Lists): { tri
       break;
     }
     case "idle":
-      trigger = [{ text: `${item} ${t.days ?? 30} ngày không có tương tác nào` }];
+      trigger = [{ text: `${item} không có tương tác nào trong ${t.days ?? 30} ngày` }];
       break;
     case "email_engaged": {
       const verb = t.value ? ENGAGE_LABEL[t.value] ?? t.value : "mở hoặc nhấp";
@@ -306,7 +306,7 @@ export function sentence(rule: Rule, cfg: WorkspaceConfig, extra?: Lists): { tri
       break;
     }
     case "voucher_used": {
-      const c = t.value ? extra?.campaigns?.find((x) => x.id === t.value)?.name ?? t.value : "";
+      const c = t.value ? extra?.campaigns?.find((x) => x.id === t.value)?.name ?? "đã chọn" : "";
       trigger = [{ text: `${item} dùng voucher${c ? ` của chiến dịch “${c}”` : ""}` }];
       break;
     }
@@ -353,7 +353,7 @@ export function sentence(rule: Rule, cfg: WorkspaceConfig, extra?: Lists): { tri
       }
       case "send_survey": {
         const sv = extra?.surveys?.find((x) => x.id === a.surveyId)?.name ?? (a.surveyId ? "đã chọn" : "…");
-        return [{ text: `gửi khảo sát “${sv}”${a.channel ? ` ${a.channel === "auto" ? "qua kênh phù hợp" : `qua ${CHANNEL_LABEL[a.channel]}`}` : " (tạo link)"}` }];
+        return [{ text: `gửi khảo sát “${sv}”${a.channel ? ` ${a.channel === "auto" ? "qua kênh phù hợp nhất" : `qua ${CHANNEL_LABEL[a.channel]}`}` : " (tạo link)"}` }];
       }
       case "add_tag":
         return [{ text: `gắn thẻ “${short(a.value, 24) || "…"}” vào ${fieldLabel(a.field)}` }];

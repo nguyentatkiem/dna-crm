@@ -14,6 +14,6 @@ export async function POST(req: Request, { params }: P) {
   const body = (await req.json().catch(() => ({}))) as { answers?: Record<string, unknown> };
   const c = cleanAnswers(questionsOf(s), body.answers ?? {});
   if ("error" in c) return fail(c.error);
-  if (!rateLimit(`survey|${clientIp(req)}|${key}`, 1, 60_000)) return fail("Bạn vừa gửi rồi, vui lòng chờ một phút nếu muốn gửi thêm", 429);
+  if (!rateLimit(`survey|${clientIp(req)}|${key}`, 5, 60_000)) return fail("Có nhiều lượt gửi từ cùng một mạng, vui lòng chờ một phút rồi gửi lại", 429);
   return ok(await submitOpen(s, c));
 }

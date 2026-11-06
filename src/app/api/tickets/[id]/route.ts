@@ -16,10 +16,12 @@ export async function GET(req: Request, { params }: P) {
   if ("error" in a) return a.error;
   const t = await findTicket(a.ctx, (await params).id);
   if (!t) return fail("Không tìm thấy phiếu", 404);
-  const [messages, logs, rec] = await Promise.all([
+  const [messages, logs, rec, inv] = await Promise.all([
     db.ticketMessage.findMany({ where: { ticketId: t.id }, orderBy: { createdAt: "asc" } }),
     db.auditLog.findMany({ where: { workspaceId: a.ctx.workspace.id, entity: "ticket", entityId: t.id }, orderBy: { createdAt: "desc" }, take: 50 }),
     t.recordId ? db.record.findFirst({ where: { id: t.recordId, workspaceId: a.ctx.workspace.id } }) : null,
+    // Lời mời khảo sát tự gửi khi phiếu "Đã xử lý" (Cài đặt khảo sát), để nhân viên thấy link / kết quả.
+    db.surveyResponse.findFirst({ where: { workspaceId: a.ctx.workspace.id, ticketId: t.id }, orderBy: { sentAt: "desc" }, include: { survey: { select: { id: true, name: true } } } }),
   ]);
   return ok({
     ticket: ticketDTO(t, new Map(rec ? [[rec.id, rec.title]] : [])),
@@ -27,6 +29,9 @@ export async function GET(req: Request, { params }: P) {
     messages: messages.map((m) => ({ id: m.id, author: m.author, body: m.body, internal: m.internal, at: m.createdAt.toISOString() })),
     logs: logs.map((l) => ({ id: l.id, user: l.userName, summary: l.summary, at: l.createdAt.toISOString() })),
     csatUrl: t.status === "resolved" || t.status === "closed" ? `${publicOrigin(req)}/csat/${t.csatToken}` : null,
+    surveyInvite: inv
+      ? { surveyId: inv.survey.id, surveyName: inv.survey.name, url: `${publicOrigin(req)}/s/${inv.token}`, channel: inv.channel, submittedAt: inv.submittedAt?.toISOString() ?? null, nps: inv.nps, rating: inv.rating, comment: inv.comment, responseId: inv.id }
+      : null,
   });
 }
 

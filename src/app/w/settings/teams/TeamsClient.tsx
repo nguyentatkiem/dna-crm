@@ -37,6 +37,13 @@ export function TeamsClient({ initialTeams, people, initialRouting }: { initialT
     if (!confirm(`Xoá đội “${t.name}”? Phiếu hỗ trợ của đội sẽ bỏ gắn đội, chỉ tiêu KPI riêng của đội bị xoá.`)) return;
     const r = await fetch(`/api/teams/${t.id}`, { method: "DELETE" });
     if (r.ok) setTeams((l) => l.filter((x) => x.id !== t.id));
+    else alert((await r.json().catch(() => ({}))).error ?? "Không xoá được đội");
+  }
+
+  function addExtra() {
+    const n = extra.trim().replace(/\s+/g, " ");
+    if (form && n && !form.members.includes(n) && n !== form.leader) setForm({ ...form, members: [...form.members, n] });
+    setExtra("");
   }
 
   const toggle = (name: string) => form && setForm({ ...form, members: form.members.includes(name) ? form.members.filter((m) => m !== name) : [...form.members, name] });
@@ -132,8 +139,8 @@ export function TeamsClient({ initialTeams, people, initialRouting }: { initialT
                 ))}
               </div>
               <div className="mt-1 flex gap-2">
-                <input className="input h-8 flex-1" value={extra} onChange={(e) => setExtra(e.target.value)} placeholder="Thêm người chưa có trong danh sách" aria-label="Tên người cần thêm" />
-                <button type="button" className="btn-outline h-8" onClick={() => { const n = extra.trim(); if (n && !form.members.includes(n) && n !== form.leader) setForm({ ...form, members: [...form.members, n] }); setExtra(""); }}>
+                <input className="input h-8 flex-1" value={extra} onChange={(e) => setExtra(e.target.value)} onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addExtra())} placeholder="Thêm người chưa có trong danh sách" aria-label="Tên người cần thêm" />
+                <button type="button" className="btn-outline h-8" onClick={addExtra}>
                   Thêm
                 </button>
               </div>

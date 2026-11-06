@@ -9,8 +9,8 @@ import { PERF_DEFAULT, validateCriteria, type Criterion } from "@/lib/perf/share
 const SOURCES = ["manual", "csat", ...METRICS.map((m) => `kpi:${m}`)] as const;
 const Body = z.object({
   criteria: z
-    .array(z.object({ id: z.string().regex(/^[a-z0-9_-]{1,30}$/i, "Mã tiêu chí chỉ gồm chữ, số, gạch"), label: z.string().max(80), weight: z.number().min(0).max(100), source: z.enum(SOURCES) }))
-    .max(20),
+    .array(z.object({ id: z.string().regex(/^[a-z0-9_-]{1,30}$/i, "Mã tiêu chí chỉ gồm chữ, số, gạch"), label: z.string().max(80, "Tên tiêu chí tối đa 80 ký tự"), weight: z.number("Trọng số phải là số").min(0, "Trọng số không được âm").max(100, "Trọng số mỗi tiêu chí tối đa 100%"), source: z.enum(SOURCES, "Nguồn điểm không hợp lệ") }))
+    .max(20, "Tối đa 20 tiêu chí"),
   reset: z.boolean().optional(),
 });
 

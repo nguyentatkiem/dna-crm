@@ -69,3 +69,7 @@ describe("checkVoucher", () => {
 it("điền mẫu tin", () => {
   expect(fillVoucherTemplate("Chào {name}, mã {code} {value} đến {expiresAt} {x}", { code: "SNAAA", value: "Giảm 10%", expiresAt: new Date(2026, 11, 5), name: "Lan" })).toBe("Chào Lan, mã SNAAA Giảm 10% đến 05/12/2026 {x}");
 });
+
+it("phần trăm lẻ hiện theo kiểu Việt", () => {
+  expect(valueText({ kind: "percent", value: 12.5, maxDiscount: 0, minOrder: 0 })).toBe("Giảm 12,5%");
+});

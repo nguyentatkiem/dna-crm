@@ -67,6 +67,8 @@ export async function importRows(
   ctx: { workspace: { id: string }; user: { name: string }; config: WorkspaceConfig },
   obj: ObjectDef,
   rows: ImportRow[],
+  /** Trường chỉ xem với người nhập: không gộp vào khách đã có. */
+  locked: Set<string> = new Set(),
 ): Promise<ImportResult> {
   const wid = ctx.workspace.id;
   const phoneKey = obj.fields.find((f) => f.type === "phone")?.key;
@@ -90,7 +92,7 @@ export async function importRows(
     const p = phoneKey ? normPhone(String(r.data[phoneKey] ?? "")) : "";
     const hit = p ? known.get(p) : undefined;
     if (hit) {
-      const add = Object.fromEntries(Object.entries(r.data).filter(([k, v]) => v !== "" && (hit.data[k] === undefined || hit.data[k] === "")));
+      const add = Object.fromEntries(Object.entries(r.data).filter(([k, v]) => v !== "" && !locked.has(k) && (hit.data[k] === undefined || hit.data[k] === "")));
       if (!Object.keys(add).length) {
         res.skipped++;
         continue;

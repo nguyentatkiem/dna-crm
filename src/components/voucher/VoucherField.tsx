@@ -10,9 +10,10 @@ export type AppliedVoucher = { code: string; discount: number; label: string };
  * Ô "Mã giảm giá" trong form đơn hàng. Bấm Áp dụng → kiểm tra qua /api/vouchers/validate.
  * Đã áp mã thì tự kiểm tra lại khi tạm tính hoặc khách thay đổi.
  */
-export function VoucherField({ base, contactId, orderId, initialCode = "", onChange }: { base: number; contactId: string | null; orderId?: string; initialCode?: string; onChange: (v: AppliedVoucher | null) => void }) {
+export function VoucherField({ base, contactId, orderId, initialCode = "", initialApplied = null, onChange }: { base: number; contactId: string | null; orderId?: string; initialCode?: string; initialApplied?: AppliedVoucher | null; onChange: (v: AppliedVoucher | null) => void }) {
   const [text, setText] = useState(initialCode);
-  const [applied, setApplied] = useState<AppliedVoucher | null>(null);
+  // Sửa đơn đã có mã: hiện ngay mã đang áp (rồi kiểm tra lại ở nền), tránh lưu nhanh làm mất mã.
+  const [applied, setApplied] = useState<AppliedVoucher | null>(initialApplied);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const want = useRef(initialCode);
@@ -70,7 +71,8 @@ export function VoucherField({ base, contactId, orderId, initialCode = "", onCha
         <div className="flex items-center gap-2 rounded border border-success/40 bg-success-soft px-3 py-2 text-[13px] text-success">
           <Icon name="gift" size={15} />
           <span className="min-w-0 flex-1">
-            <b className="font-mono">{applied.code}</b> · {applied.label}
+            <b className="font-mono">{applied.code}</b>
+            {applied.label ? ` · ${applied.label}` : ""}
             <br />
             Giảm <b className="tnum">{applied.discount.toLocaleString("vi-VN")} ₫</b>
           </span>

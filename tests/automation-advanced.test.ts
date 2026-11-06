@@ -88,7 +88,7 @@ describe("luật mới: lưu/đọc và câu mô tả", () => {
   });
   it("câu cho idle, email, khảo sát", () => {
     const base = { name: "", conditions: [], actions: [{ type: "notify" as const, mode: "owner", text: "x" }] };
-    expect(sentenceText({ ...base, trigger: { type: "idle", object: "contacts", days: 30 } }, cfg)).toContain("30 ngày không có tương tác");
+    expect(sentenceText({ ...base, trigger: { type: "idle", object: "contacts", days: 30 } }, cfg)).toContain("không có tương tác nào trong 30 ngày");
     expect(sentenceText({ ...base, trigger: { type: "email_engaged", object: "contacts", value: "open", threshold: 2 } }, cfg)).toContain("mở email lần thứ 2");
     expect(sentenceText({ ...base, trigger: { type: "survey_answered", object: "contacts", value: "detractor" } }, cfg)).toContain("không hài lòng");
   });

@@ -21,6 +21,8 @@ export function CreateTicketButton({ recordId, conversationId, callId, defaultSu
   const [body, setBody] = useState("");
   const [priority, setPriority] = useState<Priority>("normal");
   const [assignee, setAssignee] = useState("");
+  // Người xử lý mặc định (chính mình khi không phân luồng theo bộ phận), dùng lại mỗi lần mở form.
+  const [defaultAssignee, setDefaultAssignee] = useState("");
   const [categories, setCategories] = useState<string[]>([]);
   const [category, setCategory] = useState("");
   const [contact, setContact] = useState<PickedContact | null>(null);
@@ -35,10 +37,14 @@ export function CreateTicketButton({ recordId, conversationId, callId, defaultSu
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => {
         if (!j) return;
-        setTeam(j.team ?? []);
+        // Danh sách người xử lý gồm cả chính mình (giống ô chọn ở trang chi tiết phiếu).
+        setTeam([...new Set<string>([...(j.team ?? []), ...(j.me ? [j.me] : [])])]);
         setCategories(j.categories ?? []);
         // Có phân luồng theo bộ phận thì để trống người xử lý cho hệ thống tự chia.
-        if (!(j.categories ?? []).length) setAssignee((a) => a || j.me || "");
+        if (!(j.categories ?? []).length) {
+          setDefaultAssignee(j.me || "");
+          setAssignee((a) => a || j.me || "");
+        }
       })
       .catch(() => undefined);
   }, [open, team.length]);
@@ -47,6 +53,8 @@ export function CreateTicketButton({ recordId, conversationId, callId, defaultSu
     setSubject(defaultSubject);
     setBody("");
     setPriority("normal");
+    setCategory("");
+    setAssignee(defaultAssignee);
     setContact(null);
     setErr("");
     setDone(null);

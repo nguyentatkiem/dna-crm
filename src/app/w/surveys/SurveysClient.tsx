@@ -12,6 +12,9 @@ type Item = SurveyDTO & { sent: number; answeredInvites: number; submitted: numb
 
 export const npsTone = (n: number | null) => (n == null ? "text-ink-2" : n >= 50 ? "text-success" : n >= 0 ? "text-warning" : "text-danger");
 
+// Khảo sát CSAT, hoặc khảo sát tuỳ chỉnh chỉ có câu chấm sao: hiện điểm sao trung bình thay cho NPS.
+const showStars = (s: Item) => s.kind === "csat" || (s.nps == null && s.avgRating != null);
+
 export function SurveysClient() {
   const [items, setItems] = useState<Item[] | null>(null);
   const [canManage, setCanManage] = useState(false);
@@ -32,7 +35,9 @@ export function SurveysClient() {
 
   async function toggle(s: Item) {
     setItems((x) => x?.map((i) => (i.id === s.id ? { ...i, active: !s.active } : i)) ?? null);
-    await fetch(`/api/surveys/${s.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ active: !s.active }) });
+    const r = await fetch(`/api/surveys/${s.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ active: !s.active }) }).catch(() => null);
+    // Lỗi thì trả lại trạng thái cũ.
+    if (!r?.ok) setItems((x) => x?.map((i) => (i.id === s.id ? { ...i, active: s.active } : i)) ?? null);
   }
   async function copy(s: Item) {
     await navigator.clipboard?.writeText(`${location.origin}/s/f/${s.publicKey}`).catch(() => undefined);
@@ -95,8 +100,8 @@ export function SurveysClient() {
                 </div>
                 <div className="grid grid-cols-3 gap-2 text-center">
                   <div className="rounded-lg bg-[var(--row-hover)] p-2">
-                    <p className={`font-title text-[22px] font-semibold tnum ${s.kind === "csat" ? "" : npsTone(s.nps)}`}>{s.kind === "csat" ? (s.avgRating != null ? `${s.avgRating}★` : "–") : s.nps ?? "–"}</p>
-                    <p className="text-[12px] text-ink-2">{s.kind === "csat" ? "Điểm TB" : "NPS"}</p>
+                    <p className={`font-title text-[22px] font-semibold tnum ${showStars(s) ? "" : npsTone(s.nps)}`}>{showStars(s) ? (s.avgRating != null ? `${s.avgRating}★` : "–") : s.nps ?? "–"}</p>
+                    <p className="text-[12px] text-ink-2">{showStars(s) ? "Điểm TB" : "NPS"}</p>
                   </div>
                   <div className="rounded-lg bg-[var(--row-hover)] p-2">
                     <p className="font-title text-[22px] font-semibold tnum">{s.submitted}</p>

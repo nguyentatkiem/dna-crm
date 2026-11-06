@@ -16,7 +16,7 @@ export async function POST(req: Request) {
   if ("error" in a) return a.error;
   const wid = a.ctx.workspace.id;
   const p = Body.safeParse(await req.json().catch(() => ({})));
-  if (!p.success) return fail(p.error.issues[0]?.message ?? "Dữ liệu chưa hợp lệ");
+  if (!p.success) return fail("Yêu cầu RFM chưa hợp lệ");
   const role = await getRole(a.ctx.user.id, wid);
   if (p.data.action === "recompute") {
     if (!can(role, "see_all")) return fail("Chỉ chủ hoặc quản lý được tính lại RFM", 403);
@@ -24,7 +24,9 @@ export async function POST(req: Request) {
     return ok(await recomputeRfm(wid, a.ctx.config, { fire: !!pref.lastRun }));
   }
   const key = p.data.key;
-  if (!(await rfmPref(wid)).lastRun) await recomputeRfm(wid, a.ctx.config, { fire: false });
+  // Nhóm khách lọc theo _rfm đã ghi trên hồ sơ; ghi lại nếu đã cũ để số khách khớp với thẻ trên trang RFM (tính trực tiếp).
+  const pref = await rfmPref(wid);
+  if (Date.now() - pref.lastRun > 5 * 60e3) await recomputeRfm(wid, a.ctx.config, { fire: !!pref.lastRun });
   const name = `RFM · ${RFM_LABEL[key]}`;
   const existing = await db.segment.findFirst({ where: { workspaceId: wid, name } });
   const seg = existing ?? (await db.segment.create({ data: { workspaceId: wid, objectKey: "contacts", name, filtersJson: JSON.stringify(rfmFilter(key)), mode: "and", createdBy: a.ctx.user.name } }));

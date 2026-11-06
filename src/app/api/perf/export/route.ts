@@ -29,7 +29,11 @@ export async function GET(req: Request) {
         { header: "Người đánh giá", kind: "text" },
         { header: "Trạng thái", kind: "text" },
       ],
-      rows: board.rows.map((row, i) => [i + 1, row.who, row.teams.join(", "), ...board.criteria.map((c) => row.scores[c.id] ?? null), row.total, RANK_LABEL[row.rank], row.comment, row.reviewer, STATUS[row.status]]),
+      rows: board.rows.map((row, i) => {
+        // Chưa có điểm nào: để trống tổng và xếp loại (giống màn hình), không ghi 0 / "Cần cải thiện".
+        const scored = board.criteria.some((c) => row.scores[c.id] != null);
+        return [i + 1, row.who, row.teams.join(", "), ...board.criteria.map((c) => row.scores[c.id] ?? null), scored ? row.total : null, scored ? RANK_LABEL[row.rank] : "", row.comment, row.reviewer, STATUS[row.status]];
+      }),
     },
   ]);
   return new Response(new Uint8Array(buf), { headers: { "Content-Type": XLSX_MIME, "Content-Disposition": `attachment; filename="danh-gia-${p}.xlsx"` } });

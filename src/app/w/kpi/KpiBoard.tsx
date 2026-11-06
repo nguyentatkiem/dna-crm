@@ -116,7 +116,9 @@ export function KpiBoard({ initial, me, canEdit }: { initial: Board; me: string;
     const all = [...board.rows.map((r) => ({ who: r.who, name: r.who || "Cả công ty", cur: (m: Metric) => r.cells[m].target })), ...teams.map((t) => ({ who: t.row.who, name: `Đội ${t.name}`, cur: (m: Metric) => t.explicit[m] ?? 0 }))];
     for (const r of all)
       for (const m of METRICS) {
-        const raw = (draft[`${r.who}|${m}`] ?? "").replace(/[.\s]/g, "").replace(",", ".");
+        // Tiền/số đếm: dấu chấm là phân cách hàng nghìn. Tỉ lệ chốt (%): chấm hay phẩy đều là dấu thập phân (12.5 = 12,5%).
+        const cellRaw = (draft[`${r.who}|${m}`] ?? "").replace(/\s/g, "");
+        const raw = m === "win_rate" ? cellRaw.replace(",", ".") : cellRaw.replace(/\./g, "").replace(",", ".");
         const v = raw === "" ? null : Number(raw);
         if (v !== null && (!isFinite(v) || v < 0)) return setMsg({ ok: false, text: `Ô “${r.name} · ${LABEL[m]}” chưa phải số hợp lệ` });
         if ((v ?? 0) !== r.cur(m)) cells.push({ who: r.who, metric: m, target: v });

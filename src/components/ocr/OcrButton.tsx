@@ -56,10 +56,16 @@ function OcrDialog({ objectKey, onClose, onDone }: { objectKey: string; onClose:
 
   function pick(f: File | undefined) {
     setErr("");
-    setRes(null);
     if (!f) return;
-    if (!TYPES.includes(f.type)) return setErr("Chỉ nhận ảnh JPG, PNG hoặc WebP");
-    if (f.size > MAX) return setErr("Ảnh lớn hơn 5MB, hãy chụp lại hoặc giảm dung lượng");
+    setRes(null);
+    setDupes([]);
+    // Ảnh không hợp lệ thì bỏ luôn ảnh cũ, để nút "Quét" không quét nhầm ảnh trước đó.
+    const bad = !TYPES.includes(f.type) ? "Chỉ nhận ảnh JPG, PNG hoặc WebP" : f.size > MAX ? "Ảnh lớn hơn 5MB, hãy chụp lại hoặc giảm dung lượng" : "";
+    if (bad) {
+      setFile(null);
+      setPreview("");
+      return setErr(bad);
+    }
     setFile(f);
     setPreview(URL.createObjectURL(f));
   }
@@ -122,7 +128,7 @@ function OcrDialog({ objectKey, onClose, onDone }: { objectKey: string; onClose:
             <Icon name="x" size={16} />
           </button>
         </div>
-        <div className="grid min-h-0 flex-1 gap-4 overflow-auto p-4 sm:grid-cols-[220px_minmax(0,1fr)]">
+        <div className="grid min-h-0 flex-1 content-start gap-4 overflow-auto p-4 sm:grid-cols-[220px_minmax(0,1fr)]">
           <div className="grid content-start gap-2">
             <button type="button" onClick={() => input.current?.click()} className="grid aspect-[1.6] place-items-center overflow-hidden rounded-lg border border-dashed border-line bg-surface-2 text-[13px] text-ink-2 hover:border-primary">
               {preview ? (
@@ -135,7 +141,10 @@ function OcrDialog({ objectKey, onClose, onDone }: { objectKey: string; onClose:
                 </span>
               )}
             </button>
-            <input ref={input} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => pick(e.target.files?.[0])} aria-label="Chọn ảnh danh thiếp hoặc CCCD" />
+            <input ref={input} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => {
+                pick(e.target.files?.[0]);
+                e.target.value = ""; // chọn lại đúng ảnh đó vẫn nhận
+              }} aria-label="Chọn ảnh danh thiếp hoặc CCCD" />
             <button type="button" className="btn-primary justify-center" disabled={!file || !!busy} onClick={() => void scan()}>
               {busy === "scan" ? "Đang đọc ảnh…" : res ? "Quét lại" : "Quét bằng AI"}
             </button>

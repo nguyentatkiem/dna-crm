@@ -66,6 +66,10 @@ export async function POST(req: Request) {
     },
   });
   await audit({ workspaceId: wid, user: a.ctx.user }, "order.create", "order", order.id, `Tạo đơn ${number} cho ${order.customerName} (${order.total.toLocaleString("vi-VN")} ₫)`);
-  if (vc.code) await markVoucherUsed(wid, vc.code, order, vc.discount, a.ctx.user.name);
+  // Hai đơn cùng lúc dùng một mã: đơn nào giữ được mã trước thì thắng, đơn còn lại huỷ tạo để không giảm giá hai lần.
+  if (vc.code && !(await markVoucherUsed(wid, vc.code, order, vc.discount, a.ctx.user.name))) {
+    await db.order.delete({ where: { id: order.id } });
+    return fail(`Mã ${vc.code} vừa được dùng cho đơn khác`, 409);
+  }
   return ok(order, 201);
 }

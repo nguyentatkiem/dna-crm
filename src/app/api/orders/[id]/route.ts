@@ -35,6 +35,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
   const d = p.data;
   const data: Record<string, unknown> = {};
   let voucher: { code: string; discount: number } | null = null;
+  let withoutVoucher: Record<string, unknown> = {};
 
   if (d.status && d.status !== before.status) {
     if (!ORDER_NEXT[before.status as OrderStatus]?.includes(d.status as OrderStatus)) return fail(`Không chuyển được từ “${ORDER_STATUS[before.status as OrderStatus]?.label ?? before.status}” sang “${ORDER_STATUS[d.status as OrderStatus].label}”`, 409);
@@ -52,6 +53,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
     const vc = await orderVoucher(a.ctx.workspace.id, body.voucherCode ?? before.voucherCode, totals(full.data.items, full.data.discount).subtotal - full.data.discount, links.contactId, id);
     if ("error" in vc) return fail(vc.error ?? "Mã giảm giá không hợp lệ", 422);
     voucher = vc;
+    withoutVoucher = { ...totals(full.data.items, full.data.discount), voucherCode: "" };
     Object.assign(data, {
       ...links,
       customerName: full.data.customerName,
@@ -66,7 +68,11 @@ export async function PATCH(req: Request, { params }: Ctx) {
   // Voucher: đổi/bỏ mã thì hoàn mã cũ; huỷ đơn thì hoàn mã.
   if (voucher) {
     await releaseOrderVoucher(order.workspaceId, id, voucher.code);
-    if (voucher.code) await markVoucherUsed(order.workspaceId, voucher.code, order, voucher.discount, a.ctx.user.name);
+    if (voucher.code && !(await markVoucherUsed(order.workspaceId, voucher.code, order, voucher.discount, a.ctx.user.name))) {
+      // Mã vừa bị đơn khác giữ: bỏ phần giảm của mã, giữ các thay đổi khác.
+      await db.order.update({ where: { id }, data: withoutVoucher });
+      return fail(`Mã ${voucher.code} vừa được dùng cho đơn khác, đơn đã lưu nhưng không áp mã`, 409);
+    }
   }
   if (data.status === "cancelled") await releaseOrderVoucher(order.workspaceId, id);
   const diff = diffOf(before as unknown as Record<string, unknown>, data);

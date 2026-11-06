@@ -58,6 +58,8 @@ export function IssueVoucherDrawer({ open, onClose, recordId, campaignId, allowS
     setBusy(false);
     if (!r.ok) return setErr(j.error ?? "Không phát được");
     setDone(mode === "segment" ? `Đã phát ${j.issued}/${j.total} mã${j.skipped ? ` (${j.skipped} khách đã nhận đủ lượt)` : ""}.` : `Đã phát mã ${j.code}.`);
+    // Mã đã phát nhưng gửi tin lỗi (chưa cấu hình kênh…): báo để nhân viên tự gửi mã cho khách.
+    if (send && (j.sendError || j.sendFailed)) setErr(`${mode === "segment" ? `${j.sendFailed} khách chưa gửi được` : "Chưa gửi được"} qua ${SEND_LABEL[send]}: ${j.sendError || "lỗi không rõ"}. Hãy gửi mã cho khách bằng cách khác.`);
     onDone?.();
   }
 
@@ -71,8 +73,9 @@ export function IssueVoucherDrawer({ open, onClose, recordId, campaignId, allowS
               <Icon name="gift" size={22} />
             </span>
             <p className="font-medium">{done}</p>
+            {err && <p className="text-[13px] text-warning">{err}</p>}
             <div className="flex gap-2">
-              <button type="button" className="btn-outline" onClick={() => setDone("")}>
+              <button type="button" className="btn-outline" onClick={() => { setDone(""); setErr(""); }}>
                 Phát tiếp
               </button>
               <button type="button" className="btn-ghost" onClick={onClose}>

@@ -138,11 +138,14 @@ export function Board({
   }
   /** Trạng thái "Mặc định" lưu trên máy (giữ khoá cũ để không mất tuỳ chọn đã có). */
   const prefKey = `board:${obj.key}`;
+  // Kiểu xem (bảng/kanban/…) của "Mặc định": nhớ lại để khi quay về từ một dạng xem đã lưu không bị giữ kiểu xem của dạng xem đó
+  // (URL ?view= lúc này đã bị dạng xem đã lưu ghi đè).
+  const defaultView = useRef<View>(urlView && VIEWS.includes(urlView) ? urlView : "table");
   const localState = (): BoardState => {
     const p = readLS<{ groupBy?: GroupBy; filters?: Filter[]; mode?: "and" | "or"; colSort?: ColSort | null }>(prefKey, {});
     const lay = readLS<{ order?: string[]; widths?: Record<string, number> }>(`board-layout:${obj.key}`, {});
     return {
-      view: urlView ?? "table",
+      view: defaultView.current,
       hidden: readLS<string[]>(`board-cols:${obj.key}`, []),
       order: lay.order ?? [],
       widths: lay.widths ?? {},
@@ -193,12 +196,13 @@ export function Board({
   // Đang ở "Mặc định" thì mọi thay đổi lưu trên máy; đang ở dạng xem đã lưu thì giữ lại tới khi bấm "Lưu thay đổi".
   useEffect(() => {
     if (!loaded || activeId) return;
+    defaultView.current = view;
     writeLS(`board-cols:${obj.key}`, hidden);
     writeLS(prefKey, { groupBy, filters, mode, colSort });
     writeLS(`board-density:${obj.key}`, density);
     writeLS(`board-colors:${obj.key}`, colorRules);
     writeLS(`board-layout:${obj.key}`, { order, widths });
-  }, [loaded, activeId, obj.key, prefKey, hidden, groupBy, filters, mode, colSort, density, colorRules, order, widths]);
+  }, [loaded, activeId, obj.key, prefKey, view, hidden, groupBy, filters, mode, colSort, density, colorRules, order, widths]);
 
   const dirty = !!active && !sameState(full(active.state), full(state));
   const json = (method: string, body?: unknown) => ({ method, headers: { "Content-Type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });

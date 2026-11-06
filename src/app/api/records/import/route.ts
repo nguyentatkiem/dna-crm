@@ -4,6 +4,7 @@ import { appApi, fail, ok } from "@/lib/http";
 import { getObject } from "@/lib/config/schema";
 import { can, getRole } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
+import { getFieldRules, hiddenKeys, readonlyKeys } from "@/lib/field-access";
 import { importRows, mapRows, MAX_ROWS, readUpload } from "./lib";
 
 const Row = z.object({
@@ -24,7 +25,8 @@ export async function POST(req: Request) {
   const a = await appApi();
   if ("error" in a) return a.error;
   const { ctx } = a;
-  if (!can(await getRole(ctx.user.id, ctx.workspace.id), "import")) return fail("Bạn không có quyền nhập dữ liệu. Hãy nhờ chủ hoặc quản lý.", 403);
+  const role = await getRole(ctx.user.id, ctx.workspace.id);
+  if (!can(role, "import")) return fail("Bạn không có quyền nhập dữ liệu. Hãy nhờ chủ hoặc quản lý.", 403);
 
   let objectKey = "";
   let rows: z.infer<typeof Row>[] = [];
@@ -53,7 +55,11 @@ export async function POST(req: Request) {
   }
   const obj = getObject(ctx.config, objectKey);
   if (!obj) return fail("Không có bảng này", 404);
-  const res = await importRows(ctx, obj, rows);
+  // Phân quyền trường: bỏ cột bị ẩn với vai trò này; cột chỉ xem chỉ được điền khi tạo mới, không gộp vào khách đã có.
+  const rules = await getFieldRules(ctx.workspace.id, objectKey);
+  const hide = hiddenKeys(role, rules);
+  if (hide.size) rows = rows.map((r) => ({ ...r, data: Object.fromEntries(Object.entries(r.data).filter(([k]) => !hide.has(k))) }));
+  const res = await importRows(ctx, obj, rows, new Set(readonlyKeys(role, rules)));
   await audit({ workspaceId: ctx.workspace.id, user: ctx.user }, "import", "record", objectKey, `Nhập ${obj.label} từ ${source}: tạo ${res.created}, gộp ${res.merged}, bỏ qua ${res.skipped}`, res);
   return ok(res);
 }

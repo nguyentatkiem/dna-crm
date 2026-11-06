@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { findDuplicateGroups, groupKey, mergeData, normEmail, normName, normPhoneVN, pickSurvivor } from "./dedupe";
 import { SCORING_DEFAULT, computeScore, normalizeRules, scoreParts, EVENT_CAP } from "./scoring";
 import { computeRfm, quintile, segmentOf, summarizeRfm } from "./rfm";
+import { mergeTimeline, parseCursor, type TimelineItem } from "./kinds";
 
 describe("chuẩn hoá", () => {
   it("SĐT", () => {
@@ -119,5 +120,28 @@ describe("RFM", () => {
     const sum = summarizeRfm(rows);
     expect(sum.reduce((s, x) => s + x.count, 0)).toBe(6);
     expect(sum.find((x) => x.key === "vip")!.share).toBeGreaterThan(0.5);
+  });
+});
+
+describe("mergeTimeline", () => {
+  const it_ = (id: string, at: string): TimelineItem => ({ id, at, kind: "note", icon: "edit", title: id });
+  const T = "2026-11-05T04:42:00.000Z";
+  // 5 mục, 3 mục cùng thời điểm T nằm vắt ngang ranh giới trang 2 mục.
+  const lists = [[it_("a", "2026-11-06T00:00:00.000Z"), it_("c", T)], [it_("b", T), it_("d", T)], [it_("e", "2026-11-01T00:00:00.000Z")]];
+  it("phân trang không mất/lặp mục cùng thời điểm", () => {
+    const seen: string[] = [];
+    let next: string | null | undefined;
+    for (let i = 0; i < 5; i++) {
+      const p = mergeTimeline(lists, 2, next);
+      seen.push(...p.items.map((x) => x.id));
+      next = p.next;
+      if (!next) break;
+    }
+    expect(seen).toEqual(["a", "b", "c", "d", "e"]);
+  });
+  it("con trỏ cũ (chỉ có ngày) vẫn dùng được", () => {
+    expect(parseCursor(T)).toEqual({ at: Date.parse(T), id: "" });
+    expect(parseCursor("rác")).toBeNull();
+    expect(mergeTimeline(lists, 10, T).items.map((x) => x.id)).toEqual(["e"]);
   });
 });

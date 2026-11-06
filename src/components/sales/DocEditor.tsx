@@ -27,6 +27,9 @@ export type DocDraft = {
   terms: string;
   /** Đơn hàng: mã giảm giá đang áp (không gồm trong discount). */
   voucherCode?: string;
+  /** Sửa đơn: số tiền giảm và mô tả của mã đang áp, để tổng tiền đúng ngay (trước khi kiểm tra lại mã). */
+  voucherDiscount?: number;
+  voucherLabel?: string;
 };
 
 /**
@@ -40,7 +43,7 @@ export function DocEditor({ kind, id, initial, products, seeAll, dealLabel, back
   const [err, setErr] = useState("");
   const set = <K extends keyof DocDraft>(k: K, v: DocDraft[K]) => setD((x) => ({ ...x, [k]: v }));
   const setLine = (i: number, patch: Partial<Line>) => setD((x) => ({ ...x, items: x.items.map((l, j) => (j === i ? { ...l, ...patch } : l)) }));
-  const [voucher, setVoucher] = useState<AppliedVoucher | null>(null);
+  const [voucher, setVoucher] = useState<AppliedVoucher | null>(initial.voucherCode && initial.voucherDiscount ? { code: initial.voucherCode, discount: initial.voucherDiscount, label: initial.voucherLabel ?? "" } : null);
   const t = useMemo(() => totals(d.items, d.discount + (kind === "order" ? voucher?.discount ?? 0 : 0)), [d.items, d.discount, voucher, kind]);
   const voucherBase = useMemo(() => totals(d.items, d.discount).subtotal - d.discount, [d.items, d.discount]);
 
@@ -63,8 +66,11 @@ export function DocEditor({ kind, id, initial, products, seeAll, dealLabel, back
     };
     const res = await fetch(id ? `${base}/${id}` : base, { method: id ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     const j = await res.json().catch(() => ({}));
-    setBusy(false);
-    if (!res.ok) return setErr(j.error ?? "Không lưu được");
+    // Lưu xong giữ nút ở trạng thái bận tới khi chuyển trang, tránh bấm lần nữa tạo đơn trùng.
+    if (!res.ok) {
+      setBusy(false);
+      return setErr(j.error ?? "Không lưu được");
+    }
     router.push(`/w/${kind === "quote" ? "quotes" : "orders"}/${j.id ?? id}`);
     router.refresh();
   }
@@ -207,7 +213,7 @@ export function DocEditor({ kind, id, initial, products, seeAll, dealLabel, back
             <input className="input tnum" inputMode="numeric" value={d.discount ? d.discount.toLocaleString("vi-VN") : ""} placeholder="0" onChange={(e) => set("discount", Math.max(0, num(e.target.value)))} />
             <span className="text-[12px] text-ink-2">Trừ trước thuế, chia theo tỷ lệ giá trị từng dòng.</span>
           </label>
-          {kind === "order" && <VoucherField base={voucherBase} contactId={d.contactId} orderId={id} initialCode={initial.voucherCode} onChange={setVoucher} />}
+          {kind === "order" && <VoucherField base={voucherBase} contactId={d.contactId} orderId={id} initialCode={initial.voucherCode} initialApplied={voucher} onChange={setVoucher} />}
           {kind === "quote" ? (
             <label className="grid gap-1">
               <span className="label">Hiệu lực đến</span>

@@ -45,11 +45,14 @@ export function SurveyEditor({ id, initial }: { id?: string; initial: SurveyDraf
     const bad = d.questions.find((q) => !q.label.trim() || ((q.type === "choice" || q.type === "multi") && !(q.options ?? []).filter((o) => o.trim()).length));
     if (bad) return setErr(bad.label.trim() ? `Câu “${bad.label}” cần ít nhất một lựa chọn` : "Có câu hỏi chưa có nội dung");
     setBusy(true);
-    const body = { ...d, questions: d.questions.map((q) => ({ ...q, options: q.type === "choice" || q.type === "multi" ? (q.options ?? []).map((o) => o.trim()).filter(Boolean) : undefined })) };
+    const body = { ...d, questions: d.questions.map((q) => ({ ...q, options: q.type === "choice" || q.type === "multi" ? [...new Set((q.options ?? []).map((o) => o.trim()).filter(Boolean))] : undefined })) };
     const r = await fetch(id ? `/api/surveys/${id}` : "/api/surveys", { method: id ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     const j = await r.json().catch(() => ({}));
-    setBusy(false);
-    if (!r.ok) return setErr(j.error ?? "Không lưu được");
+    // Giữ nút ở trạng thái "Đang lưu…" tới khi chuyển trang, tránh bấm lại tạo trùng.
+    if (!r.ok) {
+      setBusy(false);
+      return setErr(j.error ?? "Không lưu được");
+    }
     router.push(`/w/surveys/${j.id ?? id}`);
     router.refresh();
   }

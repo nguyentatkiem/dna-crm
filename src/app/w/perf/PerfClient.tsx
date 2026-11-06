@@ -127,22 +127,22 @@ export function PerfClient({ initial, me, canReview, isOwner }: { initial: Board
       )}
 
       <div className="card mt-5 overflow-x-auto">
-        <table className="w-full min-w-[960px] text-[13.5px]">
+        <table className="w-max min-w-full text-[13.5px]">
           <thead>
             <tr className="border-b border-line-soft text-left align-bottom text-ink-2">
-              <th className="px-3 py-2.5 font-medium">#</th>
-              <th className="sticky left-0 z-10 bg-surface px-3 py-2.5 font-medium">Nhân viên</th>
+              <th className="hidden px-3 py-2.5 font-medium sm:table-cell">#</th>
+              <th className="sticky left-0 z-10 min-w-[120px] bg-surface px-3 py-2.5 font-medium sm:min-w-[150px]">Nhân viên</th>
               {board.criteria.map((c) => (
-                <th key={c.id} className="px-3 py-2.5 font-medium">
-                  <span className="block">{c.label}</span>
-                  <span className="block text-[11.5px] font-normal">
-                    {c.weight}% · {SOURCE_LABEL(c.source)}
+                <th key={c.id} className="w-[118px] min-w-[118px] px-3 py-2.5 font-medium" title={`${c.label} · trọng số ${c.weight}% · ${SOURCE_LABEL(c.source)}`}>
+                  <span className="line-clamp-2 leading-snug">{c.label}</span>
+                  <span className="mt-0.5 block whitespace-nowrap text-[11.5px] font-normal">
+                    <span className="tnum font-medium text-ink">{c.weight}%</span> · {c.source === "manual" ? "Chấm tay" : c.source === "csat" ? "Tự động · CSAT" : "Tự động · KPI"}
                   </span>
                 </th>
               ))}
-              <th className="px-3 py-2.5 font-medium">Tổng</th>
-              <th className="px-3 py-2.5 font-medium">Nhận xét</th>
-              <th className="px-3 py-2.5 font-medium">
+              <th className="whitespace-nowrap px-3 py-2.5 font-medium">Tổng</th>
+              <th className="min-w-[190px] px-3 py-2.5 font-medium">Nhận xét</th>
+              <th className="z-10 bg-surface px-3 py-2.5 font-medium sm:sticky sm:right-0 sm:shadow-[-1px_0_0_var(--line-soft)]">
                 <span className="sr-only">Thao tác</span>
               </th>
             </tr>
@@ -169,14 +169,14 @@ export function PerfClient({ initial, me, canReview, isOwner }: { initial: Board
               const scored = board.criteria.some((c) => live[c.id] != null && !Number.isNaN(live[c.id]));
               return (
                 <tr key={r.who} className={`border-b border-line-soft last:border-0 ${r.who === me ? "bg-primary-selected" : ""}`}>
-                  <td className="tnum px-3 py-3 align-top text-ink-2">{i + 1}</td>
+                  <td className="tnum hidden px-3 py-3 align-top text-ink-2 sm:table-cell">{i + 1}</td>
                   <th scope="row" className={`sticky left-0 z-10 px-3 py-3 text-left align-top font-medium ${r.who === me ? "bg-primary-selected" : "bg-surface"}`}>
                     <span className="flex items-center gap-2 whitespace-nowrap">
                       <Avatar name={r.who} size={26} /> {r.who}
                     </span>
                     <span className="mt-1 flex flex-wrap items-center gap-1 text-[12px] font-normal text-ink-2">
                       <span className={STATUS[r.status].cls}>{STATUS[r.status].label}</span>
-                      {r.teams.length > 0 && <span>{r.teams.join(", ")}</span>}
+                      {r.teams.length > 0 && <span className="max-sm:hidden">{r.teams.join(", ")}</span>}
                     </span>
                   </th>
                   {board.criteria.map((c) => (
@@ -193,7 +193,7 @@ export function PerfClient({ initial, me, canReview, isOwner }: { initial: Board
                       ) : (
                         <div>
                           <span className="tnum font-semibold">{r.scores[c.id] == null ? "–" : r.scores[c.id]}</span>
-                          {c.source !== "manual" && r.notes[c.id] && <div className="mt-0.5 max-w-[150px] text-[11.5px] text-ink-2">{r.notes[c.id]}</div>}
+                          {c.source !== "manual" && r.notes[c.id] && <div className="mt-0.5 text-[11.5px] leading-snug text-ink-2">{r.notes[c.id]}</div>}
                         </div>
                       )}
                     </td>
@@ -204,13 +204,13 @@ export function PerfClient({ initial, me, canReview, isOwner }: { initial: Board
                   </td>
                   <td className="px-3 py-3 align-top">
                     {editable ? (
-                      <textarea className="input min-h-[56px] w-[200px] py-1.5 text-[13px]" aria-label={`Nhận xét cho ${r.who}`} value={d.comment} onChange={(e) => setDrafts((x) => ({ ...x, [r.who]: { ...d, comment: e.target.value } }))} placeholder="Điểm mạnh, cần cải thiện…" />
+                      <textarea className="input min-h-[56px] w-[180px] py-1.5 text-[13px]" aria-label={`Nhận xét cho ${r.who}`} value={d.comment} onChange={(e) => setDrafts((x) => ({ ...x, [r.who]: { ...d, comment: e.target.value } }))} placeholder="Điểm mạnh, cần cải thiện…" />
                     ) : (
                       <p className="max-w-[220px] whitespace-pre-wrap text-[13px]">{r.comment || <span className="text-ink-2">–</span>}</p>
                     )}
                     {r.reviewer && <p className="mt-1 text-[11.5px] text-ink-2">Người đánh giá: {r.reviewer}</p>}
                   </td>
-                  <td className="px-3 py-3 align-top">
+                  <td className={`z-10 px-3 py-3 align-top sm:sticky sm:right-0 sm:shadow-[-1px_0_0_var(--line-soft)] ${r.who === me ? "bg-primary-selected" : "bg-surface"}`}>
                     {canReview && (
                       <div className="flex flex-col items-stretch gap-1.5">
                         {editable && (
@@ -250,13 +250,20 @@ function CriteriaEditor({ initial, onSaved }: { initial: Criterion[]; onSaved: (
   const [list, setList] = useState(initial.map((c) => ({ ...c, weight: String(c.weight) })));
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
-  const sum = list.reduce((s, c) => s + (Number(c.weight) || 0), 0);
+  const sum = Math.round(list.reduce((s, c) => s + (Number(c.weight.replace(",", ".")) || 0), 0) * 100) / 100;
 
   async function submit(reset = false) {
     if (reset && !confirm("Đưa bộ tiêu chí về mặc định?")) return;
+    if (!reset) {
+      const bad = list.find((c) => {
+        const n = Number(c.weight.trim().replace(",", "."));
+        return c.weight.trim() === "" || !Number.isFinite(n) || n < 0 || n > 100;
+      });
+      if (bad) return setErr(`Trọng số của “${bad.label || "tiêu chí"}” phải là số từ 0 đến 100`);
+    }
     setBusy(true);
     setErr("");
-    const criteria = list.map((c) => ({ ...c, weight: Number(c.weight) || 0 }));
+    const criteria = list.map((c) => ({ ...c, weight: Number(c.weight.trim().replace(",", ".")) || 0 }));
     const r = await fetch("/api/perf/criteria", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ criteria, reset }) });
     const j = await r.json().catch(() => ({}));
     setBusy(false);

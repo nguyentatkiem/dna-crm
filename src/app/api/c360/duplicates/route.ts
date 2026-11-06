@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { appApi, fail, ok } from "@/lib/http";
 import { can, getRole } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
@@ -44,7 +45,7 @@ export async function POST(req: Request) {
   if ("error" in a) return a.error;
   if (!can(await getRole(a.ctx.user.id, a.ctx.workspace.id), "delete")) return fail("Chỉ chủ hoặc quản lý được gộp hồ sơ trùng", 403);
   const p = Body.safeParse(await req.json().catch(() => ({})));
-  if (!p.success) return fail(p.error.issues[0]?.message ?? "Dữ liệu chưa hợp lệ");
+  if (!p.success) return fail("Dữ liệu gộp chưa hợp lệ");
   if (p.data.action === "ignore") {
     await ignoreGroup(a.ctx.workspace.id, p.data.ids);
     await audit({ workspaceId: a.ctx.workspace.id, user: a.ctx.user }, "merge.ignore", "record", p.data.ids[0], `Đánh dấu ${p.data.ids.length} hồ sơ không phải trùng`);
@@ -53,6 +54,11 @@ export async function POST(req: Request) {
   try {
     return ok(await mergeContacts(a.ctx, p.data.survivorId, p.data.loserIds));
   } catch (e) {
+    // Lỗi kiểm tra của mergeContacts là câu tiếng Việt cho người dùng; lỗi CSDL thì không lộ chi tiết kỹ thuật.
+    if (e instanceof Prisma.PrismaClientKnownRequestError || e instanceof Prisma.PrismaClientValidationError || e instanceof Prisma.PrismaClientUnknownRequestError) {
+      console.error("[merge]", e.message);
+      return fail("Không gộp được do lỗi dữ liệu, thử lại sau hoặc báo quản trị viên", 500);
+    }
     return fail(e instanceof Error ? e.message : "Không gộp được");
   }
 }

@@ -15,7 +15,7 @@ type Rec = { id: string; title: string; objectKey: string } | null;
 
 const NEXT_LABEL: Record<OrderStatus, string> = { new: "Mở lại", confirmed: "Xác nhận", shipping: "Đang giao", done: "Hoàn tất", cancelled: "Huỷ đơn" };
 
-export function OrderDetail({ initial, items, deal, contact, quote, dealLabel, perm }: { initial: O; items: Line[]; deal: Rec; contact: Rec; quote: { id: string; number: string } | null; dealLabel: string; perm: { seeAll: boolean; canDelete: boolean } }) {
+export function OrderDetail({ initial, items, deal, contact, quote, dealLabel, perm, voucher = null }: { voucher?: { discount: number } | null; initial: O; items: Line[]; deal: Rec; contact: Rec; quote: { id: string; number: string } | null; dealLabel: string; perm: { seeAll: boolean; canDelete: boolean } }) {
   const router = useRouter();
   const [o, setO] = useState(initial);
   const [busy, setBusy] = useState(false);
@@ -124,7 +124,16 @@ export function OrderDetail({ initial, items, deal, contact, quote, dealLabel, p
             <TotalsBox t={o} paid={o.paid} />
             {o.voucherCode && (
               <p className="flex items-center gap-1.5 text-[13px] text-ink-2">
-                <Icon name="gift" size={14} /> Đã áp mã giảm giá <b className="font-mono text-ink">{o.voucherCode}</b> (gộp trong chiết khấu)
+                <Icon name="gift" size={14} />
+                {voucher && o.status !== "cancelled" ? (
+                  <span>
+                    Đã áp mã giảm giá <b className="font-mono text-ink">{o.voucherCode}</b>: giảm <b className="text-ink tnum">{money(voucher.discount)}</b> (gộp trong chiết khấu)
+                  </span>
+                ) : (
+                  <span>
+                    Mã giảm giá <b className="font-mono text-ink">{o.voucherCode}</b> đã được hoàn lại (đơn không còn dùng mã)
+                  </span>
+                )}
               </p>
             )}
             {o.note && <p className="whitespace-pre-line text-[14px] text-ink-2">{o.note}</p>}

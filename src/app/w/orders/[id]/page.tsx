@@ -7,6 +7,7 @@ import { parseLines } from "@/lib/sales/lines";
 import { activeProducts, salesPage } from "@/lib/sales/page";
 import { ser, ymd } from "@/lib/sales/shared";
 import { DocEditor } from "@/components/sales/DocEditor";
+import { valueText } from "@/lib/voucher/shared";
 import { OrderDetail } from "./OrderDetail";
 
 export default async function OrderPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ edit?: string }> }) {
@@ -20,10 +21,12 @@ export default async function OrderPage({ params, searchParams }: { params: Prom
   const deal = recs.find((r) => r.id === o.recordId) ?? null;
   const contact = recs.find((r) => r.id === o.contactId) ?? null;
   const items = parseLines(o.itemsJson);
+  // Mã giảm giá đang gắn với chính đơn này (đơn huỷ/xoá thì mã đã được hoàn, không còn gắn).
+  const vRow = o.voucherCode ? await db.voucher.findUnique({ where: { workspaceId_code: { workspaceId: ctx.workspace.id, code: o.voucherCode } }, include: { campaign: true } }) : null;
+  const v = vRow && vRow.usedOrderId === o.id ? vRow : null;
 
   if (edit && o.status === "new") {
     // Chiết khấu tay = tổng chiết khấu − phần voucher (voucher hiện riêng ở ô "Mã giảm giá").
-    const v = o.voucherCode ? await db.voucher.findUnique({ where: { workspaceId_code: { workspaceId: ctx.workspace.id, code: o.voucherCode } }, select: { discount: true } }) : null;
     return (
       <div className="canvas px-4 pb-16 pt-6 sm:px-8">
         <Link href={`/w/orders/${id}`} className="text-[13px] text-ink-2 hover:underline">
@@ -37,7 +40,7 @@ export default async function OrderPage({ params, searchParams }: { params: Prom
           seeAll={ctx.scope.seeAll}
           dealLabel={ctx.dealLabel}
           backHref={`/w/orders/${id}`}
-          initial={{ contactId: o.contactId, contactTitle: contact?.title ?? "", recordId: o.recordId, recordTitle: deal?.title ?? "", customerName: o.customerName, customerPhone: o.customerPhone, customerEmail: "", title: "", items, discount: Math.max(0, o.discount - (v?.discount ?? 0)), voucherCode: o.voucherCode, validUntil: "", dueAt: ymd(o.dueAt), note: o.note, terms: "" }}
+          initial={{ contactId: o.contactId, contactTitle: contact?.title ?? "", recordId: o.recordId, recordTitle: deal?.title ?? "", customerName: o.customerName, customerPhone: o.customerPhone, customerEmail: "", title: "", items, discount: Math.max(0, o.discount - (v?.discount ?? 0)), voucherCode: o.voucherCode, voucherDiscount: v?.discount ?? 0, voucherLabel: v ? valueText(v.campaign) : "", validUntil: "", dueAt: ymd(o.dueAt), note: o.note, terms: "" }}
         />
       </div>
     );
@@ -49,7 +52,7 @@ export default async function OrderPage({ params, searchParams }: { params: Prom
       <Link href="/w/orders" className="text-[13px] text-ink-2 hover:underline">
         ← Đơn hàng
       </Link>
-      <OrderDetail initial={ser(o)} items={items} deal={deal} contact={contact} quote={quote} dealLabel={ctx.dealLabel} perm={{ seeAll: ctx.scope.seeAll, canDelete: can(ctx.scope.role, "delete") }} />
+      <OrderDetail voucher={v ? { discount: v.discount } : null} initial={ser(o)} items={items} deal={deal} contact={contact} quote={quote} dealLabel={ctx.dealLabel} perm={{ seeAll: ctx.scope.seeAll, canDelete: can(ctx.scope.role, "delete") }} />
     </div>
   );
 }

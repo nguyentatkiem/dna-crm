@@ -55,7 +55,7 @@ export function computeDiscount(c: CampaignLike, subtotal: number) {
 /** Mô tả ngắn giá trị voucher: "Giảm 10% (tối đa 200.000đ)" / "Giảm 50.000đ". */
 export function valueText(c: CampaignLike) {
   const money = (n: number) => `${Math.round(n).toLocaleString("vi-VN")}đ`;
-  const head = c.kind === "percent" ? `Giảm ${c.value}%${c.maxDiscount > 0 ? ` (tối đa ${money(c.maxDiscount)})` : ""}` : `Giảm ${money(c.value)}`;
+  const head = c.kind === "percent" ? `Giảm ${c.value.toLocaleString("vi-VN")}%${c.maxDiscount > 0 ? ` (tối đa ${money(c.maxDiscount)})` : ""}` : `Giảm ${money(c.value)}`;
   return c.minOrder > 0 ? `${head}, đơn từ ${money(c.minOrder)}` : head;
 }
 

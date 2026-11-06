@@ -46,7 +46,7 @@ export function SendSurveyButton({ recordId, surveyId, className = "btn-outline"
     setBusy(false);
     if (!r.ok) return setErr(j.error ?? "Không gửi được");
     setUrl(j.url.startsWith("/") ? `${location.origin}${j.url}` : j.url);
-    if (!j.ok && j.error) setErr(`Đã tạo link nhưng chưa gửi được: ${j.error}`);
+    if (!j.ok) setErr(`Chưa gửi được qua ${SURVEY_CHANNEL_LABEL[channel]}: ${j.error ?? "lỗi không rõ"}. Bạn có thể chép link gửi cho khách.`);
   }
 
   async function copy() {
@@ -65,10 +65,10 @@ export function SendSurveyButton({ recordId, surveyId, className = "btn-outline"
           {url ? (
             <>
               <div className="grid justify-items-center gap-2 py-4 text-center">
-                <span className="grid h-12 w-12 place-items-center rounded-full bg-success-soft text-success">
-                  <Icon name="check" size={22} />
+                <span className={`grid h-12 w-12 place-items-center rounded-full ${err ? "bg-warning-soft text-warning" : "bg-success-soft text-success"}`}>
+                  <Icon name={err ? "link" : "check"} size={22} />
                 </span>
-                <p className="font-medium">{channel === "link" ? "Đã tạo link khảo sát" : `Đã gửi qua ${SURVEY_CHANNEL_LABEL[channel]}`}</p>
+                <p className="font-medium">{channel === "link" || err ? "Đã tạo link khảo sát" : `Đã gửi qua ${SURVEY_CHANNEL_LABEL[channel]}`}</p>
               </div>
               <div className="flex gap-2">
                 <input className="input font-mono text-[12.5px]" readOnly value={url} onFocus={(e) => e.target.select()} aria-label="Link khảo sát" />

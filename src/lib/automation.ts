@@ -252,9 +252,13 @@ async function runAction(a: Action, rec: DbRecord, x: RunCtx): Promise<{ record:
         ]);
         const load = (n: string) => (tasks.find((t) => t.assignee === n)?._count ?? 0) * 1000 + (owned.find((o) => o.ownerName === n)?._count ?? 0);
         owner = [...team].sort((p, q) => load(p) - load(q))[0];
-      } else {
-        const count = await db.record.count({ where: { workspaceId, objectKey: rec.objectKey } });
-        owner = team[count % Math.max(team.length, 1)] ?? "Bạn";
+      } else if (team.length) {
+        // Xoay vòng bằng con trỏ lưu riêng theo bảng (đếm số mục thì lặp lại cùng một người khi có mục bị xoá/gộp).
+        const key = `rr:${rec.objectKey}`;
+        const cur = await getPref<Record<string, number>>(workspaceId, "assignCursor", {});
+        const i = (((cur[key] ?? 0) % team.length) + team.length) % team.length;
+        await setPref(workspaceId, "assignCursor", { ...cur, [key]: i + 1 });
+        owner = team[i];
       }
       if (!owner) throw new Error("Không có người để giao");
       if (owner === rec.ownerName) return { record: rec, note: `giữ ${owner}` };
@@ -287,6 +291,8 @@ async function runAction(a: Action, rec: DbRecord, x: RunCtx): Promise<{ record:
       return { record, note: `cập nhật ${def.label}` };
     }
     case "send_message": {
+      // Tin có mã voucher mà bước tặng voucher trước đó không phát được mã: không gửi tin thiếu mã cho khách.
+      if ((a.text ?? "").includes("{voucher}") && !x.vars?.voucher) throw new Error("Không có mã voucher để gửi (bước tặng voucher chưa phát được mã)");
       let channel = a.channel ?? "zalo";
       if (channel === "auto") {
         const picked = await autoChannel(workspaceId, cfg, rec);
@@ -411,7 +417,8 @@ export const ruleName = (rule: Rule, cfg: WorkspaceConfig) => (rule.name || sent
 /** Chạy một luật đã khớp trigger: kiểm điều kiện rồi chạy lần lượt các hành động. Lỗi một hành động không chặn hành động sau. */
 async function execute(row: Automation, rule: Rule, x: Omit<RunCtx, "ruleName">, ev: RuleEvent) {
   let rec = (await db.record.findUnique({ where: { id: ev.record.id } })) ?? null;
-  if (!rec) return false;
+  // Mục đã vào thùng rác thì không chạy luật (job theo ngày/không tương tác, sự kiện đến muộn).
+  if (!rec || rec.deletedAt) return false;
   if (!rule.conditions.every((c) => checkCondition(c, rec!, x.cfg))) return false;
   const name = ruleName(rule, x.cfg);
   const ctx: RunCtx = { ...x, ruleName: name, ruleId: row.id, vars: {} };
@@ -512,7 +519,7 @@ export async function tickDateAutomations(now = new Date()): Promise<void> {
     target.setDate(target.getDate() + (rule.trigger.days ?? 0));
     const day = ymd(target);
     const field = rule.trigger.field.replace(/^f:/, "");
-    const recs = await db.record.findMany({ where: { workspaceId: row.workspaceId, objectKey: rule.trigger.object, dataJson: { contains: day } } });
+    const recs = await db.record.findMany({ where: { workspaceId: row.workspaceId, objectKey: rule.trigger.object, deletedAt: null, dataJson: { contains: day } } });
     for (const rec of recs) {
       if (!String(dataOf(rec)[field] ?? "").startsWith(day)) continue;
       try {
@@ -634,7 +641,9 @@ export async function tickIdleAutomations(now = new Date()): Promise<number> {
       const data = dataOf(rec);
       const fired = typeof data[mark] === "string" ? new Date(String(data[mark])) : null;
       if (!idleDue(last.get(rec.id) ?? rec.createdAt, fired && !isNaN(fired.getTime()) ? fired : null, days, now)) continue;
-      await db.record.update({ where: { id: rec.id }, data: { dataJson: JSON.stringify({ ...data, [mark]: now.toISOString() }) } });
+      // Chỉ đánh dấu mục thật sự khớp điều kiện của luật; giữ nguyên updatedAt (dấu nội bộ, không phải người dùng sửa).
+      if (!rule.conditions.every((c) => checkCondition(c, rec, cfg))) continue;
+      await db.record.update({ where: { id: rec.id }, data: { dataJson: JSON.stringify({ ...data, [mark]: now.toISOString() }), updatedAt: rec.updatedAt } });
       try {
         if (await execute(row, rule, { workspaceId: row.workspaceId, cfg, depth: 0, kind: "idle" }, { kind: "idle", record: rec })) ran++;
       } catch (e) {

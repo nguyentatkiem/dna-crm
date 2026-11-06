@@ -10,7 +10,7 @@ import { ORDER_STATUS, QUOTE_STATUS, CONTRACT_STATUS, PAY_METHOD, money, type Or
 import { CHANNEL_LABEL, type MsgChannel } from "../marketing/shared";
 import { OUTCOMES } from "../calls-shared";
 import { dataOf, type C360Ctx } from "./common";
-import { mergeTimeline, tlKind, type TimelineItem, type TlKind } from "./kinds";
+import { mergeTimeline, parseCursor, tlKind, type TimelineItem, type TlKind } from "./kinds";
 import { countedOrder } from "./rfm-data";
 import { rfmMeta } from "./rfm";
 import { scoreBreakdown } from "./behavior";
@@ -34,15 +34,20 @@ async function masker(ctx: C360Ctx) {
 }
 
 /** Dòng thời gian của một khách (rec đã được kiểm tra quyền). kinds rỗng = mọi loại. */
+const SURVEY_CHANNEL: Record<string, string> = { zalo: "Zalo OA", zns: "ZNS", sms: "SMS", email: "email" };
+
 export async function timelineOf(ctx: C360Ctx, rec: DbRecord, opts: { before?: string; limit?: number; kinds?: TlKind[] } = {}) {
   const wid = ctx.workspace.id;
   const id = rec.id;
   const limit = Math.min(100, Math.max(5, opts.limit ?? 30));
-  const before = opts.before && !isNaN(Date.parse(opts.before)) ? new Date(opts.before) : new Date(Date.now() + 60e3);
+  // before = con trỏ "ISO|id" của trang trước. Truy vấn lấy cả mục đúng bằng mốc (<=) rồi mergeTimeline lọc theo id,
+  // để các mục cùng thời điểm nằm vắt ngang hai trang không bị mất.
+  const cursor = parseCursor(opts.before);
+  const before = cursor ? new Date(cursor.at) : new Date(Date.now() + 60e3);
   const want = (k: TlKind) => !opts.kinds?.length || opts.kinds.includes(k);
   const mask = await masker(ctx);
-  const lt = { lt: before };
-  const take = limit + 1;
+  const lt = { lte: before };
+  const take = limit + 11;
   const ord = { createdAt: "desc" } as const;
   const linked = { workspaceId: wid, OR: [{ contactId: id }, { recordId: id }] };
   const lists: TimelineItem[][] = [];
@@ -61,7 +66,7 @@ export async function timelineOf(ctx: C360Ctx, rec: DbRecord, opts: { before?: s
         xs.map((c) => {
           const o = OUTCOMES.find((x) => x.key === c.outcome)?.label ?? c.outcome;
           const dur = c.durationSec ? ` · ${Math.floor(c.durationSec / 60)}:${String(c.durationSec % 60).padStart(2, "0")}` : "";
-          return item(`c${c.id}`, c.createdAt, "call", `${c.direction === "in" ? "Gọi đến" : "Gọi đi"} · ${o}${dur}`, [c.agentName, mask(c.phone), c.summary || c.note].filter(Boolean).join(" · "), "/w/telesales");
+          return item(`c${c.id}`, c.createdAt, "call", `${c.direction === "in" ? "Gọi đến" : "Gọi đi"} · ${o}${dur}`, [c.agentName, mask(c.phone), c.summary || c.note].filter(Boolean).join(" · "), `/w/telesales?record=${id}`);
         }),
       ),
     );
@@ -86,7 +91,7 @@ export async function timelineOf(ctx: C360Ctx, rec: DbRecord, opts: { before?: s
       db.quote.findMany({ where: { ...linked, createdAt: lt }, orderBy: ord, take }).then((xs) =>
         xs.flatMap((q) => {
           const out = [item(`q${q.id}`, q.createdAt, "sales", `Báo giá ${q.number} · ${money(q.total)}`, `${QUOTE_STATUS[q.status as QuoteStatus]?.label ?? q.status}${q.title ? ` · ${q.title}` : ""}`, `/w/quotes/${q.id}`)];
-          if (q.viewedAt && q.viewedAt < before) out.push(item(`qv${q.id}`, q.viewedAt, "sales", `Khách xem báo giá ${q.number}`, undefined, `/w/quotes/${q.id}`));
+          if (q.viewedAt && q.viewedAt <= before) out.push(item(`qv${q.id}`, q.viewedAt, "sales", `Khách xem báo giá ${q.number}`, undefined, `/w/quotes/${q.id}`));
           return out;
         }),
       ),
@@ -129,7 +134,7 @@ export async function timelineOf(ctx: C360Ctx, rec: DbRecord, opts: { before?: s
       db.voucher.findMany({ where: { workspaceId: wid, recordId: id, createdAt: lt }, orderBy: ord, take, include: { campaign: { select: { name: true } } } }).then((xs) =>
         xs.flatMap((v) => {
           const out = [item(`v${v.id}`, v.createdAt, "loyalty", `Nhận voucher ${v.code}`, [v.campaign.name, v.reason, v.sentVia && `gửi qua ${v.sentVia}`].filter(Boolean).join(" · "))];
-          if (v.usedAt && v.usedAt < before) out.push(item(`vu${v.id}`, v.usedAt, "loyalty", `Dùng voucher ${v.code}`, v.discount ? `Giảm ${money(v.discount)}` : undefined, v.usedOrderId ? `/w/orders/${v.usedOrderId}` : undefined));
+          if (v.usedAt && v.usedAt <= before) out.push(item(`vu${v.id}`, v.usedAt, "loyalty", `Dùng voucher ${v.code}`, v.discount ? `Giảm ${money(v.discount)}` : undefined, v.usedOrderId ? `/w/orders/${v.usedOrderId}` : undefined));
           return out;
         }),
       ),
@@ -137,11 +142,12 @@ export async function timelineOf(ctx: C360Ctx, rec: DbRecord, opts: { before?: s
   }
   if (want("survey"))
     add(
-      db.surveyResponse.findMany({ where: { workspaceId: wid, recordId: id, sentAt: lt }, orderBy: { sentAt: "desc" }, take, include: { survey: { select: { name: true } } } }).then((xs) =>
+      // Đã trả lời thì hiện ở lúc trả lời, chưa trả lời thì ở lúc gửi (lọc theo đúng mốc hiển thị để không lặp giữa các trang).
+      db.surveyResponse.findMany({ where: { workspaceId: wid, recordId: id, OR: [{ submittedAt: lt }, { submittedAt: null, sentAt: lt }] }, orderBy: { sentAt: "desc" }, take, include: { survey: { select: { name: true } } } }).then((xs) =>
         xs.map((s) =>
           s.submittedAt
-            ? item(`s${s.id}`, s.submittedAt < before ? s.submittedAt : s.sentAt, "survey", `Trả lời khảo sát “${s.survey.name}”`, [s.nps != null && `NPS ${s.nps}/10`, s.rating != null && `đánh giá ${s.rating}`, s.comment].filter(Boolean).join(" · "))
-            : item(`s${s.id}`, s.sentAt, "survey", `Đã gửi khảo sát “${s.survey.name}”`, `Qua ${s.channel}, chưa trả lời`),
+            ? item(`s${s.id}`, s.submittedAt, "survey", `Trả lời khảo sát “${s.survey.name}”`, [s.nps != null && `NPS ${s.nps}/10`, s.rating != null && `đánh giá ${s.rating}`, s.comment].filter(Boolean).join(" · "))
+            : item(`s${s.id}`, s.sentAt, "survey", `Đã gửi khảo sát “${s.survey.name}”`, `${s.channel === "link" ? "Tạo link" : `Qua ${SURVEY_CHANNEL[s.channel] ?? s.channel}`}, chưa trả lời`),
         ),
       ),
     );
@@ -154,8 +160,8 @@ export async function timelineOf(ctx: C360Ctx, rec: DbRecord, opts: { before?: s
 
   await Promise.all(jobs);
   // Mốc "khách được tạo" luôn ở cuối dòng thời gian.
-  if (want("note") && rec.createdAt < before) lists.push([item(`r${rec.id}`, rec.createdAt, "note", "Tạo hồ sơ khách", rec.ownerName ? `Phụ trách: ${rec.ownerName}` : undefined)]);
-  return mergeTimeline(lists, limit);
+  if (want("note") && rec.createdAt <= before) lists.push([item(`r${rec.id}`, rec.createdAt, "note", "Tạo hồ sơ khách", rec.ownerName ? `Phụ trách: ${rec.ownerName}` : undefined)]);
+  return mergeTimeline(lists, limit, opts.before);
 }
 
 /** Thẻ tổng quan: chi tiêu, đơn, hỗ trợ, khảo sát, điểm thưởng, điểm AI, nhóm RFM, kênh đã dùng. */
@@ -187,7 +193,8 @@ export async function summaryOf(ctx: C360Ctx, rec: DbRecord) {
   for (const o of outs) channels.add(CHANNEL_LABEL[o.channel as MsgChannel] ?? o.channel);
   for (const l of leads) channels.add(l.provider);
   if (tickets.some((t) => t.channel === "email")) channels.add("Email");
-  const firstSeen = Math.min(rec.createdAt.getTime(), ...leads.map((l) => l.createdAt.getTime()));
+  // Khách nhập sau khi đã mua (vd. nhập từ Excel) thì "biết đến từ" là lần mua/lead sớm nhất.
+  const firstSeen = Math.min(rec.createdAt.getTime(), ...leads.map((l) => l.createdAt.getTime()), ...orders.map((o) => o.createdAt.getTime()));
   const obj = getObject(ctx.config, "contacts");
   return {
     title: rec.title,

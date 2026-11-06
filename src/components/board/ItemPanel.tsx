@@ -121,7 +121,8 @@ export function ItemPanel({ obj, team, record, onClose, onPatch, onDelete, canDe
                 </a>
               )}
             </div>
-            <div className="mt-3 flex gap-1 overflow-x-auto">
+            {/* Bảng Khách có 8 tab: điện thoại thì vuốt ngang, màn rộng thì xuống dòng để không tab nào bị khuất (Voucher). */}
+            <div className="mt-3 flex gap-x-1 overflow-x-auto sm:flex-wrap sm:overflow-visible">
               {(
                 [
                   ...(obj.key === "contacts" ? ([["c360", "360°"]] as const) : []),
@@ -207,7 +208,7 @@ export function ItemPanel({ obj, team, record, onClose, onPatch, onDelete, canDe
                     <span className="ml-auto text-[12px] text-ink-2">{ago(a.createdAt)}</span>
                   </header>
                   <p className={`mt-2 whitespace-pre-line text-[14px] ${a.kind === "update" ? "" : "text-ink-2"}`}>
-                    <WithMentions text={a.body} team={team} />
+                    <WithMentions text={a.body.replace(/\s*\[đợt:[^\]]+\]/, "")} team={team} />
                   </p>
                 </article>
               ))}

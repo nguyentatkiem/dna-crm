@@ -14,7 +14,8 @@ import { dueText } from "../TicketsClient";
 
 type Msg = { id: string; author: string; body: string; internal: boolean; at: string };
 type Customer = { id: string; title: string; objectKey: string; phone: string; email: string; zaloUid: string; owner: string };
-type Detail = { ticket: TicketDTO; customer: Customer | null; messages: Msg[]; logs: { id: string; user: string; summary: string; at: string }[]; csatUrl: string | null };
+type SurveyInvite = { surveyId: string; surveyName: string; url: string; channel: string; submittedAt: string | null; nps: number | null; rating: number | null; comment: string; responseId: string };
+type Detail = { ticket: TicketDTO; customer: Customer | null; messages: Msg[]; logs: { id: string; user: string; summary: string; at: string }[]; csatUrl: string | null; surveyInvite?: SurveyInvite | null };
 type Via = "" | "zalo" | "email" | "sms";
 
 const when = (s: string) => new Date(s).toLocaleString("vi-VN", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit", year: "numeric" });
@@ -155,6 +156,8 @@ export function TicketDetail({ id, team, me, canDelete, teams = [], categories =
               )}
             </section>
           )}
+
+          {d.surveyInvite && <SurveyInviteCard inv={d.surveyInvite} />}
 
           <section className="card p-4">
             <div className="flex items-center gap-2 text-[13px] text-ink-2">
@@ -335,5 +338,44 @@ export function TicketDetail({ id, team, me, canDelete, teams = [], categories =
         </aside>
       </div>
     </div>
+  );
+}
+
+/** Khảo sát tự gửi sau khi phiếu được xử lý: link riêng của khách và kết quả (nếu đã trả lời). */
+function SurveyInviteCard({ inv }: { inv: SurveyInvite }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <section className="card p-4">
+      <h2 className="section-title">Khảo sát sau phiếu</h2>
+      <p className="mt-1 text-[13.5px] text-ink-2">
+        <Link href={`/w/surveys/${inv.surveyId}${inv.submittedAt ? `?response=${inv.responseId}` : ""}`} className="font-medium text-ink hover:underline">
+          {inv.surveyName}
+        </Link>
+        {inv.submittedAt ? (
+          <>
+            {" "}· khách đã trả lời{inv.nps != null ? `: NPS ${inv.nps}` : inv.rating != null ? `: ${inv.rating}/5 sao` : ""}
+            {inv.comment && <span className="mt-1 block text-[14px] text-ink">“{inv.comment}”</span>}
+          </>
+        ) : (
+          " · khách chưa trả lời. Nếu khách chưa nhận được tin, chép link gửi lại."
+        )}
+      </p>
+      {!inv.submittedAt && (
+        <div className="mt-2 flex min-w-0 items-center gap-2">
+          <input readOnly value={inv.url} className="input h-8 min-w-0 flex-1 text-[13px]" aria-label="Link khảo sát sau phiếu" onFocus={(e) => e.target.select()} />
+          <button
+            type="button"
+            className="btn-outline h-8 flex-none"
+            onClick={async () => {
+              await navigator.clipboard?.writeText(inv.url).catch(() => undefined);
+              setCopied(true);
+              setTimeout(() => setCopied(false), 1500);
+            }}
+          >
+            <Icon name={copied ? "check" : "copy"} size={14} /> {copied ? "Đã chép" : "Chép"}
+          </button>
+        </div>
+      )}
+    </section>
   );
 }
