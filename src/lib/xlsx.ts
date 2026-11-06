@@ -88,7 +88,7 @@ export async function buildXlsx(sheets: SheetSpec[]): Promise<Buffer> {
 /** Kiểu cột ứng với kiểu trường của bảng. */
 export function kindOf(f: Pick<FieldDef, "type">): ColKind {
   if (f.type === "money") return "money";
-  if (f.type === "number" || f.type === "rating") return "number";
+  if (f.type === "number" || f.type === "rating" || f.type === "checkbox" || f.type === "progress") return "number";
   if (f.type === "date") return "date";
   if (f.type === "phone") return "phone";
   return "text";
@@ -162,7 +162,9 @@ export function templateSheets(obj: ObjectDef): SheetSpec[] {
       if (f.type === "money") return i === 0 ? 1500000 : 3000000;
       if (f.type === "number" || f.type === "rating") return i + 1;
       if (f.type === "date") return new Date(Date.UTC(2026, 0, 15 + i));
-      if (f.type === "select") return f.options[i]?.label ?? f.options[0]?.label ?? "";
+      if (f.type === "select" || f.type === "tags") return f.options[i]?.label ?? f.options[0]?.label ?? "";
+      if (f.type === "checkbox") return i === 0 ? 1 : 0;
+      if (f.type === "progress") return i === 0 ? 50 : 100;
       return "";
     }),
     ...(obj.amountLabel ? [i === 0 ? 2000000 : 5000000] : []),

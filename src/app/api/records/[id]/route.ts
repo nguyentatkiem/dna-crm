@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { db, parseJson } from "@/lib/db";
+import { moveToTrash } from "@/lib/trash";
 import { appApi, fail, ok } from "@/lib/http";
 import { getObject } from "@/lib/config/schema";
 import { runAutomations, toDTO, type FieldValue } from "@/lib/records";
@@ -71,9 +72,9 @@ export async function DELETE(_req: Request, { params }: Ctx) {
   if (!can(role, "delete")) return fail("Bạn không có quyền xoá. Hãy nhờ chủ hoặc quản lý.", 403);
   const rec = await findScopedRecord(a.ctx, id);
   if (!rec) return fail("Không tìm thấy mục", 404);
-  await db.record.delete({ where: { id } });
-  await db.task.deleteMany({ where: { recordId: id } });
+  // Xoá mềm: chuyển vào thùng rác, khôi phục được trong TRASH_DAYS ngày.
+  await moveToTrash(a.ctx.workspace.id, id, a.ctx.user.name);
   const obj = getObject(a.ctx.config, rec.objectKey);
-  await audit({ workspaceId: a.ctx.workspace.id, user: a.ctx.user }, "record.delete", rec.objectKey, id, `Xoá ${obj?.itemLabel.toLowerCase() ?? "mục"} “${rec.title}”`, { before: recordSnapshot(rec) });
-  return ok({ deleted: true });
+  await audit({ workspaceId: a.ctx.workspace.id, user: a.ctx.user }, "record.delete", rec.objectKey, id, `Chuyển ${obj?.itemLabel.toLowerCase() ?? "mục"} “${rec.title}” vào thùng rác`, { before: recordSnapshot(rec) });
+  return ok({ deleted: true, trash: true });
 }

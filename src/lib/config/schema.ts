@@ -6,7 +6,14 @@ export const ColorKey = z.enum(COLOR_KEYS);
 export const OBJECT_KEYS = ["contacts", "deals", "appointments"] as const;
 export const ObjectKey = z.enum(OBJECT_KEYS);
 
-export const FIELD_TYPES = ["text", "longtext", "phone", "email", "number", "money", "date", "select", "rating", "formula"] as const;
+export const FIELD_TYPES = ["text", "longtext", "phone", "email", "number", "money", "date", "select", "rating", "formula", "checkbox", "link", "tags", "progress"] as const;
+
+/** Kiểu trường lưu giá trị số (ô tích lưu 1/0, tiến độ lưu 0–100). */
+export const NUMERIC_TYPES: readonly string[] = ["number", "money", "rating", "checkbox", "progress"];
+/** Kiểu trường có danh sách lựa chọn màu (nhãn một lựa chọn, thẻ nhiều lựa chọn). */
+export const OPTION_TYPES: readonly string[] = ["select", "tags"];
+/** Thẻ (nhiều lựa chọn) lưu dạng "A, B" để vẫn là một chuỗi phẳng như các trường khác. */
+export const splitTags = (v: unknown): string[] => (v === undefined || v === null || v === "" ? [] : String(v).split(",").map((s) => s.trim()).filter(Boolean));
 
 export const Option = z.object({ key: z.string(), label: z.string(), color: ColorKey });
 

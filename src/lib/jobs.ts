@@ -4,6 +4,7 @@ import { tickReminders } from "./notify";
 import { refreshPredictions } from "./predict";
 import { autoBackup } from "./backup";
 import { tickDateAutomations } from "./automation";
+import { purgeExpired } from "./trash";
 
 type Job = { name: string; everyMin: number; run: () => Promise<void> };
 
@@ -15,6 +16,7 @@ export const JOBS: Job[] = [
   { name: "Chi phí quảng cáo", everyMin: 360, run: () => syncAdSpend() },
   { name: "Sao lưu", everyMin: 60, run: autoBackup },
   { name: "Tự động hoá theo ngày", everyMin: 60, run: () => tickDateAutomations() },
+  { name: "Dọn thùng rác", everyMin: 360, run: () => purgeExpired() },
 ];
 
 const g = globalThis as unknown as { crmJobs?: { started: boolean; last: Record<string, number>; running: Set<string> } };

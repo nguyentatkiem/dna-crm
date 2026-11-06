@@ -177,7 +177,7 @@ export function BulkBar({ obj, team, count, canDelete, onStatus, onOwner, onDele
       {canDelete &&
         (confirm ? (
           <span className="flex items-center gap-1 px-1 text-[13px]">
-            Xoá {count} mục?
+            Chuyển {count} mục vào thùng rác?
             <button type="button" className="btn h-8 bg-[#df2f4a] text-white hover:brightness-95" onClick={() => { setConfirm(false); onDelete(); }}>
               Xoá
             </button>

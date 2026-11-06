@@ -56,10 +56,16 @@ Và bộ công cụ Work OS: **Gantt**, kanban kéo thả, bảng hàng nghìn d
   - **Gantt / Timeline**: thang Ngày/Tuần/Tháng, vạch hôm nay, kéo thanh để dời ngày, kéo mép để đổi hạn.
   - **Biểu đồ**: chia theo trạng thái, người phụ trách hoặc một cột lựa chọn; đo bằng số mục hoặc tổng một cột tiền/số/công thức; dạng cột hoặc tròn.
 - **Cột công thức** kiểu Excel: `{so_luong} * {don_gia}`, `IF({diem} > 70; "Nóng"; "Theo dõi")`, `DAYS(TODAY(); {tao_luc})`... Gần 400 hàm (formula.js), kiểm tra cú pháp và xem trước khi lưu, tự cộng ở hàng tổng.
+- **14 loại cột**: chữ, đoạn văn, số, tiền, ngày, SĐT, email, nhãn màu, đánh giá sao, công thức, **ô tích**, **liên kết**, **thẻ nhiều lựa chọn**, **tiến độ %** (hàng tổng đếm số ô đã tích và tiến độ trung bình).
 - **Menu trên tiêu đề cột** (nút “…”): sắp xếp tăng/giảm theo cột đó, lọc theo cột, nhóm theo cột, ẩn cột.
+- **Menu chuột phải trên dòng** (hoặc nút “…”): mở, mở thẻ mới, sao chép link, nhân bản, chuyển giai đoạn, xoá.
+- **Menu nhóm**: thu gọn nhóm/tất cả nhóm, chọn cả nhóm, **xuất riêng nhóm ra Excel**.
+- **Hiển thị**: độ cao dòng Gọn/Vừa/Thoáng, **tô màu dòng theo điều kiện** (ví dụ chưa cọc thì tô vàng).
+- **Nhật ký bảng**: mọi thao tác tạo, sửa, xoá, nhập, xuất trên cả bảng, lọc theo người.
+- **Thùng rác**: xoá xong có nút **Hoàn tác**; mục nằm trong thùng rác 30 ngày, khôi phục lại đủ cập nhật, việc, tài liệu; chủ/quản lý xoá vĩnh viễn hoặc dọn sạch.
 - **Thanh tỉ lệ màu** dưới mỗi cột lựa chọn, giống cột trạng thái.
 - **Lọc nâng cao** nhiều điều kiện (bằng, khác, lớn hơn, chứa, rỗng...), sắp xếp, tìm kiếm.
-- **Panel chi tiết**: tab Cập nhật, Thông tin, Việc cần làm, **Tài liệu** và **Lịch sử** (ai đổi ô nào, từ giá trị gì sang giá trị gì, lọc theo người sửa).
+- **Panel chi tiết**: tab Cập nhật (gõ **@** để nhắc đồng đội, người được nhắc nhận thông báo), Thông tin, Việc cần làm, **Tài liệu** và **Lịch sử** (ai đổi ô nào, từ giá trị gì sang giá trị gì, lọc theo người sửa).
 - **Tài liệu** (trình soạn thảo kiểu Notion): gắn vào từng khách hoặc dùng chung, tự lưu, 4 mẫu sẵn (Kịch bản tư vấn, Biên bản họp, Báo giá, Quy trình chăm sóc).
 
 ### Dữ liệu vào và ra
@@ -291,6 +297,20 @@ Mỗi agent có công tắc bật/tắt và **mức tự chủ** (Chỉ gợi ý
 | ![Biểu đồ](docs/screenshots/49-che-do-bieu-do.png) | ![Lịch sử](docs/screenshots/50-lich-su-thay-doi.png) |
 
 ![Lịch sử chạy tự động hoá](docs/screenshots/51-lich-su-chay-tu-dong-hoa.png)
+
+**Cột mới, menu dòng, hiển thị, nhật ký bảng, thùng rác, @nhắc tên** (xem bảng so sánh đầy đủ trong [docs/SO-SANH-MONDAY.md](docs/SO-SANH-MONDAY.md)):
+
+| Ô tích, tiến độ, thẻ, liên kết + tô màu | Menu chuột phải |
+|---|---|
+| ![Cột mới](docs/screenshots/52-cot-moi-va-to-mau.png) | ![Menu chuột phải](docs/screenshots/53-menu-chuot-phai.png) |
+
+| Độ cao dòng, tô màu theo điều kiện | Nhật ký bảng |
+|---|---|
+| ![Hiển thị](docs/screenshots/54-do-cao-dong-to-mau.png) | ![Nhật ký bảng](docs/screenshots/55-nhat-ky-bang.png) |
+
+| Thùng rác | @nhắc tên trong cập nhật |
+|---|---|
+| ![Thùng rác](docs/screenshots/56-thung-rac.png) | ![Nhắc tên](docs/screenshots/57-nhac-ten.png) |
 
 ---
 

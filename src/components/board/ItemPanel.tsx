@@ -10,6 +10,7 @@ import { Avatar } from "../Avatar";
 import { FieldCell, InputCell, LabelCell, PersonCell } from "./cells";
 import { RecordDocs } from "./RecordDocs";
 import { RecordHistory } from "./RecordHistory";
+import { MentionTextarea, WithMentions } from "./Mentions";
 import { WinProb } from "./TableView";
 import { evalField, isMoneyFormula } from "@/lib/formula";
 
@@ -28,6 +29,7 @@ export function ItemPanel({ obj, team, record, onClose, onPatch, onDelete, canDe
   const [zaloMsg, setZaloMsg] = useState("");
   const [taskTitle, setTaskTitle] = useState("");
   const [confirmDel, setConfirmDel] = useState(false);
+  const [notified, setNotified] = useState("");
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/records/${record.id}/activities`);
@@ -54,7 +56,9 @@ export function ItemPanel({ obj, team, record, onClose, onPatch, onDelete, canDe
     if (!body.trim()) return;
     const res = await fetch(`/api/records/${record.id}/activities`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ body }) });
     if (res.ok) {
+      const j = await res.json().catch(() => ({}));
       setText("");
+      setNotified(j.mentioned?.length ? `Đã báo cho ${j.mentioned.join(", ")}` : "");
       load();
     }
   }
@@ -178,8 +182,9 @@ export function ItemPanel({ obj, team, record, onClose, onPatch, onDelete, canDe
               </div>
 
               <div className="rounded-lg border border-line bg-surface">
-                <textarea id="update-text" value={text} onChange={(e) => setText(e.target.value)} placeholder="Viết cập nhật..." className="min-h-[84px] w-full resize-y rounded-t-lg bg-transparent px-4 py-3 text-[14px] outline-none" />
-                <div className="flex justify-end border-t border-line-soft px-3 py-2">
+                <MentionTextarea id="update-text" value={text} onChange={setText} team={team} placeholder="Viết cập nhật... Gõ @ để nhắc đồng đội" onSubmit={() => post(text)} />
+                <div className="flex items-center justify-between gap-2 border-t border-line-soft px-3 py-2">
+                  <span role="status" className={`text-[12px] ${notified ? "text-[#00a35f]" : "text-ink-2 max-sm:hidden"}`}>{notified || "@ nhắc tên · Ctrl+Enter để gửi"}</span>
                   <button type="button" className="btn-primary h-8" disabled={!text.trim()} onClick={() => post(text)}>
                     Cập nhật
                   </button>
@@ -193,7 +198,9 @@ export function ItemPanel({ obj, team, record, onClose, onPatch, onDelete, canDe
                     <b className="text-[14px]">{a.author}</b>
                     <span className="ml-auto text-[12px] text-ink-2">{ago(a.createdAt)}</span>
                   </header>
-                  <p className={`mt-2 whitespace-pre-line text-[14px] ${a.kind === "update" ? "" : "text-ink-2"}`}>{a.body}</p>
+                  <p className={`mt-2 whitespace-pre-line text-[14px] ${a.kind === "update" ? "" : "text-ink-2"}`}>
+                    <WithMentions text={a.body} team={team} />
+                  </p>
                 </article>
               ))}
             </div>
@@ -228,7 +235,7 @@ export function ItemPanel({ obj, team, record, onClose, onPatch, onDelete, canDe
               {canDelete && <div className="mt-4 border-t border-line-soft pt-4">
                 {confirmDel ? (
                   <div className="flex flex-wrap items-center gap-2 text-[14px]">
-                    <span>Xoá vĩnh viễn mục này cùng các cập nhật?</span>
+                    <span>Chuyển mục này vào thùng rác? Khôi phục được trong 30 ngày.</span>
                     <button type="button" className="btn h-8 bg-[#df2f4a] text-white hover:brightness-95" onClick={onDelete}>
                       Xoá
                     </button>

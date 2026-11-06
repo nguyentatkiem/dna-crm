@@ -1,4 +1,5 @@
 // Dùng chung cho các route nhập dữ liệu: đọc file, ghép cột, chống trùng theo SĐT.
+import { NUMERIC_TYPES } from "@/lib/config/schema";
 import { db, parseJson } from "@/lib/db";
 import type { ObjectDef, WorkspaceConfig } from "@/lib/config/schema";
 import { parseTable } from "@/lib/csv";
@@ -43,7 +44,9 @@ export function mapRows(obj: ObjectDef, table: string[][], map: string[]): Impor
       else {
         const f = obj.fields.find((x) => x.key === k);
         if (!f || f.type === "formula") return;
-        if (f.type === "number" || f.type === "money" || f.type === "rating") out.data[k] = num(v);
+        if (f.type === "checkbox") out.data[k] = /^(1|x|có|co|yes|true|đã|da|✓|✔)$/i.test(v) ? 1 : 0;
+        else if (f.type === "progress") out.data[k] = Math.max(0, Math.min(100, num(String(v).replace("%", ""))));
+        else if (NUMERIC_TYPES.includes(f.type)) out.data[k] = num(v);
         else if (f.type === "phone") out.data[k] = normPhone(v) || v;
         else if (f.type === "date") {
           const vn = v.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/);

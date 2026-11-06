@@ -1,5 +1,5 @@
 import * as formulajs from "@formulajs/formulajs";
-import type { FieldDef, ObjectDef } from "./config/schema";
+import { NUMERIC_TYPES, type FieldDef, type ObjectDef } from "./config/schema";
 
 /**
  * Cột công thức kiểu Excel, chạy được cả trình duyệt lẫn server.
@@ -488,9 +488,9 @@ export function evalFormula(src: string, rec: FormulaRecord, obj?: Pick<ObjectDe
         return r.value;
       }
       const raw = rec.data[key];
-      if (raw === undefined || raw === "") return f && (f.type === "number" || f.type === "money" || f.type === "rating") ? 0 : f?.type === "date" ? null : "";
+      if (raw === undefined || raw === "") return f && NUMERIC_TYPES.includes(f.type) ? 0 : f?.type === "date" ? null : "";
       if (f?.type === "date") return parseDate(raw);
-      if (f && (f.type === "number" || f.type === "money" || f.type === "rating")) return Number(raw) || 0;
+      if (f && NUMERIC_TYPES.includes(f.type)) return Number(raw) || 0;
       return raw;
     },
   };

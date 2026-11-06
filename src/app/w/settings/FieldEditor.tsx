@@ -20,6 +20,10 @@ const TYPE_LABEL: Record<FieldDef["type"], string> = {
   date: "Ngày",
   select: "Nhãn chọn",
   rating: "Đánh giá sao",
+  checkbox: "Ô tích",
+  link: "Liên kết",
+  tags: "Thẻ (nhiều lựa chọn)",
+  progress: "Tiến độ (%)",
 };
 
 const uniqueKey = (label: string, taken: string[]) => {
@@ -145,7 +149,7 @@ export function FieldEditor({ config }: { config: WorkspaceConfig }) {
                   </button>
                 </div>
                 {f.type === "formula" && <FormulaInput obj={o} field={f} onChange={(formula) => update({ fields: o.fields.map((x, k) => (k === i ? { ...x, formula } : x)) })} />}
-                {f.type === "select" && (
+                {(f.type === "select" || f.type === "tags") && (
                   <input
                     id={`ed-fo-${f.key}`}
                     defaultValue={f.options.map((x) => x.label).join(", ")}
@@ -172,7 +176,7 @@ export function FieldEditor({ config }: { config: WorkspaceConfig }) {
               update({
                 fields: [
                   ...o.fields,
-                  { key: uniqueKey(label, o.fields.map((f) => f.key)), label, type, options: type === "select" ? [{ key: "lua_chon_1", label: "Lựa chọn 1", color: "blue" }] : [], ...(type === "formula" ? { formula: o.amountLabel ? "{gia_tri} * 0.1" : "" } : {}) },
+                  { key: uniqueKey(label, o.fields.map((f) => f.key)), label, type, options: type === "select" || type === "tags" ? [{ key: "lua_chon_1", label: "Lựa chọn 1", color: "blue" }] : [], ...(type === "formula" ? { formula: o.amountLabel ? "{gia_tri} * 0.1" : "" } : {}) },
                 ],
               })
             }
@@ -231,7 +235,10 @@ function fakeRecord(obj: ObjectDef): FormulaRecord {
     if (f.type === "number" || f.type === "rating") data[f.key] = 3;
     else if (f.type === "money") data[f.key] = 1_500_000;
     else if (f.type === "date") data[f.key] = new Date(Date.now() + 5 * 864e5).toISOString().slice(0, 10);
-    else if (f.type === "select") data[f.key] = f.options[0]?.label ?? "";
+    else if (f.type === "select" || f.type === "tags") data[f.key] = f.options[0]?.label ?? "";
+    else if (f.type === "checkbox") data[f.key] = 1;
+    else if (f.type === "progress") data[f.key] = 60;
+    else if (f.type === "link") data[f.key] = "https://vi.wikipedia.org";
     else if (f.type !== "formula") data[f.key] = `${f.label} mẫu`;
   }
   return { title: `${obj.itemLabel} mẫu`, status: obj.statuses[0]?.key ?? "", ownerName: "Bạn", amount: 10_000_000, score: 65, winProb: 55, createdAt: new Date(Date.now() - 3 * 864e5).toISOString(), data };

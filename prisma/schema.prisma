@@ -104,10 +104,14 @@ model Record {
   dataJson    String     @default("{}")
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
+  // Thùng rác: có giá trị = đã xoá mềm (ẩn khỏi mọi nơi, khôi phục được, tự xoá hẳn sau 30 ngày).
+  deletedAt   DateTime?
+  deletedBy   String     @default("")
   workspace   Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   activities  Activity[]
 
   @@index([workspaceId, objectKey])
+  @@index([workspaceId, deletedAt])
 }
 
 model Activity {
@@ -130,6 +134,8 @@ model Task {
   done        Boolean   @default(false)
   source      String    @default("Bạn")
   createdAt   DateTime  @default(now())
+  // Mục gắn với việc này đang nằm trong thùng rác → ẩn việc cho tới khi khôi phục.
+  inTrash     Boolean   @default(false)
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
 

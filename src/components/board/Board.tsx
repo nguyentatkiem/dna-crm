@@ -9,12 +9,13 @@ import { Icon } from "../Icon";
 import { ItemPanel } from "./ItemPanel";
 import { ImportDialog } from "./ImportDialog";
 import { CalendarView } from "./CalendarView";
-import { TableView, type ColAction } from "./TableView";
+import { TableView, type ColAction, type RowExt } from "./TableView";
 import { KanbanView } from "./KanbanView";
 import { GanttView } from "./GanttView";
 import { ChartView } from "./ChartView";
+import { BoardActivity, RowMenu, ViewOptions, type RowAction } from "./BoardExtras";
 import { BulkBar, ColumnsMenu, FilterMenu } from "./BoardMenus";
-import { OPS, applyFilters, colKey, columnsOf, filterFields, groupableFields, groupsOf, readLS, sortRows, writeLS, type ColSort, type Column, type Filter, type Group, type GroupBy, type Patch, type View } from "./model";
+import { OPS, applyFilters, colKey, columnsOf, filterFields, groupableFields, groupsOf, readLS, sortRows, writeLS, ROW_HEIGHT, tintOf, type ColorRule, type Density, type ColSort, type Column, type Filter, type Group, type GroupBy, type Patch, type View } from "./model";
 import type { FieldValue } from "@/lib/records";
 
 type Sort = "new" | "name" | "amount" | "score";
@@ -75,6 +76,10 @@ export function Board({
   const [sort, setSort] = useState<Sort>("new");
   // Sắp xếp theo cột (menu tiêu đề cột) — khi bật thì thay cho kiểu sắp xếp có sẵn.
   const [colSort, setColSort] = useState<ColSort | null>(null);
+  const [density, setDensity] = useState<Density>("normal");
+  const [colorRules, setColorRules] = useState<ColorRule[]>([]);
+  const [rowMenu, setRowMenu] = useState<{ r: RecordDTO; x: number; y: number } | null>(null);
+  const [activityOpen, setActivityOpen] = useState(false);
   const [filters, setFilters] = useState<Filter[]>([]);
   const [mode, setMode] = useState<"and" | "or">("and");
   const [groupBy, setGroupBy] = useState<GroupBy>("status");
@@ -82,6 +87,8 @@ export function Board({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [openId, setOpenId] = useState<string | null>(initialOpen);
   const [toast, setToast] = useState("");
+  // Hoàn tác xoá: mục vừa chuyển vào thùng rác, giữ trong vài giây để khôi phục.
+  const [undo, setUndo] = useState<RecordDTO[] | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const isDeals = !!obj.amountLabel;
   const isContacts = obj.key === "contacts";
@@ -93,15 +100,21 @@ export function Board({
     const p = readLS<{ groupBy?: GroupBy; filters?: Filter[]; mode?: "and" | "or"; colSort?: ColSort | null }>(prefKey, {});
     if (p.groupBy) setGroupBy(p.groupBy);
     if (p.colSort) setColSort(p.colSort);
+    setDensity(readLS<Density>(`board-density:${obj.key}`, "normal"));
+    setColorRules(readLS<ColorRule[]>(`board-colors:${obj.key}`, []));
     if (p.filters) setFilters(p.filters);
     if (p.mode) setMode(p.mode);
   }, [obj.key, prefKey]);
   const savePref = (p: { groupBy?: GroupBy; filters?: Filter[]; mode?: "and" | "or"; colSort?: ColSort | null }) => writeLS(prefKey, { groupBy, filters, mode, colSort, ...p });
 
-  const flash = useCallback((t: string) => {
+  const flash = useCallback((t: string, keep?: RecordDTO[]) => {
+    setUndo(keep ?? null);
     setToast(t);
     clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToast(""), 2600);
+    toastTimer.current = setTimeout(() => {
+      setToast("");
+      setUndo(null);
+    }, keep ? 7000 : 2600);
   }, []);
 
   const fields = useMemo(() => filterFields(obj, team), [obj, team]);
@@ -205,10 +218,20 @@ export function Board({
   }
 
   async function remove(id: string) {
+    const rec = recordsRef.current.find((r) => r.id === id);
     if (await removeOne(id)) {
       setOpenId(null);
-      flash("Đã xoá mục");
+      flash("Đã chuyển vào thùng rác", rec ? [rec] : undefined);
     }
+  }
+
+  async function undoDelete(list: RecordDTO[]) {
+    setToast("");
+    setUndo(null);
+    const res = await fetch("/api/trash", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "restore", ids: list.map((r) => r.id) }) });
+    if (!res.ok) return flash((await res.json().catch(() => ({}))).error ?? "Không khôi phục được");
+    setRecords((rs) => [...list.filter((x) => !rs.some((r) => r.id === x.id)), ...rs]);
+    flash(list.length > 1 ? `Đã khôi phục ${list.length} mục` : `Đã khôi phục “${list[0].title}”`);
   }
 
   const onSelect = useCallback((ids: string[], on: boolean) => {
@@ -241,13 +264,58 @@ export function Board({
   }
   async function bulkDelete() {
     const ids = [...selected];
-    let okN = 0;
+    const gone: RecordDTO[] = [];
     await inBatches(ids, 6, async (id) => {
-      if (await removeOne(id)) okN++;
+      const rec = recordsRef.current.find((r) => r.id === id);
+      if ((await removeOne(id)) && rec) gone.push(rec);
     });
     setSelected(new Set());
-    if (okN) flash(`Đã xoá ${okN} mục`);
+    if (gone.length) flash(`Đã chuyển ${gone.length} mục vào thùng rác`, gone);
   }
+
+  // Menu chuột phải trên dòng.
+  const linkOf = (id: string) => `${window.location.origin}/w/b/${obj.key}?open=${id}`;
+  async function duplicate(r: RecordDTO) {
+    const rec = await create(`${r.title} (bản sao)`, r.status, r.ownerName || undefined, r.data);
+    if (rec && r.amount) await patch(rec.id, { amount: r.amount }, true);
+  }
+  const onRowAction = (r: RecordDTO, a: RowAction) => {
+    if (a.kind === "open") setOpenId(r.id);
+    else if (a.kind === "newtab") window.open(linkOf(r.id), "_blank", "noopener");
+    else if (a.kind === "copylink")
+      navigator.clipboard?.writeText(linkOf(r.id)).then(
+        () => flash("Đã sao chép link"),
+        () => flash(linkOf(r.id)),
+      );
+    else if (a.kind === "duplicate") void duplicate(r);
+    else if (a.kind === "move") void patch(r.id, { status: a.status });
+    else if (a.kind === "delete") void remove(r.id);
+  };
+
+  async function exportGroup(g: Group, ids: string[]) {
+    flash(`Đang xuất nhóm “${g.label}”…`);
+    const res = await fetch("/api/records/export", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ object: obj.key, ids, label: g.label }) });
+    if (!res.ok) return flash((await res.json().catch(() => ({}))).error ?? "Không xuất được");
+    const name = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") ?? "")?.[1] ?? `${obj.key}.xlsx`;
+    const url = URL.createObjectURL(await res.blob());
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    flash(`Đã xuất ${ids.length} mục nhóm “${g.label}”`);
+  }
+
+  const ext = useMemo<RowExt>(
+    () => ({
+      rowH: ROW_HEIGHT[density],
+      tintOf: (r) => (colorRules.length ? tintOf(r, colorRules, obj) : null),
+      onRowMenu: (r, x, y) => setRowMenu({ r, x, y }),
+      onExportGroup: canExport ? (g, ids) => void exportGroup(g, ids) : undefined,
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [density, colorRules, obj, canExport],
+  );
 
   const total = records.length || 1;
   const opened = records.find((r) => r.id === openId) ?? null;
@@ -356,12 +424,30 @@ export function Board({
           </label>
         )}
         {view === "table" && <ColumnsMenu cols={allCols} hidden={hidden} onChange={(h) => { setHidden(h); writeLS(`board-cols:${obj.key}`, h); }} />}
+        {view === "table" && (
+          <ViewOptions
+            density={density}
+            rules={colorRules}
+            fields={fields}
+            onDensity={(d) => {
+              setDensity(d);
+              writeLS(`board-density:${obj.key}`, d);
+            }}
+            onRules={(r) => {
+              setColorRules(r);
+              writeLS(`board-colors:${obj.key}`, r);
+            }}
+          />
+        )}
         {(q || owner || filterCount > 0) && (
           <button type="button" className="btn-ghost text-primary" onClick={() => { setQ(""); setOwner(""); setFilters([]); savePref({ filters: [] }); }}>
             Xoá lọc · {shown.length} mục
           </button>
         )}
         <span className="ml-auto flex gap-1">
+          <button type="button" className="btn-ghost" onClick={() => setActivityOpen(true)}>
+            <Icon name="history" size={16} /> <span className="max-sm:hidden">Nhật ký</span>
+          </button>
           {canImport && (
             <button type="button" className="btn-ghost" onClick={() => setImporting(true)}>
               <Icon name="upload" size={16} /> <span className="max-sm:hidden">Nhập</span>
@@ -405,7 +491,7 @@ export function Board({
       ) : records.length ? (
         <>
           {shown.length === 0 && <p className="mt-6 text-center text-ink-2">Không có mục nào khớp bộ lọc.</p>}
-          <TableView obj={obj} team={team} groups={groups} rows={shown} cols={cols} selected={selected} onSelect={onSelect} onPatch={onPatch} onCreate={createIn} onOpen={setOpenId} sort={colSort} onColumn={onColumn} canGroup={canGroup} canFilter={canFilter} />
+          <TableView obj={obj} team={team} groups={groups} rows={shown} cols={cols} selected={selected} onSelect={onSelect} onPatch={onPatch} onCreate={createIn} onOpen={setOpenId} sort={colSort} onColumn={onColumn} canGroup={canGroup} canFilter={canFilter} ext={ext} />
         </>
       ) : null}
 
@@ -422,10 +508,36 @@ export function Board({
         />
       )}
 
+      {rowMenu && <RowMenu obj={obj} record={rowMenu.r} x={rowMenu.x} y={rowMenu.y} canDelete={canDelete} onAction={(a) => onRowAction(rowMenu.r, a)} onClose={() => setRowMenu(null)} />}
+      {activityOpen && (
+        <BoardActivity
+          obj={obj}
+          trashHref={canDelete ? `/w/trash?object=${obj.key}` : undefined}
+          onClose={() => setActivityOpen(false)}
+          onOpen={(id) => {
+            if (records.some((r) => r.id === id)) {
+              setActivityOpen(false);
+              setOpenId(id);
+            } else flash("Mục này đã bị xoá hoặc bạn không được xem");
+          }}
+        />
+      )}
       {opened && <ItemPanel obj={obj} team={team} record={opened} onClose={() => setOpenId(null)} onPatch={(b) => void patch(opened.id, b)} onDelete={() => remove(opened.id)} canDelete={canDelete} />}
       {toast && (
         <div role="status" className={`fixed left-1/2 z-[60] -translate-x-1/2 rounded-lg bg-[#323338] px-4 py-2.5 text-[14px] text-white shadow-panel ${selected.size && view === "table" ? "bottom-24" : "bottom-6"}`}>
-          {toast}
+          <span className="flex items-center gap-3">
+            {toast}
+            {undo && (
+              <>
+                <button type="button" className="font-semibold text-[#8fc7ff] hover:underline" onClick={() => void undoDelete(undo)}>
+                  Hoàn tác
+                </button>
+                <a href={`/w/trash?object=${obj.key}`} className="text-white/70 hover:text-white hover:underline">
+                  Thùng rác
+                </a>
+              </>
+            )}
+          </span>
         </div>
       )}
     </div>

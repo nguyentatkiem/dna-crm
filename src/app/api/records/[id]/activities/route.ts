@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { appApi, fail, ok } from "@/lib/http";
 import { findScopedRecord } from "@/lib/permissions";
+import { notifyMentions } from "@/lib/mentions";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -23,7 +24,9 @@ export async function POST(req: Request, { params }: Ctx) {
   if (!(await findScopedRecord(a.ctx, id))) return fail("Không tìm thấy mục", 404);
   const { body } = (await req.json().catch(() => ({}))) as { body?: string };
   if (!body?.trim()) return fail("Hãy viết nội dung cập nhật");
-  const act = await db.activity.create({ data: { recordId: id, kind: "update", body: body.trim().slice(0, 4000), author: a.ctx.user.name } });
-  await db.record.update({ where: { id }, data: { updatedAt: new Date() } });
-  return ok(act, 201);
+  const text = body.trim().slice(0, 4000);
+  const act = await db.activity.create({ data: { recordId: id, kind: "update", body: text, author: a.ctx.user.name } });
+  const rec = await db.record.update({ where: { id }, data: { updatedAt: new Date() } });
+  const mentioned = await notifyMentions(a.ctx.workspace.id, a.ctx.user, text, { title: rec.title, href: `/w/b/${rec.objectKey}?open=${id}` });
+  return ok({ ...act, mentioned }, 201);
 }

@@ -4,7 +4,9 @@ import type { Prisma } from "@prisma/client";
 export const ACTION_LABEL: Record<string, string> = {
   "record.create": "Tạo mục",
   "record.update": "Sửa mục",
-  "record.delete": "Xoá mục",
+  "record.delete": "Chuyển vào thùng rác",
+  "record.restore": "Khôi phục mục",
+  "record.purge": "Xoá vĩnh viễn",
   "member.invite": "Mời thành viên",
   "member.role": "Đổi vai trò",
   "member.remove": "Xoá thành viên",

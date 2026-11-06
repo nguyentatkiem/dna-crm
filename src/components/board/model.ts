@@ -21,6 +21,7 @@ export type Column =
   | { id: "updated"; label: string; w: number };
 
 export const TITLE_W = 300;
+const FIELD_W: Partial<Record<FieldDef["type"], number>> = { select: 150, formula: 150, longtext: 200, tags: 180, progress: 150, checkbox: 100, link: 170 };
 export const CHECK_W = 36;
 
 export function columnsOf(obj: ObjectDef): Column[] {
@@ -28,7 +29,7 @@ export function columnsOf(obj: ObjectDef): Column[] {
   return [
     { id: "owner", label: "Phụ trách", w: 96 },
     { id: "status", label: obj.statusLabel, w: 150 },
-    ...obj.fields.map((f) => ({ id: `f:${f.key}`, label: f.label, w: f.type === "select" ? 150 : f.type === "formula" ? 150 : f.type === "longtext" ? 200 : 140, field: f })),
+    ...obj.fields.map((f) => ({ id: `f:${f.key}`, label: f.label, w: FIELD_W[f.type] ?? 140, field: f })),
     ...(isDeals ? [{ id: "amount", label: obj.amountLabel, w: 130 } as Column, { id: "winProb", label: "Khả năng chốt", w: 130 } as Column] : []),
     ...(obj.key === "contacts" ? [{ id: "score", label: "Điểm AI", w: 110 } as Column] : []),
     { id: "updated", label: "Cập nhật", w: 120 },
@@ -90,7 +91,12 @@ export function filterFields(obj: ObjectDef, team: string[]): FilterField[] {
     { key: "owner", label: "Phụ trách", kind: "option", options: [...team.map((t) => ({ value: t, label: t }))] },
   ];
   for (const f of obj.fields) {
-    const kind: FilterKind = f.type === "number" || f.type === "money" || f.type === "rating" || f.type === "formula" ? "number" : f.type === "date" ? "date" : f.type === "select" ? "option" : "text";
+    if (f.type === "checkbox") {
+      out.push({ key: `f:${f.key}`, label: f.label, kind: "option", options: [{ value: "1", label: "Đã tích" }, { value: "0", label: "Chưa tích" }] });
+      continue;
+    }
+    // Thẻ nhiều lựa chọn lọc kiểu chữ: "có chứa" một thẻ.
+    const kind: FilterKind = f.type === "number" || f.type === "money" || f.type === "rating" || f.type === "progress" || f.type === "formula" ? "number" : f.type === "date" ? "date" : f.type === "select" ? "option" : "text";
     out.push({ key: `f:${f.key}`, label: f.label, kind, options: f.type === "select" ? f.options.map((o) => ({ value: o.label, label: o.label })) : undefined });
   }
   if (obj.amountLabel) {
@@ -117,6 +123,7 @@ export function rawValue(r: RecordDTO, key: string, obj: ObjectDef): FieldValue 
       const res = evalField(f, r, obj);
       return res.ok && (typeof res.value === "number" || typeof res.value === "string") ? res.value : null;
     }
+    if (f?.type === "checkbox") return Number(r.data[k]) ? 1 : 0;
     return r.data[k] ?? null;
   }
   return null;
@@ -184,6 +191,26 @@ export function groupsOf(obj: ObjectDef, team: string[], rows: RecordDTO[], by: 
     ...names.map((n) => ({ key: `o:${n}`, label: n, color: avatarColor(n), match: (r: RecordDTO) => r.ownerName === n, owner: n })),
     { key: "o:", label: "Chưa giao", color: "#c4c4c4", match: (r: RecordDTO) => !r.ownerName || !names.includes(r.ownerName), owner: "" },
   ];
+}
+
+// ---------- Độ cao dòng, tô màu theo điều kiện ----------
+export type Density = "compact" | "normal" | "roomy";
+export const ROW_HEIGHT: Record<Density, number> = { compact: 30, normal: 36, roomy: 46 };
+
+/** Tô màu dòng khi một cột nhãn/người/ô tích có giá trị nhất định (giống conditional coloring). */
+export type ColorRule = { id: string; field: string; value: string; color: string };
+export const RULE_COLORS = ["#ffcb00", "#00c875", "#579bfc", "#a25ddc", "#ff642e", "#e2445c", "#66ccff", "#9cd326"];
+
+/** Trường dùng được trong luật tô màu: các trường lọc dạng lựa chọn (trạng thái, người phụ trách, nhãn, ô tích). */
+export const colorableFields = (fields: FilterField[]) => fields.filter((f) => f.kind === "option" && f.options?.length);
+
+export function tintOf(r: RecordDTO, rules: ColorRule[], obj: ObjectDef): string | null {
+  for (const rule of rules) {
+    if (!rule.value) continue;
+    const v = rawValue(r, rule.field, obj);
+    if (String(v ?? "") === rule.value) return rule.color;
+  }
+  return null;
 }
 
 // ---------- Sắp xếp theo cột ----------

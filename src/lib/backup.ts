@@ -2,7 +2,8 @@
 // - Bản của một workspace: backups/<workspaceId>/YYYY-MM-DD_HHmm.json.gz (trang Cài đặt → Sao lưu).
 // - Bản toàn hệ thống: backups/YYYY-MM-DD_HHmm.json.gz, kèm bản sao file .db khi dùng SQLite (CLI, tự động).
 import { Prisma } from "@prisma/client";
-import { db, parseJson } from "./db";
+// Sao lưu cần mọi dòng, kể cả mục đang trong thùng rác → dùng client gốc.
+import { dbRaw as db, parseJson } from "./db";
 import type { Integrations } from "./settings";
 import { audit as writeAudit } from "./audit";
 

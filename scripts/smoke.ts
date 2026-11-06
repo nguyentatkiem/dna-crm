@@ -22,6 +22,7 @@ const PAGES: Check[] = [
   ["AI Agents", "/w/agents"],
   ["Cài đặt", "/w/settings"],
   ["Sao lưu", "/w/settings/backup"],
+  ["Thùng rác", "/w/trash"],
 ].map(([name, path]) => ({ name, path, expect: "html" as const }));
 const APIS: Check[] = [
   { name: "API bản ghi", path: "/api/records?object=contacts", expect: "json" },
@@ -38,6 +39,8 @@ const APIS: Check[] = [
   { name: "API tài liệu", path: "/api/docs", expect: "json" },
   { name: "API dự báo", path: "/api/predict", expect: "json" },
   { name: "API sao lưu", path: "/api/backup", expect: "json" },
+  { name: "API thùng rác", path: "/api/trash", expect: "json" },
+  { name: "API nhật ký bảng", path: "/api/records/activity?object=deals", expect: "json" },
   { name: "Xuất Excel", path: "/api/records/export?object=contacts", expect: "xlsx" },
   { name: "Xuất CSV", path: "/api/records/export?object=contacts&format=csv" },
   { name: "File mẫu nhập", path: "/api/records/import/template?object=contacts", expect: "xlsx" },

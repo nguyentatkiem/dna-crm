@@ -1,6 +1,6 @@
 import type { Automation, Record as DbRecord } from "@prisma/client";
 import { db, parseJson } from "./db";
-import { getObject, type WorkspaceConfig } from "./config/schema";
+import { NUMERIC_TYPES, getObject, type WorkspaceConfig } from "./config/schema";
 import { notify, userIdByName } from "./notify";
 import { vnd } from "./format";
 import { sendMessage } from "./marketing/messaging";
@@ -229,7 +229,7 @@ async function runAction(a: Action, rec: DbRecord, x: RunCtx): Promise<{ record:
       const def = obj?.fields.find((f) => f.key === key);
       if (!def) throw new Error("Trường không có trong bảng này");
       const raw = fill(a.value);
-      const value: FieldValue = ["number", "money", "rating"].includes(def.type) ? Number(raw) || 0 : raw;
+      const value: FieldValue = NUMERIC_TYPES.includes(def.type) ? Number(raw) || 0 : raw;
       const data = dataOf(rec);
       const prev = data[key];
       if (prev === value) return { record: rec, note: "giá trị đã đúng" };

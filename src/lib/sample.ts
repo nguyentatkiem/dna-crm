@@ -47,6 +47,9 @@ export async function seedSample(workspaceId: string, cfg: WorkspaceConfig) {
     if (f.type === "money") return Math.round(rnd() * 30 + 1) * 5e5;
     if (f.type === "number") return Math.floor(rnd() * 10) + 1;
     if (f.type === "rating") return Math.floor(rnd() * 5) + 1;
+    if (f.type === "checkbox") return rnd() > 0.5 ? 1 : 0;
+    if (f.type === "progress") return Math.round(rnd() * 10) * 10;
+    if (f.type === "tags") return f.options.length ? [...new Set([pick(f.options).label, pick(f.options).label])].join(", ") : "";
     if (/công ty/i.test(f.label)) return COMPANIES[i % COMPANIES.length];
     if (/khách|học viên|bệnh nhân|chủ nhà/i.test(f.label)) return name;
     return "";

@@ -31,6 +31,9 @@ export default async function SettingsPage() {
           <Link href="/w/settings/backup" className="btn-outline">
             Sao lưu & khôi phục
           </Link>
+          <Link href="/w/trash" className="btn-outline">
+            Thùng rác
+          </Link>
           <Link href="/onboarding" className="btn-primary">
             Sửa DNA và sinh lại
           </Link>
