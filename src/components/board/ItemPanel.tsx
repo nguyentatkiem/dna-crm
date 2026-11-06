@@ -7,21 +7,25 @@ import { ago, dateVi, heat } from "@/lib/format";
 import { color } from "@/lib/colors";
 import { Icon } from "../Icon";
 import { Avatar } from "../Avatar";
-import { FieldCell, InputCell, LabelCell, PersonCell } from "./cells";
+import { InputCell, LabelCell, PersonCell } from "./cells";
 import { RecordDocs } from "./RecordDocs";
+import { RecordForm } from "./RecordForm";
+import type { FormLayout } from "@/lib/form-layout";
 import { RecordHistory } from "./RecordHistory";
 import { RecordLoyalty } from "../care/RecordLoyalty";
+import { Customer360 } from "../c360/Customer360";
+import { VoucherList } from "../voucher/VoucherList";
+import { SendSurveyButton } from "../survey/SendSurveyButton";
 import { RecordSales } from "../sales/RecordSales";
 import { MentionTextarea, WithMentions } from "./Mentions";
 import { WinProb } from "./TableView";
-import { evalField, isMoneyFormula } from "@/lib/formula";
 
 type Activity = { id: string; kind: string; body: string; author: string; createdAt: string };
 type Task = { id: string; title: string; dueAt: string | null; done: boolean; source: string };
 type Patch = Partial<Pick<RecordDTO, "title" | "status" | "ownerName" | "amount">> & { data?: Record<string, FieldValue> };
 
-export function ItemPanel({ obj, team, record, onClose, onPatch, onDelete, canDelete = true }: { obj: ObjectDef; team: string[]; record: RecordDTO; onClose: () => void; onPatch: (b: Patch) => void; onDelete: () => void; canDelete?: boolean }) {
-  const [tab, setTab] = useState<"updates" | "info" | "tasks" | "docs" | "history" | "loyalty">("updates");
+export function ItemPanel({ obj, team, record, onClose, onPatch, onDelete, canDelete = true, readOnly, formLayout }: { obj: ObjectDef; team: string[]; record: RecordDTO; onClose: () => void; onPatch: (b: Patch) => void; onDelete: () => void; canDelete?: boolean; readOnly?: string[]; formLayout?: FormLayout | null }) {
+  const [tab, setTab] = useState<"updates" | "info" | "tasks" | "docs" | "history" | "loyalty" | "c360" | "voucher">("updates");
   const [docCount, setDocCount] = useState<number | null>(null);
   const [acts, setActs] = useState<Activity[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -120,12 +124,13 @@ export function ItemPanel({ obj, team, record, onClose, onPatch, onDelete, canDe
             <div className="mt-3 flex gap-1 overflow-x-auto">
               {(
                 [
+                  ...(obj.key === "contacts" ? ([["c360", "360°"]] as const) : []),
                   ["updates", "Cập nhật"],
                   ["info", "Thông tin"],
                   ["tasks", `Việc (${tasks.filter((t) => !t.done).length})`],
                   ["docs", docCount === null ? "Tài liệu" : `Tài liệu (${docCount})`],
                   ["history", "Lịch sử"],
-                  ...(obj.key === "contacts" ? ([["loyalty", "Điểm thưởng"]] as const) : []),
+                  ...(obj.key === "contacts" ? ([["loyalty", "Điểm thưởng"], ["voucher", "Voucher"]] as const) : []),
                 ] as const
               ).map(([k, label]) => (
                 <button key={k} type="button" onClick={() => setTab(k)} className={`-mb-px h-9 flex-none border-b-2 px-3 text-[14px] ${tab === k ? "border-primary" : "border-transparent text-ink-2 hover:text-ink"}`}>
@@ -211,14 +216,7 @@ export function ItemPanel({ obj, team, record, onClose, onPatch, onDelete, canDe
 
           {tab === "info" && (
             <dl className="grid gap-3 rounded-lg bg-surface p-5">
-              {obj.fields.map((f) => (
-                <div key={f.key} className="grid grid-cols-[110px_minmax(0,1fr)] items-center gap-3 sm:grid-cols-[150px_minmax(0,1fr)]">
-                  <dt className="text-[13.5px] text-ink-2">{f.label}</dt>
-                  <dd className="h-9" title={f.type === "formula" ? `Công thức: ${f.formula ?? ""}` : undefined}>
-                    <FieldCell field={f} value={record.data[f.key]} onSave={(v) => onPatch({ data: { [f.key]: v } })} form computed={f.type === "formula" ? evalField(f, record, obj) : undefined} money={f.type === "formula" && isMoneyFormula(f, obj)} />
-                  </dd>
-                </div>
-              ))}
+              <RecordForm obj={obj} record={record} onPatch={onPatch} readOnly={readOnly} layout={formLayout} />
               {obj.amountLabel && (
                 <div className="grid grid-cols-[110px_minmax(0,1fr)] items-center gap-3 sm:grid-cols-[150px_minmax(0,1fr)]">
                   <dt className="text-[13.5px] text-ink-2">{obj.amountLabel}</dt>
@@ -259,6 +257,15 @@ export function ItemPanel({ obj, team, record, onClose, onPatch, onDelete, canDe
           {tab === "history" && <RecordHistory obj={obj} recordId={record.id} version={record.updatedAt} />}
 
           {tab === "loyalty" && <RecordLoyalty recordId={record.id} />}
+          {tab === "c360" && obj.key === "contacts" && (
+            <div className="grid gap-3">
+              <div className="flex justify-end">
+                <SendSurveyButton recordId={record.id} />
+              </div>
+              <Customer360 recordId={record.id} />
+            </div>
+          )}
+          {tab === "voucher" && obj.key === "contacts" && <VoucherList recordId={record.id} />}
 
           {tab === "docs" && <RecordDocs recordId={record.id} onCount={setDocCount} />}
 

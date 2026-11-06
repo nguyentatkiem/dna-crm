@@ -2,6 +2,7 @@ import type { FieldDef, ObjectDef, Option } from "@/lib/config/schema";
 import type { FieldValue, RecordDTO } from "@/lib/records";
 import { evalField, isMoneyFormula, numericFormula } from "@/lib/formula";
 import { avatarColor } from "@/lib/colors";
+import { RFM_FILTER_FIELD } from "@/lib/c360/rfm";
 
 export type Patch = Partial<Pick<RecordDTO, "title" | "status" | "ownerName" | "amount">> & { data?: Record<string, FieldValue> };
 export type View = "table" | "kanban" | "calendar" | "gantt" | "chart";
@@ -103,7 +104,7 @@ export function filterFields(obj: ObjectDef, team: string[]): FilterField[] {
     out.push({ key: "amount", label: obj.amountLabel, kind: "number" });
     out.push({ key: "winProb", label: "Khả năng chốt (%)", kind: "number" });
   }
-  if (obj.key === "contacts") out.push({ key: "score", label: "Điểm AI", kind: "number" });
+  if (obj.key === "contacts") out.push({ key: "score", label: "Điểm AI", kind: "number" }, RFM_FILTER_FIELD);
   out.push({ key: "createdAt", label: "Ngày tạo", kind: "date" });
   return out;
 }

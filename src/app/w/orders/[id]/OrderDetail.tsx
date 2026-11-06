@@ -122,6 +122,11 @@ export function OrderDetail({ initial, items, deal, contact, quote, dealLabel, p
           <section className="card grid min-w-0 gap-4 p-4">
             <LinesView lines={items} />
             <TotalsBox t={o} paid={o.paid} />
+            {o.voucherCode && (
+              <p className="flex items-center gap-1.5 text-[13px] text-ink-2">
+                <Icon name="gift" size={14} /> Đã áp mã giảm giá <b className="font-mono text-ink">{o.voucherCode}</b> (gộp trong chiết khấu)
+              </p>
+            )}
             {o.note && <p className="whitespace-pre-line text-[14px] text-ink-2">{o.note}</p>}
           </section>
 

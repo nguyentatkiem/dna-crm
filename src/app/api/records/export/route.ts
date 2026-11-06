@@ -8,6 +8,7 @@ import { can, getRole, recordScope } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import { afterExport, checkExportQuota, getPrivacy, maskRecord } from "@/lib/privacy";
 import { buildXlsx, recordsSheet, XLSX_MIME, type Cell } from "@/lib/xlsx";
+import { applyFieldAccess, getFieldRules, visibleObject } from "@/lib/field-access";
 
 /**
  * Xuất bảng ra Excel (.xlsx, mặc định) hoặc CSV.
@@ -32,10 +33,11 @@ export async function GET(req: Request) {
   const scope = await recordScope(ctx);
   const sheets = await Promise.all(
     objs.map(async (obj) => {
-      const rows = await db.record.findMany({ where: { ...scope, objectKey: obj.key }, orderBy: { createdAt: "asc" } });
+      const [rows, rules] = await Promise.all([db.record.findMany({ where: { ...scope, objectKey: obj.key }, orderBy: { createdAt: "asc" } }), getFieldRules(ctx.workspace.id, obj.key)]);
+      // Phân quyền trường: không xuất cột bị ẩn với vai trò này.
       return recordsSheet(
-        obj,
-        rows.map((r) => maskRecord({ ...r, data: parseJson<Record<string, string | number>>(r.dataJson, {}) }, obj, role, prefs)),
+        visibleObject(obj, role, rules),
+        rows.map((r) => applyFieldAccess(maskRecord({ ...r, data: parseJson<Record<string, string | number>>(r.dataJson, {}) }, obj, role, prefs), role, rules)),
       );
     }),
   );
@@ -75,10 +77,10 @@ export async function POST(req: Request) {
   if (!obj) return fail("Không có bảng này", 404);
   const scope = await recordScope(ctx);
   const rows = await db.record.findMany({ where: { AND: [scope, { objectKey: obj.key, id: { in: p.data.ids } }] }, orderBy: { createdAt: "asc" } });
-  const prefs = await getPrivacy(ctx.workspace.id);
+  const [prefs, rules] = await Promise.all([getPrivacy(ctx.workspace.id), getFieldRules(ctx.workspace.id, obj.key)]);
   const sheet = recordsSheet(
-    obj,
-    rows.map((r) => maskRecord({ ...r, data: parseJson<Record<string, string | number>>(r.dataJson, {}) }, obj, role, prefs)),
+    visibleObject(obj, role, rules),
+    rows.map((r) => applyFieldAccess(maskRecord({ ...r, data: parseJson<Record<string, string | number>>(r.dataJson, {}) }, obj, role, prefs), role, rules)),
   );
   const quota = await checkExportQuota(ctx, rows.length, role);
   if (!quota.ok) return fail(quota.message, 429);

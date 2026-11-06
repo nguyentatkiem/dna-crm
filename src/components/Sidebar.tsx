@@ -25,6 +25,7 @@ export function navSections(boards: NavBoard[], counts: { openTasks?: number; un
         { href: "/w/feed", label: "Bảng tin", icon: "feed" },
         { href: "/w/dashboards", label: "Dashboard", icon: "chart" },
         { href: "/w/kpi", label: "KPI", icon: "target" },
+        { href: "/w/perf", label: "Đánh giá & hoa hồng", icon: "award" },
       ],
     },
     { title: "Bảng", items: boards.map((b) => ({ href: `/w/b/${b.key}`, label: b.label, icon: BOARD_ICON[b.key] ?? "board", count: b.count })) },
@@ -44,6 +45,9 @@ export function navSections(boards: NavBoard[], counts: { openTasks?: number; un
         { href: "/w/tickets", label: "Phiếu hỗ trợ", icon: "ticket" },
         { href: "/w/loyalty", label: "Khách thân thiết", icon: "award" },
         { href: "/w/warranty", label: "Bảo hành", icon: "shield" },
+        { href: "/w/surveys", label: "Khảo sát", icon: "chart" },
+        { href: "/w/vouchers", label: "Voucher", icon: "gift" },
+        { href: "/w/duplicates", label: "Hồ sơ trùng lặp", icon: "copy" },
       ],
     },
     {
@@ -51,6 +55,7 @@ export function navSections(boards: NavBoard[], counts: { openTasks?: number; un
       items: [
         { href: "/w/sources", label: "Nguồn khách", icon: "inbox" },
         { href: "/w/segments", label: "Nhóm khách", icon: "segment" },
+        { href: "/w/rfm", label: "Phân tích RFM", icon: "pie" },
         { href: "/w/broadcasts", label: "Gửi hàng loạt", icon: "send" },
         { href: "/w/landing", label: "Landing page", icon: "page" },
         { href: "/w/funnel", label: "Phễu chuyển đổi", icon: "funnel" },

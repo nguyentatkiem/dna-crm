@@ -28,9 +28,9 @@ const DEFAULT_BODY: Record<BChannel, string> = {
 /** datetime-local cần dạng YYYY-MM-DDTHH:mm theo giờ máy. */
 const localInput = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 
-export function Composer({ initial, segments, notReady }: { initial?: ComposerInitial; segments: { id: string; name: string }[]; notReady: Record<string, string | null> }) {
+export function Composer({ initial, segments, notReady, initialSegmentId }: { initial?: ComposerInitial; segments: { id: string; name: string }[]; notReady: Record<string, string | null>; initialSegmentId?: string }) {
   const router = useRouter();
-  const [f, setF] = useState<ComposerInitial>(initial ?? { name: "", channel: "email", segmentId: "", subject: "Ưu đãi riêng cho {ten}", body: DEFAULT_BODY.email, templateId: "", scheduledAt: "" });
+  const [f, setF] = useState<ComposerInitial>(initial ?? { name: "", channel: "email", segmentId: initialSegmentId ?? "", subject: "Ưu đãi riêng cho {ten}", body: DEFAULT_BODY.email, templateId: "", scheduledAt: "" });
   const [when, setWhen] = useState<"now" | "later">(initial?.scheduledAt ? "later" : "now");
   const [at, setAt] = useState(initial?.scheduledAt ? localInput(new Date(initial.scheduledAt)) : localInput(new Date(Date.now() + 3600e3)));
   const [pv, setPv] = useState<Preview | null>(null);

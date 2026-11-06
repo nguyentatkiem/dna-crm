@@ -16,6 +16,10 @@ import { ChartView } from "./ChartView";
 import { BoardActivity, RowMenu, ViewOptions, type RowAction } from "./BoardExtras";
 import { SaveSegmentButton } from "../care/SaveSegmentButton";
 import { BulkBar, ColumnsMenu, FilterMenu } from "./BoardMenus";
+import { ViewsBar, type ViewMeta } from "./ViewsBar";
+import { OcrButton } from "../ocr/OcrButton";
+import { arrangeColumns, moveColumn, sameState, type BoardState, type ViewDTO } from "@/lib/views";
+import type { FormLayout } from "@/lib/form-layout";
 import { OPS, applyFilters, colKey, columnsOf, filterFields, groupableFields, groupsOf, readLS, sortRows, writeLS, ROW_HEIGHT, tintOf, type ColorRule, type Density, type ColSort, type Column, type Filter, type Group, type GroupBy, type Patch, type View } from "./model";
 import type { FieldValue } from "@/lib/records";
 
@@ -36,6 +40,8 @@ export function Board({
   canDelete = true,
   canImport = true,
   canExport = true,
+  readOnly = [],
+  formLayout = null,
 }: {
   obj: ObjectDef;
   team: string[];
@@ -47,6 +53,10 @@ export function Board({
   /** Ẩn nút Nhập / Xuất Excel theo quyền (nhân viên mặc định không có). */
   canImport?: boolean;
   canExport?: boolean;
+  /** Trường chỉ xem với vai trò hiện tại (Phân quyền trường). Trường ẩn đã bị bỏ khỏi obj ở server. */
+  readOnly?: string[];
+  /** Bố cục form hồ sơ (Cài đặt → Trường & bố cục). */
+  formLayout?: FormLayout | null;
 }) {
   const router = useRouter();
   const search = useSearchParams();
@@ -63,7 +73,7 @@ export function Board({
   const [view, setViewState] = useState<View>(urlView && VIEWS.includes(urlView) && (urlView !== "calendar" || dateFields.length) ? urlView : "table");
   const setView = (v: View) => {
     setViewState(v);
-    // Lưu view vào URL để chia sẻ link (?view=gantt), không tải lại trang.
+    // Lưu view vào URL để chia sẻ link (?view=gantt), không tải lại trang (giữ ?v=<dạng xem> nếu có).
     const u = new URL(window.location.href);
     if (v === "table") u.searchParams.delete("view");
     else u.searchParams.set("view", v);
@@ -94,19 +104,146 @@ export function Board({
   const isDeals = !!obj.amountLabel;
   const isContacts = obj.key === "contacts";
 
-  // Tuỳ chọn hiển thị riêng từng bảng, lưu trên máy (đọc sau khi mount để tránh lệch SSR).
+  // Thứ tự và độ rộng cột tự chỉnh (kéo tiêu đề / mép cột).
+  const [order, setOrder] = useState<string[]>([]);
+  const [widths, setWidths] = useState<Record<string, number>>({});
+  // Dạng xem đã lưu: null = "Mặc định" (tuỳ chọn lưu trên máy như trước).
+  const [views, setViews] = useState<ViewDTO[]>([]);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  const active = views.find((v) => v.id === activeId) ?? null;
+
+  const state = useMemo<BoardState>(
+    () => ({ view, hidden, order, widths, filters, mode, groupBy, sort, colSort, density, colorRules, owner, q }),
+    [view, hidden, order, widths, filters, mode, groupBy, sort, colSort, density, colorRules, owner, q],
+  );
+  const full = (st: BoardState): BoardState => ({ view: "table", hidden: [], order: [], widths: {}, filters: [], mode: "and", groupBy: "status", sort: "new", colSort: null, density: "normal", colorRules: [], owner: "", q: "", ...st });
+  function applyState(raw: BoardState) {
+    const st = full(raw);
+    const v = st.view && VIEWS.includes(st.view) && (st.view !== "calendar" || dateFields.length) ? st.view : "table";
+    setViewState(v);
+    setHidden(st.hidden ?? []);
+    setOrder(st.order ?? []);
+    setWidths(st.widths ?? {});
+    setFilters((st.filters ?? []) as Filter[]);
+    setMode(st.mode ?? "and");
+    setGroupBy((st.groupBy ?? "status") as GroupBy);
+    setSort((st.sort as Sort) ?? "new");
+    setColSort(st.colSort ?? null);
+    setDensity(st.density ?? "normal");
+    setColorRules(st.colorRules ?? []);
+    setOwner(st.owner ?? "");
+    setQ(st.q ?? "");
+    return v;
+  }
+  /** Trạng thái "Mặc định" lưu trên máy (giữ khoá cũ để không mất tuỳ chọn đã có). */
   const prefKey = `board:${obj.key}`;
-  useEffect(() => {
-    setHidden(readLS<string[]>(`board-cols:${obj.key}`, []));
+  const localState = (): BoardState => {
     const p = readLS<{ groupBy?: GroupBy; filters?: Filter[]; mode?: "and" | "or"; colSort?: ColSort | null }>(prefKey, {});
-    if (p.groupBy) setGroupBy(p.groupBy);
-    if (p.colSort) setColSort(p.colSort);
-    setDensity(readLS<Density>(`board-density:${obj.key}`, "normal"));
-    setColorRules(readLS<ColorRule[]>(`board-colors:${obj.key}`, []));
-    if (p.filters) setFilters(p.filters);
-    if (p.mode) setMode(p.mode);
-  }, [obj.key, prefKey]);
-  const savePref = (p: { groupBy?: GroupBy; filters?: Filter[]; mode?: "and" | "or"; colSort?: ColSort | null }) => writeLS(prefKey, { groupBy, filters, mode, colSort, ...p });
+    const lay = readLS<{ order?: string[]; widths?: Record<string, number> }>(`board-layout:${obj.key}`, {});
+    return {
+      view: urlView ?? "table",
+      hidden: readLS<string[]>(`board-cols:${obj.key}`, []),
+      order: lay.order ?? [],
+      widths: lay.widths ?? {},
+      filters: p.filters ?? [],
+      mode: p.mode ?? "and",
+      groupBy: p.groupBy ?? "status",
+      colSort: p.colSort ?? null,
+      density: readLS<Density>(`board-density:${obj.key}`, "normal"),
+      colorRules: readLS<ColorRule[]>(`board-colors:${obj.key}`, []),
+      q: initialQ,
+    };
+  };
+  const syncUrl = (id: string | null, v: View) => {
+    const u = new URL(window.location.href);
+    if (id) u.searchParams.set("v", id);
+    else u.searchParams.delete("v");
+    if (v === "table") u.searchParams.delete("view");
+    else u.searchParams.set("view", v);
+    window.history.replaceState(null, "", u.toString());
+  };
+
+  // Đọc sau khi mount (tránh lệch SSR): tuỳ chọn trên máy, rồi dạng xem ?v=<id> hoặc dạng xem mặc định của tôi.
+  useEffect(() => {
+    let alive = true;
+    applyState(localState());
+    fetch(`/api/views?object=${obj.key}`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((list: ViewDTO[]) => {
+        if (!alive) return;
+        setViews(list);
+        const vid = new URL(window.location.href).searchParams.get("v");
+        const pick = (vid && list.find((x) => x.id === vid)) || (!vid && !urlView && list.find((x) => x.isDefault)) || null;
+        if (vid && !pick) flash("Dạng xem trong link không còn hoặc chưa được chia sẻ với bạn");
+        if (pick) {
+          setActiveId(pick.id);
+          const v = applyState({ ...pick.state, ...(initialQ ? { q: initialQ } : {}) });
+          syncUrl(pick.id, v);
+        }
+      })
+      .catch(() => undefined)
+      .finally(() => alive && setLoaded(true));
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [obj.key]);
+
+  // Đang ở "Mặc định" thì mọi thay đổi lưu trên máy; đang ở dạng xem đã lưu thì giữ lại tới khi bấm "Lưu thay đổi".
+  useEffect(() => {
+    if (!loaded || activeId) return;
+    writeLS(`board-cols:${obj.key}`, hidden);
+    writeLS(prefKey, { groupBy, filters, mode, colSort });
+    writeLS(`board-density:${obj.key}`, density);
+    writeLS(`board-colors:${obj.key}`, colorRules);
+    writeLS(`board-layout:${obj.key}`, { order, widths });
+  }, [loaded, activeId, obj.key, prefKey, hidden, groupBy, filters, mode, colSort, density, colorRules, order, widths]);
+
+  const dirty = !!active && !sameState(full(active.state), full(state));
+  const json = (method: string, body?: unknown) => ({ method, headers: { "Content-Type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
+  function pickView(id: string | null) {
+    const v = id ? views.find((x) => x.id === id) : null;
+    setActiveId(v?.id ?? null);
+    const shownView = applyState(v ? v.state : localState());
+    syncUrl(v?.id ?? null, shownView);
+    if (v) flash(`Đang xem “${v.name}”`);
+  }
+  async function createView(m: ViewMeta) {
+    const res = await fetch("/api/views", json("POST", { objectKey: obj.key, ...m, state }));
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) return (j.error as string) ?? "Không lưu được dạng xem";
+    const v = j as ViewDTO;
+    setViews((vs) => [...vs.map((x) => (m.isDefault ? { ...x, isDefault: false } : x)), v]);
+    setActiveId(v.id);
+    syncUrl(v.id, view);
+    flash(`Đã lưu dạng xem “${v.name}”${v.shared ? " và chia sẻ với cả đội" : ""}`);
+    return null;
+  }
+  async function editView(id: string, m: Partial<ViewMeta>, quiet = false, st?: BoardState) {
+    const v = views.find((x) => x.id === id);
+    const body: Record<string, unknown> = { ...m, ...(st ? { state: st } : {}) };
+    if (!v?.mine) delete body.isDefault;
+    const res = await fetch(`/api/views/${id}`, json("PATCH", body));
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      if (quiet) flash(j.error ?? "Không lưu được dạng xem");
+      return (j.error as string) ?? "Không lưu được dạng xem";
+    }
+    const u = j as ViewDTO;
+    setViews((vs) => vs.map((x) => (x.id === id ? u : m.isDefault ? { ...x, isDefault: false } : x)));
+    flash(st ? `Đã lưu thay đổi vào “${u.name}”` : `Đã cập nhật dạng xem “${u.name}”`);
+    return null;
+  }
+  async function deleteView(v: ViewDTO) {
+    if (!window.confirm(`Xoá dạng xem “${v.name}”?${v.shared ? " Cả đội sẽ không còn thấy dạng xem này." : ""}`)) return;
+    const res = await fetch(`/api/views/${v.id}`, json("DELETE"));
+    if (!res.ok) return flash((await res.json().catch(() => ({}))).error ?? "Không xoá được");
+    setViews((vs) => vs.filter((x) => x.id !== v.id));
+    if (activeId === v.id) pickView(null);
+    flash(`Đã xoá dạng xem “${v.name}”`);
+  }
+
 
   const flash = useCallback((t: string, keep?: RecordDTO[]) => {
     setUndo(keep ?? null);
@@ -120,7 +257,9 @@ export function Board({
 
   const fields = useMemo(() => filterFields(obj, team), [obj, team]);
   const allCols = useMemo(() => columnsOf(obj), [obj]);
-  const cols = useMemo(() => allCols.filter((c) => !hidden.includes(c.id)), [allCols, hidden]);
+  const orderedCols = useMemo(() => arrangeColumns(allCols, order, widths), [allCols, order, widths]);
+  const cols = useMemo(() => orderedCols.filter((c) => !hidden.includes(c.id)), [orderedCols, hidden]);
+  const readOnlySet = useMemo(() => new Set(readOnly), [readOnly]);
 
   const shown = useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -178,14 +317,12 @@ export function Board({
       if (a === "asc" || a === "desc" || a === "clear-sort") {
         const next = a === "clear-sort" ? null : { col: colKey(c), dir: a };
         setColSort(next);
-        savePref({ colSort: next });
         if (next) flash(`Sắp xếp theo “${c.label}” ${a === "asc" ? "tăng dần" : "giảm dần"}`);
         return;
       }
       if (a === "hide") {
         const h = [...hidden, c.id];
         setHidden(h);
-        writeLS(`board-cols:${obj.key}`, h);
         flash(`Đã ẩn cột “${c.label}” — mở lại trong nút Cột`);
         return;
       }
@@ -193,7 +330,6 @@ export function Board({
         const g = groupKeyOf(c);
         if (g) {
           setGroupBy(g);
-          savePref({ groupBy: g });
         }
         return;
       }
@@ -201,7 +337,6 @@ export function Board({
       if (!ff) return;
       const next = [...filters, { id: Math.random().toString(36).slice(2, 8), field: ff.key, op: OPS[ff.kind][0].op, value: "" }];
       setFilters(next);
-      savePref({ filters: next });
       flash(`Đã thêm điều kiện lọc “${c.label}” — chọn giá trị trong nút Lọc`);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -325,9 +460,18 @@ export function Board({
       tintOf: (r) => (colorRules.length ? tintOf(r, colorRules, obj) : null),
       onRowMenu: (r, x, y) => setRowMenu({ r, x, y }),
       onExportGroup: canExport ? (g, ids) => void exportGroup(g, ids) : undefined,
+      readOnly: readOnlySet,
+      onReorder: (from, to) => setOrder((o) => moveColumn(arrangeColumns(allCols, o).map((c) => c.id), from, to)),
+      onResize: (id, w) =>
+        setWidths((ws) => {
+          const n = { ...ws };
+          if (w > 0) n[id] = w;
+          else delete n[id]; // nhấp đúp mép cột: về độ rộng mặc định
+          return n;
+        }),
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [density, colorRules, obj, canExport],
+    [density, colorRules, obj, canExport, readOnlySet, allCols],
   );
 
   const total = records.length || 1;
@@ -357,7 +501,29 @@ export function Board({
         </div>
       </div>
 
-      <div className="mt-4 flex gap-1 overflow-x-auto border-b border-line-soft" role="tablist" aria-label="Kiểu xem">
+      <div className="mt-3">
+        <ViewsBar
+          views={views}
+          active={active}
+          dirty={dirty}
+          onPick={pickView}
+          onCreate={createView}
+          onEdit={(id, m) => editView(id, m)}
+          onDelete={(v) => void deleteView(v)}
+          onSaveState={() => active && void editView(active.id, {}, true, state)}
+          onRevert={() => active && pickView(active.id)}
+          onCopyLink={() => {
+            if (!active) return;
+            const link = `${window.location.origin}/w/b/${obj.key}?v=${active.id}`;
+            navigator.clipboard?.writeText(link).then(
+              () => flash(active.shared ? "Đã sao chép link dạng xem" : "Đã sao chép link — dạng xem riêng tư, hãy chia sẻ với đội để người khác mở được"),
+              () => flash(link),
+            );
+          }}
+        />
+      </div>
+
+      <div className="mt-2 flex gap-1 overflow-x-auto border-b border-line-soft" role="tablist" aria-label="Kiểu xem">
         {tabs.map(([k, label, icon]) => (
           <button key={k} type="button" role="tab" aria-selected={view === k} onClick={() => setView(k)} className={`-mb-px flex h-9 flex-none items-center gap-1.5 border-b-2 px-3 text-[14px] ${view === k ? "border-primary text-ink" : "border-transparent text-ink-2 hover:text-ink"}`}>
             <Icon name={icon} size={16} /> {label}
@@ -369,6 +535,16 @@ export function Board({
         <button type="button" className="btn-primary" onClick={async () => { const r = await create(`${obj.itemLabel} mới`); if (r) setOpenId(r.id); }}>
           Thêm {obj.itemLabel.toLowerCase()} mới
         </button>
+        {isContacts && (
+          <OcrButton
+            objectKey={obj.key}
+            onExtracted={(rec) => {
+              setRecords((rs) => [{ ...rec, winProb: rec.winProb ?? null }, ...rs.filter((r) => r.id !== rec.id)]);
+              flash(`Đã thêm “${rec.title}” từ ảnh`);
+              setOpenId(rec.id);
+            }}
+          />
+        )}
         <label className="relative">
           <Icon name="search" size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-2" />
           <input id="board-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Tìm kiếm" className="input h-8 w-44 pl-8 max-sm:w-36" />
@@ -389,7 +565,6 @@ export function Board({
           onChange={(f, m) => {
             setFilters(f);
             setMode(m);
-            savePref({ filters: f, mode: m });
           }}
         />
         <SaveSegmentButton objectKey={obj.key} filters={filters} mode={mode} />
@@ -401,7 +576,6 @@ export function Board({
             onChange={(e) => {
               setSort(e.target.value as Sort);
               setColSort(null);
-              savePref({ colSort: null });
             }}
             className="bg-transparent text-[14px] outline-none"
             aria-label="Sắp xếp"
@@ -422,7 +596,6 @@ export function Board({
               onChange={(e) => {
                 const g = e.target.value as GroupBy;
                 setGroupBy(g);
-                savePref({ groupBy: g });
               }}
               className="bg-transparent text-[14px] outline-none"
               aria-label="Nhóm theo"
@@ -437,7 +610,7 @@ export function Board({
             </select>
           </label>
         )}
-        {view === "table" && <ColumnsMenu cols={allCols} hidden={hidden} onChange={(h) => { setHidden(h); writeLS(`board-cols:${obj.key}`, h); }} />}
+        {view === "table" && <ColumnsMenu cols={orderedCols} hidden={hidden} onChange={setHidden} />}
         {view === "table" && (
           <ViewOptions
             density={density}
@@ -445,16 +618,14 @@ export function Board({
             fields={fields}
             onDensity={(d) => {
               setDensity(d);
-              writeLS(`board-density:${obj.key}`, d);
             }}
             onRules={(r) => {
               setColorRules(r);
-              writeLS(`board-colors:${obj.key}`, r);
             }}
           />
         )}
         {(q || owner || filterCount > 0) && (
-          <button type="button" className="btn-ghost text-primary" onClick={() => { setQ(""); setOwner(""); setFilters([]); savePref({ filters: [] }); }}>
+          <button type="button" className="btn-ghost text-primary" onClick={() => { setQ(""); setOwner(""); setFilters([]); }}>
             Xoá lọc · {shown.length} mục
           </button>
         )}
@@ -536,7 +707,7 @@ export function Board({
           }}
         />
       )}
-      {opened && <ItemPanel obj={obj} team={team} record={opened} onClose={() => setOpenId(null)} onPatch={(b) => void patch(opened.id, b)} onDelete={() => remove(opened.id)} canDelete={canDelete} />}
+      {opened && <ItemPanel obj={obj} team={team} record={opened} onClose={() => setOpenId(null)} onPatch={(b) => void patch(opened.id, b)} onDelete={() => remove(opened.id)} canDelete={canDelete} readOnly={readOnly} formLayout={formLayout} />}
       {toast && (
         <div role="status" className={`fixed left-1/2 z-[60] -translate-x-1/2 rounded-lg bg-[#323338] px-4 py-2.5 text-[14px] text-white shadow-panel ${selected.size && view === "table" ? "bottom-24" : "bottom-6"}`}>
           <span className="flex items-center gap-3">

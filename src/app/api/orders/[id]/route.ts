@@ -6,6 +6,7 @@ import { docScope, scoped, resolveLinks } from "@/lib/sales/access";
 import { totals } from "@/lib/sales/lines";
 import { OrderInput, OrderPatch, firstError } from "@/lib/sales/schemas";
 import { completeIfReady } from "@/lib/sales/service";
+import { markVoucherUsed, orderVoucher, releaseOrderVoucher } from "@/lib/voucher/service";
 import { ORDER_NEXT, ORDER_STATUS, type OrderStatus } from "@/lib/sales/shared";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -33,6 +34,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
   if (!p.success) return fail(firstError(p.error));
   const d = p.data;
   const data: Record<string, unknown> = {};
+  let voucher: { code: string; discount: number } | null = null;
 
   if (d.status && d.status !== before.status) {
     if (!ORDER_NEXT[before.status as OrderStatus]?.includes(d.status as OrderStatus)) return fail(`Không chuyển được từ “${ORDER_STATUS[before.status as OrderStatus]?.label ?? before.status}” sang “${ORDER_STATUS[d.status as OrderStatus].label}”`, 409);
@@ -46,16 +48,27 @@ export async function PATCH(req: Request, { params }: Ctx) {
     if (before.status !== "new") return fail("Chỉ sửa dòng hàng khi đơn còn ở trạng thái Mới", 409);
     const full = OrderInput.safeParse({ ...body, customerName: body.customerName ?? before.customerName });
     if (!full.success) return fail(firstError(full.error));
+    const links = await resolveLinks(a.ctx, full.data);
+    const vc = await orderVoucher(a.ctx.workspace.id, body.voucherCode ?? before.voucherCode, totals(full.data.items, full.data.discount).subtotal - full.data.discount, links.contactId, id);
+    if ("error" in vc) return fail(vc.error ?? "Mã giảm giá không hợp lệ", 422);
+    voucher = vc;
     Object.assign(data, {
-      ...(await resolveLinks(a.ctx, full.data)),
+      ...links,
       customerName: full.data.customerName,
       customerPhone: full.data.customerPhone,
       itemsJson: JSON.stringify(full.data.items),
-      ...totals(full.data.items, full.data.discount),
+      ...totals(full.data.items, full.data.discount + vc.discount),
+      voucherCode: vc.code,
     });
   }
 
   const order = await db.order.update({ where: { id }, data });
+  // Voucher: đổi/bỏ mã thì hoàn mã cũ; huỷ đơn thì hoàn mã.
+  if (voucher) {
+    await releaseOrderVoucher(order.workspaceId, id, voucher.code);
+    if (voucher.code) await markVoucherUsed(order.workspaceId, voucher.code, order, voucher.discount, a.ctx.user.name);
+  }
+  if (data.status === "cancelled") await releaseOrderVoucher(order.workspaceId, id);
   const diff = diffOf(before as unknown as Record<string, unknown>, data);
   if (Object.keys(diff).length) {
     const what = data.status ? `trạng thái → ${ORDER_STATUS[data.status as OrderStatus].label}` : Object.keys(diff).join(", ");
@@ -74,6 +87,7 @@ export async function DELETE(_req: Request, { params }: Ctx) {
   const before = await db.order.findFirst({ where: scoped(s.where, { id }), include: { payments: true } });
   if (!before) return fail("Không tìm thấy đơn hàng", 404);
   await db.order.delete({ where: { id } });
+  await releaseOrderVoucher(a.ctx.workspace.id, id);
   // Báo giá gốc mở lại được để tạo đơn mới.
   await db.quote.updateMany({ where: { workspaceId: a.ctx.workspace.id, orderId: id }, data: { orderId: null } });
   await audit({ workspaceId: a.ctx.workspace.id, user: a.ctx.user }, "order.delete", "order", id, `Xoá đơn ${before.number} (${before.customerName})`, { before });

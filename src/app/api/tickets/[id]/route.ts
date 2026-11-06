@@ -4,7 +4,8 @@ import { appApi, fail, ok } from "@/lib/http";
 import { audit, diffOf } from "@/lib/audit";
 import { can, getRole } from "@/lib/permissions";
 import { contactCard, findTicket, ticketPref } from "@/lib/care/server";
-import { notifyAssignee, publicOrigin, ticketDTO, titlesOf } from "@/lib/care/tickets";
+import { notifyAssignee, publicOrigin, sendTicketSurvey, ticketDTO, titlesOf } from "@/lib/care/tickets";
+import { routeTicket } from "@/lib/perf/routing";
 import { PRIORITIES, PRIORITY_LABEL, TICKET_STATUSES, TICKET_STATUS_LABEL, slaDueAt } from "@/lib/care/shared";
 
 type P = { params: Promise<{ id: string }> };
@@ -35,9 +36,11 @@ const Patch = z.object({
   priority: z.enum(PRIORITIES).optional(),
   subject: z.string().min(1).max(200).optional(),
   recordId: z.string().nullable().optional(),
+  category: z.string().max(80).optional(),
+  teamId: z.string().max(40).nullable().optional(),
 });
 
-/** Đổi trạng thái, người phụ trách, mức ưu tiên (tính lại hạn SLA), tiêu đề, khách. */
+/** Đổi trạng thái, người phụ trách, mức ưu tiên (tính lại hạn SLA), tiêu đề, khách, phân loại / đội. */
 export async function PATCH(req: Request, { params }: P) {
   const a = await appApi();
   if ("error" in a) return a.error;
@@ -69,6 +72,20 @@ export async function PATCH(req: Request, { params }: P) {
     data.subject = b.subject;
     notes.push("sửa tiêu đề");
   }
+  if (b.category !== undefined && b.category.trim() !== t.category) {
+    data.category = b.category.trim();
+    notes.push(data.category ? `phân loại → ${data.category}` : "bỏ phân loại");
+    // Đổi phân loại thì chuyển đội theo luật phân luồng (trừ khi cùng lúc chọn đội cụ thể). Không đổi người xử lý.
+    if (b.teamId === undefined) {
+      const r = await routeTicket(a.ctx.workspace.id, { category: data.category, assignee: t.assignee || "-" });
+      if (r.teamId !== t.teamId) data.teamId = r.teamId;
+    }
+  }
+  if (b.teamId !== undefined && (b.teamId || null) !== t.teamId) {
+    if (b.teamId && !(await db.team.findFirst({ where: { id: b.teamId, workspaceId: a.ctx.workspace.id }, select: { id: true } }))) return fail("Không tìm thấy đội", 404);
+    data.teamId = b.teamId || null;
+  }
+  if (data.teamId !== undefined) notes.push(data.teamId ? `chuyển đội ${(await db.team.findFirst({ where: { id: data.teamId as string }, select: { name: true } }))?.name ?? ""}` : "bỏ đội");
   if (b.recordId !== undefined && b.recordId !== t.recordId) {
     if (b.recordId && !(await db.record.findFirst({ where: { id: b.recordId, workspaceId: a.ctx.workspace.id }, select: { id: true } }))) return fail("Không tìm thấy khách", 404);
     data.recordId = b.recordId;
@@ -80,6 +97,7 @@ export async function PATCH(req: Request, { params }: P) {
   if (data.assignee) await notifyAssignee(a.ctx.workspace.id, u, a.ctx.user.name);
   if (data.status && u.recordId && (u.status === "resolved" || u.status === "closed")) {
     await db.activity.create({ data: { recordId: u.recordId, kind: "update", body: `Phiếu ${u.number} ${u.status === "resolved" ? "đã xử lý" : "đã đóng"}: ${u.subject}`, author: a.ctx.user.name } });
+    if (u.status === "resolved") await sendTicketSurvey(u);
   }
   return ok({ ticket: ticketDTO(u, await titlesOf([u.recordId])), csatUrl: u.status === "resolved" || u.status === "closed" ? `${publicOrigin(req)}/csat/${u.csatToken}` : null });
 }

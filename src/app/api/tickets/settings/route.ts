@@ -3,12 +3,16 @@ import { appApi, fail, ok } from "@/lib/http";
 import { setPref } from "@/lib/prefs";
 import { audit } from "@/lib/audit";
 import { isManager, ticketPref } from "@/lib/care/server";
+import { listTeams } from "@/lib/perf/teams";
+import { routingPref } from "@/lib/perf/server";
 
 export async function GET() {
   const a = await appApi();
   if ("error" in a) return a.error;
   // Kèm danh sách người phụ trách để nút "Tạo phiếu" ở trang khác không phải tải cấu hình riêng.
-  return ok({ ...(await ticketPref(a.ctx.workspace.id)), team: a.ctx.config.team, me: a.ctx.user.name, canManage: await isManager(a.ctx) });
+  // categories/teams: cho ô chọn phân loại và đội khi tạo phiếu (phân luồng theo bộ phận).
+  const [pref, routing, teams, canManage] = await Promise.all([ticketPref(a.ctx.workspace.id), routingPref(a.ctx.workspace.id), listTeams(a.ctx.workspace.id), isManager(a.ctx)]);
+  return ok({ ...pref, team: a.ctx.config.team, me: a.ctx.user.name, canManage, categories: routing.categories, teams: teams.map((t) => ({ id: t.id, name: t.name, color: t.color })) });
 }
 
 const H = z.number().min(0).max(24 * 60);

@@ -22,6 +22,8 @@ export default async function OrderPage({ params, searchParams }: { params: Prom
   const items = parseLines(o.itemsJson);
 
   if (edit && o.status === "new") {
+    // Chiết khấu tay = tổng chiết khấu − phần voucher (voucher hiện riêng ở ô "Mã giảm giá").
+    const v = o.voucherCode ? await db.voucher.findUnique({ where: { workspaceId_code: { workspaceId: ctx.workspace.id, code: o.voucherCode } }, select: { discount: true } }) : null;
     return (
       <div className="canvas px-4 pb-16 pt-6 sm:px-8">
         <Link href={`/w/orders/${id}`} className="text-[13px] text-ink-2 hover:underline">
@@ -35,7 +37,7 @@ export default async function OrderPage({ params, searchParams }: { params: Prom
           seeAll={ctx.scope.seeAll}
           dealLabel={ctx.dealLabel}
           backHref={`/w/orders/${id}`}
-          initial={{ contactId: o.contactId, contactTitle: contact?.title ?? "", recordId: o.recordId, recordTitle: deal?.title ?? "", customerName: o.customerName, customerPhone: o.customerPhone, customerEmail: "", title: "", items, discount: o.discount, validUntil: "", dueAt: ymd(o.dueAt), note: o.note, terms: "" }}
+          initial={{ contactId: o.contactId, contactTitle: contact?.title ?? "", recordId: o.recordId, recordTitle: deal?.title ?? "", customerName: o.customerName, customerPhone: o.customerPhone, customerEmail: "", title: "", items, discount: Math.max(0, o.discount - (v?.discount ?? 0)), voucherCode: o.voucherCode, validUntil: "", dueAt: ymd(o.dueAt), note: o.note, terms: "" }}
         />
       </div>
     );

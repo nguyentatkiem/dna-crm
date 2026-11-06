@@ -9,7 +9,8 @@ import { B_CHANNELS } from "@/lib/marketing/broadcast";
 import { Icon } from "@/components/Icon";
 import { Composer } from "../Composer";
 
-export default async function NewBroadcastPage() {
+export default async function NewBroadcastPage({ searchParams }: { searchParams: Promise<{ segment?: string }> }) {
+  const { segment } = await searchParams;
   const { user, workspace } = await requireApp();
   if (!can(await getRole(user.id, workspace.id), "manage_marketing")) redirect("/w/broadcasts");
   const segments = await db.segment.findMany({ where: { workspaceId: workspace.id }, orderBy: { name: "asc" }, select: { id: true, name: true } });
@@ -21,7 +22,7 @@ export default async function NewBroadcastPage() {
         <Icon name="chevron" size={14} className="rotate-90" /> Gửi hàng loạt
       </Link>
       <h1 className="mt-1 text-[26px] font-semibold">Tạo đợt gửi</h1>
-      <Composer segments={segments} notReady={notReady} />
+      <Composer segments={segments} notReady={notReady} initialSegmentId={segments.some((x) => x.id === segment) ? segment : undefined} />
     </div>
   );
 }

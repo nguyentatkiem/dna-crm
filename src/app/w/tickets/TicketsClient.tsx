@@ -21,12 +21,16 @@ export function dueText(dueAt: string | null) {
   return ms < 0 ? `Quá hạn ${s}` : `Còn ${s}`;
 }
 
-export function TicketsClient({ team, me, canManage, sla, initialStatus }: { team: string[]; me: string; canManage: boolean; sla: Record<Priority, number>; initialStatus: string }) {
+type TeamLite = { id: string; name: string; color: string };
+
+export function TicketsClient({ team, me, canManage, sla, initialStatus, teams = [], categories = [] }: { team: string[]; me: string; canManage: boolean; sla: Record<Priority, number>; initialStatus: string; teams?: TeamLite[]; categories?: string[] }) {
   const [status, setStatus] = useState(initialStatus);
   const [priority, setPriority] = useState("");
   const [assignee, setAssignee] = useState("all");
   const [q, setQ] = useState("");
   const [overdueOnly, setOverdueOnly] = useState(false);
+  const [teamId, setTeamId] = useState("");
+  const [category, setCategory] = useState("");
   const [items, setItems] = useState<TicketDTO[] | null>(null);
   const [counts, setCounts] = useState<Counts>({ open: 0, pending: 0, resolved: 0, closed: 0 });
   const [overdue, setOverdue] = useState(0);
@@ -37,13 +41,15 @@ export function TicketsClient({ team, me, canManage, sla, initialStatus }: { tea
     if (priority) sp.set("priority", priority);
     if (q.trim()) sp.set("q", q.trim());
     if (overdueOnly) sp.set("overdue", "1");
+    if (teamId) sp.set("teamId", teamId);
+    if (category) sp.set("category", category);
     const r = await fetch(`/api/tickets?${sp}`);
     if (!r.ok) return setItems([]);
     const j = await r.json();
     setItems(j.items);
     setCounts(j.counts);
     setOverdue(j.overdue);
-  }, [status, priority, assignee, q, overdueOnly]);
+  }, [status, priority, assignee, q, overdueOnly, teamId, category]);
 
   useEffect(() => {
     const t = setTimeout(load, q ? 250 : 0);
@@ -107,6 +113,28 @@ export function TicketsClient({ team, me, canManage, sla, initialStatus }: { tea
             </option>
           ))}
         </select>
+        {teams.length > 0 && (
+          <select aria-label="Lọc theo đội" value={teamId} onChange={(e) => setTeamId(e.target.value)} className="h-8 rounded border border-line bg-surface px-2 text-[13px]">
+            <option value="">Mọi đội</option>
+            {teams.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+            <option value="none">Chưa có đội</option>
+          </select>
+        )}
+        {categories.length > 0 && (
+          <select aria-label="Lọc theo phân loại" value={category} onChange={(e) => setCategory(e.target.value)} className="h-8 rounded border border-line bg-surface px-2 text-[13px]">
+            <option value="">Mọi phân loại</option>
+            {categories.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+            <option value="none">Chưa phân loại</option>
+          </select>
+        )}
         <label className="flex h-8 items-center gap-1.5 text-[13px] text-ink-2">
           <input type="checkbox" checked={overdueOnly} onChange={(e) => setOverdueOnly(e.target.checked)} className="h-4 w-4 accent-[var(--primary)]" /> Chỉ quá hạn
         </label>
@@ -141,6 +169,12 @@ export function TicketsClient({ team, me, canManage, sla, initialStatus }: { tea
                           </span>
                         )}
                         <span>{CHANNEL_LABEL[t.channel] ?? t.channel}</span>
+                        {t.category && <span>· {t.category}</span>}
+                        {t.teamId && teams.find((x) => x.id === t.teamId) && (
+                          <span className="flex items-center gap-1">
+                            · <span className="h-2 w-2 rounded-full" style={{ background: teams.find((x) => x.id === t.teamId)!.color }} /> {teams.find((x) => x.id === t.teamId)!.name}
+                          </span>
+                        )}
                         <span suppressHydrationWarning>· {ago(t.createdAt)}</span>
                         {t.csat != null && <span className="text-warning">· {"★".repeat(t.csat)}</span>}
                       </p>

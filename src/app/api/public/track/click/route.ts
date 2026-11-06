@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { trackOnce } from "@/lib/marketing/broadcast";
+import { fireRecordEvent } from "@/lib/automation";
 import { isAllowedClick, verify } from "@/lib/marketing/tokens";
 
 /**
@@ -16,6 +17,9 @@ export async function GET(req: Request) {
   if (!b || !r || !u || !verify("click", `${b}|${r}|${u}`, q.get("s") ?? "")) return bad();
   const bc = await db.broadcast.findUnique({ where: { id: b }, select: { body: true } });
   if (!bc || !isAllowedClick(bc.body, u)) return bad();
-  await trackOnce("click", b, r).catch(() => undefined);
+  if (await trackOnce("click", b, r).catch(() => false)) {
+    const count = await db.activity.count({ where: { recordId: r, kind: "email_click" } });
+    await fireRecordEvent(r, { kind: "email_engaged", value: "click", count });
+  }
   return NextResponse.redirect(u, 302);
 }

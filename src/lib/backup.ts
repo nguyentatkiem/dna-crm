@@ -64,6 +64,7 @@ const WS_TABLES: { key: string; via?: { parent: string; field: string } }[] = [
   { key: "order" },
   { key: "payment" },
   { key: "contract" },
+  { key: "team" },
   { key: "ticket" },
   { key: "ticketMessage", via: { parent: "ticket", field: "ticketId" } },
   { key: "loyaltyTxn" },
@@ -76,6 +77,13 @@ const WS_TABLES: { key: string; via?: { parent: string; field: string } }[] = [
   { key: "post" },
   { key: "postComment", via: { parent: "post", field: "postId" } },
   { key: "pushSub" },
+  { key: "mergeLog" },
+  { key: "survey" },
+  { key: "surveyResponse" },
+  { key: "voucherCampaign" },
+  { key: "voucher" },
+  { key: "perfReview" },
+  { key: "boardView" },
 ];
 const SYSTEM_TABLES = ["user", "workspace", "membership", "invite"];
 /** Cột trỏ sang bảng khác: khi khôi phục sang workspace khác phải đổi id theo. */
@@ -91,6 +99,11 @@ const REFS: Record<string, string> = {
   segmentId: "segment",
   broadcastId: "broadcast",
   postId: "post",
+  survivorId: "record",
+  surveyId: "survey",
+  campaignId: "voucherCampaign",
+  usedOrderId: "order",
+  teamId: "team",
 };
 
 const modelName = (key: string) => key[0].toUpperCase() + key.slice(1);

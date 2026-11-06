@@ -22,10 +22,18 @@ export function validateRule(rule: Rule, cfg: WorkspaceConfig): string | null {
   if (t.type === "status_changed" && (!hasStatus(t.to) || !hasStatus(t.from))) return "Trạng thái trong trigger không có trong bảng";
   if (t.type === "date_arrived" && !obj.fields.some((f) => f.key === t.field?.replace(/^f:/, "") && f.type === "date")) return "Hãy chọn một trường kiểu ngày";
   if (t.type === "field_changed" && !t.field) return "Hãy chọn trường cần theo dõi";
+  if (t.type === "anniversary" && !obj.fields.some((f) => f.key === t.field?.replace(/^f:/, "") && f.type === "date")) return "Hãy chọn trường ngày kỷ niệm (ví dụ ngày sinh)";
+  if (t.type === "idle" && !((t.days ?? 0) >= 1)) return "Số ngày không tương tác phải từ 1 trở lên";
   for (const a of rule.actions) {
     if (a.type === "set_status" && !obj.statuses.some((s) => s.key === a.value)) return "Hành động đổi trạng thái chưa chọn trạng thái hợp lệ";
     if (a.type === "set_field" && !obj.fields.some((f) => f.key === a.field?.replace(/^f:/, ""))) return "Hành động cập nhật trường chưa chọn trường";
     if (a.type === "enroll_sequence" && !a.sequenceId) return "Hãy chọn kịch bản chăm sóc";
+    if (a.type === "issue_voucher" && !a.campaignId) return "Hãy chọn chiến dịch voucher";
+    if (a.type === "send_survey" && !a.surveyId) return "Hãy chọn khảo sát cần gửi";
+    if (a.type === "add_tag" && (!obj.fields.some((f) => f.key === a.field?.replace(/^f:/, "")) || !a.value?.trim())) return "Hành động gắn thẻ cần chọn trường và nhập thẻ";
+    if (a.type === "add_score" && !a.points) return "Hãy nhập số điểm cộng hoặc trừ";
+    if (a.type === "assign_owner" && a.mode === "team" && !a.teamId) return "Hãy chọn nhóm để chia xoay vòng";
+    if (a.type === "assign_owner" && a.mode === "territory" && (!a.field || !a.text?.includes("="))) return "Giao theo khu vực cần chọn trường và nhập ít nhất một dòng “Khu vực=Người”";
     if (a.type === "create_record" && !getObject(cfg, a.object || "deals")) return "Bảng đích không tồn tại";
     if (a.type === "webhook") {
       try {

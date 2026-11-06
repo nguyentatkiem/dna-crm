@@ -5,6 +5,7 @@ import { audit } from "../audit";
 import { notify, userIdByName } from "../notify";
 import { ticketPref, type CareCtx } from "./server";
 import { slaDueAt, type Priority } from "./shared";
+import { routeTicket } from "../perf/routing";
 
 export type NewTicket = {
   subject: string;
@@ -15,6 +16,9 @@ export type NewTicket = {
   channel?: string;
   fromConversationId?: string;
   fromCallId?: string;
+  /** Phân loại phiếu: dùng để phân luồng về đội (Pref "ticketRouting"). */
+  category?: string;
+  teamId?: string | null;
 };
 
 const fmt = (d: Date) => d.toLocaleString("vi-VN", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit", timeZone: process.env.TZ || "Asia/Ho_Chi_Minh" });
@@ -57,6 +61,9 @@ export async function createTicket(ctx: CareCtx, input: NewTicket): Promise<Tick
   const now = new Date();
   const subject = (input.subject?.trim() || src?.subject || "Yêu cầu hỗ trợ").slice(0, 200);
   const body = [input.body?.trim(), src?.body].filter(Boolean).join("\n\n").slice(0, 20000);
+  const category = (input.category ?? "").trim().slice(0, 80);
+  // Phân luồng: đội theo phân loại, chưa giao ai thì xoay vòng trong đội.
+  const route = await routeTicket(wid, { category, teamId: input.teamId, assignee: input.assignee });
   const t = await db.ticket.create({
     data: {
       workspaceId: wid,
@@ -66,7 +73,9 @@ export async function createTicket(ctx: CareCtx, input: NewTicket): Promise<Tick
       body,
       channel: input.channel || src?.channel || "manual",
       priority,
-      assignee: input.assignee ?? "",
+      assignee: route.assignee,
+      teamId: route.teamId,
+      category,
       dueAt: slaDueAt(priority, pref, now),
       createdBy: ctx.user.name,
     },
@@ -95,6 +104,8 @@ export type TicketDTO = {
   priority: Priority;
   status: string;
   assignee: string;
+  teamId: string | null;
+  category: string;
   recordId: string | null;
   customer: string;
   dueAt: string | null;
@@ -117,6 +128,8 @@ export function ticketDTO(t: Ticket, titles: Map<string, string>): TicketDTO {
     priority: (["urgent", "high", "normal", "low"].includes(t.priority) ? t.priority : "normal") as Priority,
     status: t.status,
     assignee: t.assignee,
+    teamId: t.teamId,
+    category: t.category,
     recordId: t.recordId,
     customer: t.recordId ? titles.get(t.recordId) ?? "" : "",
     dueAt: t.dueAt?.toISOString() ?? null,
@@ -144,4 +157,17 @@ export function publicOrigin(req: Request) {
   const host = h.get("x-forwarded-host") ?? h.get("host");
   if (host) return `${h.get("x-forwarded-proto") ?? (host.startsWith("localhost") || host.startsWith("127.") ? "http" : "https")}://${host}`;
   return new URL(req.url).origin;
+}
+
+/** Phiếu vừa xử lý xong: nếu đã chọn khảo sát sau phiếu (Pref "survey") thì gửi cho khách, mỗi phiếu một lần. */
+export async function sendTicketSurvey(t: Pick<Ticket, "id" | "workspaceId" | "recordId">) {
+  if (!t.recordId) return null;
+  const { surveyPref, sendSurvey } = await import("../survey/service");
+  const pref = await surveyPref(t.workspaceId);
+  if (!pref.afterTicketSurveyId) return null;
+  if (await db.surveyResponse.count({ where: { workspaceId: t.workspaceId, ticketId: t.id } })) return null;
+  return sendSurvey(t.workspaceId, { surveyId: pref.afterTicketSurveyId, recordId: t.recordId, ticketId: t.id, channel: pref.afterTicketChannel }).catch((e) => {
+    console.error("[ticket] survey", e instanceof Error ? e.message : e);
+    return null;
+  });
 }

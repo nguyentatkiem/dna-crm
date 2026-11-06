@@ -65,6 +65,14 @@ model Workspace {
   posts         Post[]
   pushSubs      PushSub[]
   counters      Counter[]
+  mergeLogs     MergeLog[]
+  surveys       Survey[]
+  surveyResps   SurveyResponse[]
+  voucherCamps  VoucherCampaign[]
+  vouchers      Voucher[]
+  teams         Team[]
+  perfReviews   PerfReview[]
+  boardViews    BoardView[]
 }
 
 model Membership {
@@ -550,6 +558,7 @@ model Order {
   note          String    @default("")
   createdBy     String    @default("")
   pointsAwarded Int       @default(0)
+  voucherCode   String    @default("")
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
@@ -615,6 +624,8 @@ model Ticket {
   priority    String          @default("normal") // low | normal | high | urgent
   status      String          @default("open") // open | pending | resolved | closed
   assignee    String          @default("")
+  teamId      String?
+  category    String          @default("")
   dueAt       DateTime?
   escalatedAt DateTime?
   resolvedAt  DateTime?
@@ -796,4 +807,151 @@ model PushSub {
   auth        String
   createdAt   DateTime  @default(now())
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+// ---------- Bizfly đợt A: chân dung 360° ----------
+// Nhật ký ghép trùng: giữ bản ghi gộp (survivor) và ảnh chụp các bản bị gộp để tra cứu.
+model MergeLog {
+  id          String    @id @default(cuid())
+  workspaceId String
+  objectKey   String    @default("contacts")
+  survivorId  String
+  mergedIds   String // JSON string[]
+  snapshotJson String   @default("[]") // dữ liệu các bản bị gộp trước khi gộp
+  movedJson   String    @default("{}") // { orders: 2, tickets: 1, ... }
+  by          String    @default("")
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
+}
+
+// ---------- Bizfly đợt B: khảo sát, voucher ----------
+model Survey {
+  id            String           @id @default(cuid())
+  workspaceId   String
+  name          String
+  kind          String           @default("nps") // nps | csat | custom
+  questionsJson String           @default("[]") // [{ id, type: nps|rating|choice|multi|text, label, options?, required? }]
+  thankYou      String           @default("Cảm ơn bạn đã góp ý!")
+  active        Boolean          @default(true)
+  publicKey     String           @unique @default(cuid())
+  createdBy     String           @default("")
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  workspace     Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  responses     SurveyResponse[]
+}
+
+// Một lời mời / một câu trả lời. token dùng cho link cá nhân hoá; submittedAt null = đã gửi chưa trả lời.
+model SurveyResponse {
+  id          String    @id @default(cuid())
+  workspaceId String
+  surveyId    String
+  recordId    String?
+  ticketId    String?
+  token       String    @unique @default(cuid())
+  channel     String    @default("link") // link | email | sms | zns | zalo
+  answersJson String    @default("{}")
+  nps         Int?
+  rating      Int?
+  comment     String    @default("")
+  sentAt      DateTime  @default(now())
+  submittedAt DateTime?
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  survey      Survey    @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, surveyId])
+  @@index([workspaceId, recordId])
+}
+
+model VoucherCampaign {
+  id          String    @id @default(cuid())
+  workspaceId String
+  name        String
+  prefix      String    @default("DNA")
+  kind        String    @default("percent") // percent | amount
+  value       Float
+  maxDiscount Float     @default(0) // trần giảm cho loại %; 0 = không trần
+  minOrder    Float     @default(0)
+  validDays   Int       @default(30)
+  perCustomer Int       @default(1)
+  active      Boolean   @default(true)
+  note        String    @default("")
+  createdBy   String    @default("")
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  vouchers    Voucher[]
+}
+
+model Voucher {
+  id          String          @id @default(cuid())
+  workspaceId String
+  campaignId  String
+  code        String
+  recordId    String?
+  status      String          @default("issued") // issued | used | expired | void
+  reason      String          @default("") // vd. "Sinh nhật", "Thủ công", "Tự động hoá"
+  expiresAt   DateTime
+  usedAt      DateTime?
+  usedOrderId String?
+  discount    Float           @default(0) // số tiền thực giảm khi dùng
+  sentVia     String          @default("")
+  createdAt   DateTime        @default(now())
+  workspace   Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  campaign    VoucherCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, code])
+  @@index([workspaceId, recordId])
+}
+
+// ---------- Bizfly đợt C: phòng ban, đánh giá ----------
+model Team {
+  id          String    @id @default(cuid())
+  workspaceId String
+  name        String
+  leader      String    @default("") // tên người
+  membersJson String    @default("[]") // string[] tên người
+  color       String    @default("#579bfc")
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, name])
+}
+
+// Phiếu đánh giá định kỳ một nhân viên: period "2026-11"; scoresJson { criterionId: điểm 0–100 }.
+model PerfReview {
+  id          String    @id @default(cuid())
+  workspaceId String
+  period      String
+  who         String
+  scoresJson  String    @default("{}")
+  total       Float     @default(0)
+  comment     String    @default("")
+  reviewer    String    @default("")
+  status      String    @default("draft") // draft | done
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, period, who])
+}
+
+// ---------- Bizfly đợt D: dạng xem đã lưu ----------
+// stateJson: { view, hidden[], order[], widths{}, filters[], mode, groupBy, sort, colSort, density, colorRules[] }
+model BoardView {
+  id          String    @id @default(cuid())
+  workspaceId String
+  objectKey   String
+  name        String
+  ownerId     String
+  ownerName   String    @default("")
+  shared      Boolean   @default(false)
+  isDefault   Boolean   @default(false)
+  stateJson   String    @default("{}")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, objectKey])
 }

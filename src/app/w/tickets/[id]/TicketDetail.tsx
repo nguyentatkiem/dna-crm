@@ -19,7 +19,7 @@ type Via = "" | "zalo" | "email" | "sms";
 
 const when = (s: string) => new Date(s).toLocaleString("vi-VN", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit", year: "numeric" });
 
-export function TicketDetail({ id, team, me, canDelete }: { id: string; team: string[]; me: string; canDelete: boolean }) {
+export function TicketDetail({ id, team, me, canDelete, teams = [], categories = [] }: { id: string; team: string[]; me: string; canDelete: boolean; teams?: { id: string; name: string; color: string }[]; categories?: string[] }) {
   const router = useRouter();
   const [d, setD] = useState<Detail | null>(null);
   const [err, setErr] = useState("");
@@ -234,6 +234,32 @@ export function TicketDetail({ id, team, me, canDelete }: { id: string; team: st
                 </select>
               </span>
             </label>
+            {(categories.length > 0 || t.category) && (
+              <label className="grid gap-1">
+                <span className="label">Phân loại</span>
+                <select className="input h-8" value={t.category} onChange={(e) => patch({ category: e.target.value })}>
+                  <option value="">Chưa phân loại</option>
+                  {[...new Set([...categories, ...(t.category ? [t.category] : [])])].map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            {teams.length > 0 && (
+              <label className="grid gap-1">
+                <span className="label">Đội xử lý</span>
+                <select className="input h-8" value={t.teamId ?? ""} onChange={(e) => patch({ teamId: e.target.value || null })}>
+                  <option value="">Chưa có đội</option>
+                  {teams.map((x) => (
+                    <option key={x.id} value={x.id}>
+                      {x.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             <label className="grid gap-1">
               <span className="label">Người xử lý</span>
               <select className="input h-8" value={t.assignee} onChange={(e) => patch({ assignee: e.target.value })}>

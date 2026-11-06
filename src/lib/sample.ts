@@ -11,6 +11,9 @@ import { seedAdmin } from "./admin-seed";
 import { seedCare } from "./care/seed";
 import { seedSales } from "./sales/seed";
 import { seedMarketing3 } from "./marketing/seed3";
+import { seedC360 } from "./c360/seed";
+import { seedSurveyVoucher } from "./survey/seed";
+import { seedPerf } from "./perf/seed";
 
 const NAMES = ["Nguyễn Thị Lan", "Trần Minh Khoa", "Lê Thu Hà", "Phạm Quốc Bảo", "Hoàng Ngọc Mai", "Vũ Đức Anh", "Đặng Thảo Vy", "Bùi Gia Huy", "Đỗ Phương Linh", "Ngô Thanh Tùng", "Dương Mỹ Duyên", "Lý Hoàng Nam", "Trịnh Khánh Ngân", "Phan Tuấn Kiệt"];
 const COMPANIES = ["Cty TNHH Minh Phát", "CP Đại Tín", "Tân Hưng Logistics", "Hoàng Gia Foods", "An Khang Pharma", "Việt Á Steel"];
@@ -113,6 +116,9 @@ export async function seedSample(workspaceId: string, cfg: WorkspaceConfig) {
     ["care", seedCare],
     ["marketing3", seedMarketing3],
     ["admin", seedAdmin],
+    ["surveyVoucher", seedSurveyVoucher],
+    ["c360", seedC360],
+    ["perf", seedPerf],
   ] as const) {
     await fn(workspaceId).catch((e) => console.error(`[sample ${name}]`, e instanceof Error ? e.message : e));
   }

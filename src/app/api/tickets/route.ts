@@ -6,7 +6,7 @@ import { ticketScope } from "@/lib/care/server";
 import { createTicket, ticketDTO, titlesOf } from "@/lib/care/tickets";
 import { PRIORITIES, TICKET_STATUSES } from "@/lib/care/shared";
 
-/** Danh sách phiếu + số đếm theo trạng thái. Lọc: status, priority, assignee, recordId, q, overdue=1. */
+/** Danh sách phiếu + số đếm theo trạng thái. Lọc: status, priority, assignee, teamId (none = chưa có đội), category, recordId, q, overdue=1. */
 export async function GET(req: Request) {
   const a = await appApi();
   if ("error" in a) return a.error;
@@ -17,6 +17,10 @@ export async function GET(req: Request) {
   if (priority) where.push({ priority });
   const assignee = sp.get("assignee");
   if (assignee !== null && assignee !== "all") where.push({ assignee: assignee === "none" ? "" : assignee });
+  const teamId = sp.get("teamId");
+  if (teamId) where.push({ teamId: teamId === "none" ? null : teamId });
+  const category = sp.get("category");
+  if (category) where.push({ category: category === "none" ? "" : category });
   const recordId = sp.get("recordId");
   if (recordId) where.push({ recordId });
   const q = (sp.get("q") ?? "").trim();
@@ -44,6 +48,8 @@ const Body = z.object({
   channel: z.string().max(20).optional(),
   fromConversationId: z.string().optional(),
   fromCallId: z.string().optional(),
+  category: z.string().max(80).optional(),
+  teamId: z.string().max(40).nullable().optional(),
 });
 
 /** Tạo phiếu. Có fromConversationId/fromCallId thì chép nội dung và gắn khách từ đó. */

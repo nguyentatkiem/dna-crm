@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { createContext, useContext, useMemo, useState } from "react";
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, rectSortingStrategy, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -15,7 +15,10 @@ import {
   CHANNEL_LABEL,
   CONDITION_OPS,
   INBOX_CHANNEL,
+  ENGAGE_LABEL,
   OP_LABEL,
+  RFM_SUGGEST,
+  SURVEY_GROUP,
   TRIGGER_LABEL,
   TRIGGER_TYPES,
   VARIABLES,
@@ -25,6 +28,7 @@ import {
   type Action,
   type ActionType,
   type Condition,
+  type Lists,
   type Part,
   type Rule,
   type TriggerType,
@@ -33,7 +37,9 @@ import {
 type Row = { id: string; enabled: boolean; runs: number; createdAt: string; rule: Rule; lastRunAt: string | null };
 type Seq = { id: string; name: string };
 type Run = { at: string; message: string };
-type Props = { config: WorkspaceConfig; initial: Row[]; canManage: boolean; team: string[]; sequences: Seq[]; runs?: Run[] };
+type Props = { config: WorkspaceConfig; initial: Row[]; canManage: boolean; team: string[]; sequences: Seq[]; runs?: Run[]; lists?: Lists };
+/** Danh sách chiến dịch voucher, khảo sát, nhóm, form… cho trình sửa luật. */
+const ListsCtx = createContext<Lists>({});
 
 const json = (method: string, body: unknown) => ({ method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 const CHANNELS_REC: Record<string, string> = { ads: "Quảng cáo", organic: "Tự nhiên", zalo: "Zalo OA", ecommerce: "Sàn TMĐT", website: "Website", call: "Tổng đài", other: "Khác" };
@@ -49,6 +55,10 @@ const ACTION_ICON: Record<ActionType, string> = {
   webhook: "link",
   add_activity: "doc",
   create_record: "plus",
+  issue_voucher: "gift",
+  send_survey: "chat",
+  add_tag: "segment",
+  add_score: "trend",
 };
 const TRIGGER_ICON: Record<TriggerType, string> = {
   record_created: "plus",
@@ -58,13 +68,21 @@ const TRIGGER_ICON: Record<TriggerType, string> = {
   call_logged: "phone",
   message_received: "chat",
   date_arrived: "calendar",
+  anniversary: "award",
+  idle: "clock",
+  email_engaged: "send",
+  form_submitted: "page",
+  survey_answered: "chat",
+  rfm_changed: "segment",
+  voucher_used: "receipt",
 };
 
 const joinParts = (p: Part[]) => p.map((x) => x.text).join("");
 
 /** Câu đọc-chỉ của một luật: Khi [..] và [..] thì [..] và [..]. */
 function Sentence({ rule, config, sequences }: { rule: Rule; config: WorkspaceConfig; sequences: Seq[] }) {
-  const s = sentence(rule, config, { sequences });
+  const lists = useContext(ListsCtx);
+  const s = sentence(rule, config, { ...lists, sequences });
   return (
     <p className="text-[15px] leading-[2.1]">
       <span className="text-ink-2">Khi </span>
@@ -86,7 +104,15 @@ function Sentence({ rule, config, sequences }: { rule: Rule; config: WorkspaceCo
   );
 }
 
-export function Automations({ config, initial, canManage, team, sequences, runs = [] }: Props) {
+export function Automations({ lists = {}, ...props }: Props) {
+  return (
+    <ListsCtx.Provider value={lists}>
+      <AutomationsInner {...props} />
+    </ListsCtx.Provider>
+  );
+}
+
+function AutomationsInner({ config, initial, canManage, team, sequences, runs = [] }: Omit<Props, "lists">) {
   const [rows, setRows] = useState(initial);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -318,7 +344,8 @@ function Builder({ initial, isNew, config, team, sequences, onCancel, onSave }: 
   const [saving, setSaving] = useState(false);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
   const rule: Rule = { name, trigger, conditions, actions: actions.map((x) => x.a) };
-  const s = sentence(rule, config, { sequences });
+  const lists = useContext(ListsCtx);
+  const s = sentence(rule, config, { ...lists, sequences });
 
   function onDragEnd(e: DragEndEvent) {
     if (!e.over || e.active.id === e.over.id) return;
@@ -502,6 +529,8 @@ function TriggerEditor({ rule, config, onChange }: { rule: Rule; config: Workspa
   const obj = getObject(config, t.object);
   const set = (p: Partial<Rule["trigger"]>) => onChange({ ...t, ...p });
   const dateFields = obj?.fields.filter((f) => f.type === "date") ?? [];
+  const lists = useContext(ListsCtx);
+  const rfm = lists.rfm ?? RFM_SUGGEST;
   return (
     <div className="grid gap-4">
       <Pick label="Khi nào chạy" items={TRIGGER_TYPES.map((k) => ({ key: k, label: TRIGGER_LABEL[k], icon: TRIGGER_ICON[k] }))} value={t.type} onPick={(type) => onChange({ type, object: t.object })} />
@@ -602,8 +631,102 @@ function TriggerEditor({ rule, config, onChange }: { rule: Rule; config: Workspa
             </F>
           </>
         )}
+        {t.type === "anniversary" && (
+          <>
+            <F label="Trường ngày kỷ niệm">
+              <select className="input" value={t.field ?? ""} onChange={(e) => set({ field: e.target.value })}>
+                <option value="">{dateFields.length ? "Chọn trường (ngày sinh, ngày cưới…)" : "Bảng này chưa có trường ngày"}</option>
+                {dateFields.map((f) => (
+                  <option key={f.key} value={f.key}>
+                    {f.label}
+                  </option>
+                ))}
+              </select>
+            </F>
+            <F label="Chạy trước bao nhiêu ngày (0 = đúng ngày)">
+              <input className="input tnum" type="number" min={0} max={60} value={t.days ?? 0} onChange={(e) => set({ days: Math.max(0, Math.min(60, Math.round(Number(e.target.value) || 0))) })} />
+            </F>
+          </>
+        )}
+        {t.type === "idle" && (
+          <F label="Số ngày không tương tác">
+            <input className="input tnum" type="number" min={1} max={365} value={t.days ?? 30} onChange={(e) => set({ days: Math.max(1, Math.min(365, Math.round(Number(e.target.value) || 1))) })} />
+          </F>
+        )}
+        {t.type === "email_engaged" && (
+          <>
+            <F label="Hành vi">
+              <select className="input" value={t.value ?? ""} onChange={(e) => set({ value: e.target.value || undefined })}>
+                <option value="">Mở hoặc nhấp</option>
+                {Object.entries(ENGAGE_LABEL).map(([k, v]) => (
+                  <option key={k} value={k}>
+                    Khách {v} email
+                  </option>
+                ))}
+              </select>
+            </F>
+            <F label="Chạy khi đạt lần thứ (1 = mỗi lần)">
+              <input className="input tnum" type="number" min={1} max={100} value={t.threshold ?? 1} onChange={(e) => set({ threshold: Math.max(1, Math.min(100, Math.round(Number(e.target.value) || 1))) })} />
+            </F>
+          </>
+        )}
+        {t.type === "form_submitted" && (
+          <F label="Form / landing page">
+            <select className="input" value={t.value ?? ""} onChange={(e) => set({ value: e.target.value || undefined })}>
+              <option value="">Bất kỳ form nào</option>
+              <option value="website">Form website (nhúng)</option>
+              {lists.forms?.map((f) => (
+                <option key={f.id} value={f.id}>
+                  Landing: {f.name}
+                </option>
+              ))}
+            </select>
+          </F>
+        )}
+        {t.type === "survey_answered" && (
+          <F label="Nhóm trả lời">
+            <select className="input" value={t.value ?? ""} onChange={(e) => set({ value: e.target.value || undefined })}>
+              <option value="">Bất kỳ</option>
+              {Object.entries(SURVEY_GROUP).map(([k, v]) => (
+                <option key={k} value={k}>
+                  {v[0].toUpperCase() + v.slice(1)}
+                </option>
+              ))}
+            </select>
+          </F>
+        )}
+        {t.type === "rfm_changed" && (
+          <F label="Sang nhóm RFM">
+            <select className="input" value={t.value ?? ""} onChange={(e) => set({ value: e.target.value || undefined })}>
+              <option value="">Nhóm bất kỳ</option>
+              {Object.entries(rfm).map(([k, v]) => (
+                <option key={k} value={k}>
+                  {v}
+                </option>
+              ))}
+            </select>
+          </F>
+        )}
+        {t.type === "voucher_used" && (
+          <F label="Chiến dịch voucher">
+            <select className="input" value={t.value ?? ""} onChange={(e) => set({ value: e.target.value || undefined })}>
+              <option value="">Bất kỳ</option>
+              {lists.campaigns?.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </F>
+        )}
       </div>
       {t.type === "date_arrived" && <p className="text-[12.5px] text-ink-2">Luật “đến ngày” được kiểm tra mỗi ngày một lần bởi việc chạy nền.</p>}
+      {t.type === "anniversary" && <p className="text-[12.5px] text-ink-2">So ngày và tháng, không tính năm: chạy mỗi năm một lần cho mỗi khách. Ngày 29/02 được tính là 28/02 ở năm không nhuận.</p>}
+      {t.type === "idle" && (
+        <p className="text-[12.5px] text-ink-2">
+          “Tương tác” là lần gần nhất có cập nhật/ghi chú, cuộc gọi, tin nhắn (gửi hoặc nhận trong Hộp thư), mở/nhấp email hoặc đơn hàng; ghi chú hệ thống không tính. Kiểm tra mỗi ngày; cùng một khách chỉ chạy lại sau ít nhất N ngày.
+        </p>
+      )}
     </div>
   );
 }
@@ -685,7 +808,18 @@ function TextWithVars({ value, onChange, rows = 2, placeholder }: { value: strin
 
 function ActionEditor({ a, objectKey, config, team, sequences, onChange }: { a: Action; objectKey: string; config: WorkspaceConfig; team: string[]; sequences: Seq[]; onChange: (a: Action) => void }) {
   const obj = getObject(config, objectKey);
+  const lists = useContext(ListsCtx);
   const set = (p: Partial<Action>) => onChange({ ...a, ...p });
+  const sendChannel = (empty: string) => (
+    <select className="input" value={a.channel ?? ""} onChange={(e) => set({ channel: (e.target.value || undefined) as Action["channel"] })}>
+      <option value="">{empty}</option>
+      {Object.entries(CHANNEL_LABEL).map(([k, v]) => (
+        <option key={k} value={k}>
+          {v}
+        </option>
+      ))}
+    </select>
+  );
   const people = (
     <select className="input" value={a.user ?? ""} onChange={(e) => set({ user: e.target.value })}>
       <option value="">Chọn người</option>
@@ -698,7 +832,7 @@ function ActionEditor({ a, objectKey, config, team, sequences, onChange }: { a: 
   );
   return (
     <div className="grid gap-4">
-      <Pick label="Làm gì" items={ACTION_TYPES.map((k) => ({ key: k, label: ACTION_LABEL[k], icon: ACTION_ICON[k] }))} value={a.type} onPick={(type) => onChange({ type, text: a.text })} />
+      <Pick label="Làm gì" items={ACTION_TYPES.map((k) => ({ key: k, label: ACTION_LABEL[k], icon: ACTION_ICON[k] }))} value={a.type} onPick={(type) => onChange({ type, text: a.text, ...(type === "add_score" ? { points: 10 } : {}) })} />
       <div className="grid gap-3 sm:grid-cols-2">
         {a.type === "create_task" && (
           <>
@@ -738,10 +872,44 @@ function ActionEditor({ a, objectKey, config, team, sequences, onChange }: { a: 
               <select className="input" value={a.mode ?? "round_robin"} onChange={(e) => set({ mode: e.target.value })}>
                 <option value="round_robin">Xoay vòng trong đội</option>
                 <option value="least_busy">Người ít việc nhất</option>
+                <option value="team">Xoay vòng trong một nhóm</option>
+                <option value="territory">Theo khu vực (tỉnh/thành…)</option>
                 <option value="user">Người cụ thể</option>
               </select>
             </F>
             {a.mode === "user" && <F label="Người phụ trách">{people}</F>}
+            {a.mode === "team" && (
+              <F label="Nhóm">
+                <select className="input" value={a.teamId ?? ""} onChange={(e) => set({ teamId: e.target.value })}>
+                  <option value="">{lists.teams?.length ? "Chọn nhóm" : "Chưa có nhóm: tạo ở mục Đội ngũ"}</option>
+                  {lists.teams?.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              </F>
+            )}
+            {a.mode === "territory" && (
+              <>
+                <F label="Trường khu vực">
+                  <select className="input" value={a.field ?? ""} onChange={(e) => set({ field: e.target.value })}>
+                    <option value="">Chọn trường</option>
+                    {obj?.fields
+                      .filter((f) => f.type === "text" || f.type === "select")
+                      .map((f) => (
+                        <option key={f.key} value={f.key}>
+                          {f.label}
+                        </option>
+                      ))}
+                  </select>
+                </F>
+                <F label="Khu vực = người phụ trách (mỗi dòng một vùng)" wide>
+                  <textarea className="textarea font-mono text-[13px]" rows={4} value={a.text ?? ""} placeholder={"Hà Nội, HN=Lan\nHồ Chí Minh, HCM, Sài Gòn=Minh\n*=Hùng"} onChange={(e) => set({ text: e.target.value })} />
+                </F>
+                <p className="text-[12.5px] text-ink-2 sm:col-span-2">So không phân biệt dấu và hoa thường; “TP. Hà Nội” vẫn khớp “Hà Nội”. Dòng “*=Tên” là người nhận khi không vùng nào khớp.</p>
+              </>
+            )}
             <label className="flex items-center gap-2 text-[13.5px] sm:col-span-2">
               <input type="checkbox" checked={a.value === "only_empty"} onChange={(e) => set({ value: e.target.checked ? "only_empty" : undefined })} />
               Chỉ giao khi chưa có người phụ trách
@@ -798,7 +966,83 @@ function ActionEditor({ a, objectKey, config, team, sequences, onChange }: { a: 
             <F label="Nội dung tin" wide>
               <TextWithVars rows={3} value={a.text ?? ""} onChange={(text) => set({ text })} />
             </F>
-            <p className="text-[12.5px] text-ink-2 sm:col-span-2">Gửi qua kênh đã kết nối trong Marketing. Chưa kết nối thì tin được bỏ qua và ghi vào lịch sử.</p>
+            <p className="text-[12.5px] text-ink-2 sm:col-span-2">
+              {a.channel === "auto"
+                ? "Thử lần lượt ZNS → Zalo OA → SMS → Email: dùng kênh đầu tiên đã kết nối và khách có thông tin (SĐT, Zalo, email). Kênh đã dùng được ghi vào lịch sử."
+                : "Gửi qua kênh đã kết nối trong Marketing. Chưa kết nối thì tin được bỏ qua và ghi vào lịch sử."}
+            </p>
+          </>
+        )}
+        {a.type === "issue_voucher" && (
+          <>
+            <F label="Chiến dịch voucher">
+              <select className="input" value={a.campaignId ?? ""} onChange={(e) => set({ campaignId: e.target.value })}>
+                <option value="">{lists.campaigns?.length ? "Chọn chiến dịch" : "Chưa có chiến dịch: tạo ở mục Voucher"}</option>
+                {lists.campaigns?.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </F>
+            <F label="Gửi mã cho khách">{sendChannel("Không gửi (chỉ phát mã)")}</F>
+            <p className="text-[12.5px] text-ink-2 sm:col-span-2">Các hành động sau dùng được biến {"{voucher}"} là mã vừa phát.</p>
+          </>
+        )}
+        {a.type === "send_survey" && (
+          <>
+            <F label="Khảo sát">
+              <select className="input" value={a.surveyId ?? ""} onChange={(e) => set({ surveyId: e.target.value })}>
+                <option value="">{lists.surveys?.length ? "Chọn khảo sát" : "Chưa có khảo sát: tạo ở mục Khảo sát"}</option>
+                {lists.surveys?.map((x) => (
+                  <option key={x.id} value={x.id}>
+                    {x.name}
+                  </option>
+                ))}
+              </select>
+            </F>
+            <F label="Kênh gửi">{sendChannel("Chỉ tạo link (không gửi)")}</F>
+          </>
+        )}
+        {a.type === "add_tag" && (
+          <>
+            <F label="Trường thẻ">
+              <select className="input" value={a.field ?? ""} onChange={(e) => set({ field: e.target.value })}>
+                <option value="">Chọn trường</option>
+                {obj?.fields
+                  .filter((f) => f.type === "tags" || f.type === "text" || f.type === "select")
+                  .map((f) => (
+                    <option key={f.key} value={f.key}>
+                      {f.label}
+                    </option>
+                  ))}
+              </select>
+            </F>
+            <F label="Thẻ cần gắn">
+              {(() => {
+                const def = obj?.fields.find((f) => f.key === a.field);
+                return def?.options.length ? (
+                  <select className="input" value={a.value ?? ""} onChange={(e) => set({ value: e.target.value })}>
+                    <option value="">Chọn thẻ</option>
+                    {def.options.map((o) => (
+                      <option key={o.label} value={o.label}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input className="input" value={a.value ?? ""} placeholder="Ví dụ: Khách VIP" onChange={(e) => set({ value: e.target.value })} />
+                );
+              })()}
+            </F>
+          </>
+        )}
+        {a.type === "add_score" && (
+          <>
+            <F label="Số điểm (âm = trừ)">
+              <input className="input tnum" type="number" min={-100} max={100} value={a.points ?? 10} onChange={(e) => set({ points: Math.max(-100, Math.min(100, Math.round(Number(e.target.value) || 0))) })} />
+            </F>
+            <p className="self-end pb-2 text-[12.5px] text-ink-2">Điểm của khách luôn giữ trong khoảng 0–100.</p>
           </>
         )}
         {a.type === "enroll_sequence" && (

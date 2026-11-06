@@ -3,10 +3,17 @@ import { db, parseJson } from "./db";
 import { NUMERIC_TYPES, getObject, type WorkspaceConfig } from "./config/schema";
 import { notify, userIdByName } from "./notify";
 import { vnd } from "./format";
-import { sendMessage } from "./marketing/messaging";
+import { channelReady, sendMessage } from "./marketing/messaging";
+import { contactInfo } from "./marketing/store";
 import { enrollRecord, onSequenceEvent } from "./marketing/sequences";
+import { getSettings } from "./settings";
+import { getPref, setPref } from "./prefs";
+import { issueVoucher } from "./voucher/service";
+import { sendSurvey } from "./survey/service";
+import { teamMembers } from "./perf/teams";
+import { isAnniversaryToday } from "./voucher/occasions";
 import { scoreContact, type FieldValue } from "./records";
-import { ruleOf, rowOf, sentenceText, type Action, type Condition, type Rule, type Trigger, type TriggerType } from "@/app/w/automations/rules";
+import { CHANNEL_LABEL, addTag, clampScore, idleDue, pickAutoChannel, ruleOf, rowOf, sentenceText, territoryOwner, type Action, type AutoChannel, type Condition, type Rule, type Trigger, type TriggerType } from "@/app/w/automations/rules";
 
 export * from "@/app/w/automations/rules";
 
@@ -31,13 +38,15 @@ export type RuleEvent = {
   /** message_received: kênh (zalo/messenger) và nội dung tin. */
   channel?: string;
   text?: string;
+  /** email_engaged: tổng số lần mở/nhấp của khách tới thời điểm này (để chạy "mở email lần thứ N"). */
+  count?: number;
 };
 
 const dataOf = (r: DbRecord) => parseJson<Record<string, FieldValue>>(r.dataJson, {});
 const lower = (v: unknown) => String(v ?? "").trim().toLowerCase();
 
 /** Điền biến {title}, {owner}, {status}, {amount}, {phone}, {email}, {score}, {key trường} vào nội dung. */
-export function fillVars(text: string, r: DbRecord, cfg: WorkspaceConfig) {
+export function fillVars(text: string, r: DbRecord, cfg: WorkspaceConfig, extra?: Record<string, string>) {
   const obj = getObject(cfg, r.objectKey);
   const data = dataOf(r);
   const phoneKey = obj?.fields.find((f) => f.type === "phone")?.key;
@@ -50,6 +59,8 @@ export function fillVars(text: string, r: DbRecord, cfg: WorkspaceConfig) {
     score: String(r.score),
     phone: String((phoneKey && data[phoneKey]) || data.phone || ""),
     email: String((emailKey && data[emailKey]) || data.email || ""),
+    voucher: "",
+    ...extra,
   };
   return text.replace(/\{([\w]+)\}/g, (m, k: string) => (k in vars ? vars[k] : k in data ? String(data[k]) : m));
 }
@@ -109,6 +120,16 @@ function triggerMatches(t: Trigger, ev: RuleEvent) {
       return !t.value || t.value === ev.outcome;
     case "message_received":
       return !t.value || t.value === ev.channel;
+    case "email_engaged": {
+      const n = t.threshold ?? 0;
+      return (!t.value || lower(t.value) === lower(ev.value)) && (n <= 1 || ev.count === n);
+    }
+    case "survey_answered":
+      return !t.value || t.value === "any" || lower(t.value) === lower(ev.value);
+    case "form_submitted":
+    case "rfm_changed":
+    case "voucher_used":
+      return !t.value || lower(t.value) === lower(ev.value);
     default:
       return true;
   }
@@ -161,7 +182,26 @@ async function postWebhook(url: string, payload: unknown) {
 }
 
 // ---------- Hành động ----------
-type RunCtx = { workspaceId: string; cfg: WorkspaceConfig; depth: number; ruleName: string; kind: TriggerType };
+type RunCtx = { workspaceId: string; cfg: WorkspaceConfig; depth: number; ruleName: string; kind: TriggerType; ruleId?: string; vars?: Record<string, string> };
+
+/** Kênh tự chọn: ZNS → Zalo OA → SMS → Email, kênh nào đã cấu hình và khách có thông tin liên hệ. */
+async function autoChannel(workspaceId: string, cfg: WorkspaceConfig, rec: DbRecord): Promise<AutoChannel | null> {
+  const ws = await db.workspace.findUnique({ where: { id: workspaceId } });
+  if (!ws) return null;
+  const s = getSettings(ws);
+  const info = await contactInfo(workspaceId, cfg, rec);
+  return pickAutoChannel((ch) => channelReady(s, ch) === null, info);
+}
+
+/** Xoay vòng trong một nhóm: con trỏ lưu ở Pref "assignCursor" theo id nhóm. */
+async function nextInTeam(workspaceId: string, teamId: string) {
+  const members = (await teamMembers(workspaceId, teamId)).filter(Boolean);
+  if (!members.length) return "";
+  const cur = await getPref<Record<string, number>>(workspaceId, "assignCursor", {});
+  const i = (cur[teamId] ?? 0) % members.length;
+  await setPref(workspaceId, "assignCursor", { ...cur, [teamId]: i + 1 });
+  return members[i];
+}
 
 async function teamOf(workspaceId: string, cfg: WorkspaceConfig) {
   const members = await db.membership.findMany({ where: { workspaceId }, select: { user: { select: { name: true } } } });
@@ -173,7 +213,7 @@ async function runAction(a: Action, rec: DbRecord, x: RunCtx): Promise<{ record:
   const { workspaceId, cfg } = x;
   const obj = getObject(cfg, rec.objectKey);
   const href = `/w/b/${rec.objectKey}?open=${rec.id}`;
-  const fill = (s?: string) => fillVars(s ?? "", rec, cfg);
+  const fill = (s?: string) => fillVars(s ?? "", rec, cfg, x.vars);
   const log = (body: string) => db.activity.create({ data: { recordId: rec.id, kind: "system", body, author: AUTOMATION_AGENT } });
 
   switch (a.type) {
@@ -197,7 +237,15 @@ async function runAction(a: Action, rec: DbRecord, x: RunCtx): Promise<{ record:
       const team = await teamOf(workspaceId, cfg);
       let owner = "";
       if (a.mode === "user") owner = a.user ?? "";
-      else if (a.mode === "least_busy" && team.length) {
+      else if (a.mode === "team") {
+        if (!a.teamId) throw new Error("Chưa chọn nhóm để chia");
+        owner = await nextInTeam(workspaceId, a.teamId);
+        if (!owner) throw new Error("Nhóm chưa có thành viên");
+      } else if (a.mode === "territory") {
+        const key = a.field?.replace(/^f:/, "") ?? "";
+        owner = territoryOwner(a.text ?? "", dataOf(rec)[key]);
+        if (!owner) return { record: rec, note: `không có vùng khớp “${String(dataOf(rec)[key] ?? "")}”` };
+      } else if (a.mode === "least_busy" && team.length) {
         const [tasks, owned] = await Promise.all([
           db.task.groupBy({ by: ["assignee"], where: { workspaceId, done: false, assignee: { in: team } }, _count: true }),
           db.record.groupBy({ by: ["ownerName"], where: { workspaceId, objectKey: rec.objectKey, ownerName: { in: team } }, _count: true }),
@@ -239,11 +287,62 @@ async function runAction(a: Action, rec: DbRecord, x: RunCtx): Promise<{ record:
       return { record, note: `cập nhật ${def.label}` };
     }
     case "send_message": {
-      const channel = a.channel ?? "zalo";
+      let channel = a.channel ?? "zalo";
+      if (channel === "auto") {
+        const picked = await autoChannel(workspaceId, cfg, rec);
+        if (!picked) {
+          await log("Bỏ qua tin tự động: chưa có kênh nào vừa cấu hình vừa có thông tin liên hệ của khách");
+          return { record: rec, note: "bỏ qua: không có kênh phù hợp" };
+        }
+        channel = picked;
+      }
       const res = await sendMessage(workspaceId, { channel, recordId: rec.id, body: fill(a.text), subject: a.subject ? fill(a.subject) : undefined });
       if (!res.ok && !res.skipped) throw new Error(res.error || "Gửi tin không thành công");
-      await log(`Tự động gửi ${channel.toUpperCase()}${res.skipped ? " (bỏ qua: " + (res.error || "không đủ điều kiện") + ")" : ""}: ${fill(a.text).slice(0, 160)}`);
-      return { record: rec, note: res.skipped ? `bỏ qua gửi ${channel}` : `gửi ${channel}` };
+      const via = a.channel === "auto" ? `${CHANNEL_LABEL[channel]} (tự chọn)` : channel.toUpperCase();
+      await log(`Tự động gửi ${via}${res.skipped ? " (bỏ qua: " + (res.error || "không đủ điều kiện") + ")" : ""}: ${fill(a.text).slice(0, 160)}`);
+      return { record: rec, note: res.skipped ? `bỏ qua gửi ${via}` : `gửi ${via}` };
+    }
+    case "issue_voucher": {
+      if (!a.campaignId) throw new Error("Chưa chọn chiến dịch voucher");
+      let send: "" | AutoChannel = a.channel && a.channel !== "auto" ? a.channel : "";
+      if (a.channel === "auto") send = (await autoChannel(workspaceId, cfg, rec)) ?? "";
+      const v = await issueVoucher(workspaceId, { campaignId: a.campaignId, recordId: rec.id, reason: `Tự động hoá: ${x.ruleName}`.slice(0, 120), by: AUTOMATION_AGENT, send });
+      if (!v) throw new Error("Không phát được voucher (chiến dịch tắt, hết lượt hoặc khách đã nhận)");
+      x.vars = { ...x.vars, voucher: v.code };
+      await log(`Tự động tặng voucher ${v.code}${send ? ` qua ${CHANNEL_LABEL[send]}` : ""}`);
+      return { record: rec, note: `tặng voucher ${v.code}${send ? ` (${send})` : ""}` };
+    }
+    case "send_survey": {
+      if (!a.surveyId) throw new Error("Chưa chọn khảo sát");
+      let channel: "link" | AutoChannel = a.channel && a.channel !== "auto" ? a.channel : "link";
+      if (a.channel === "auto") channel = (await autoChannel(workspaceId, cfg, rec)) ?? "link";
+      const res = await sendSurvey(workspaceId, { surveyId: a.surveyId, recordId: rec.id, channel });
+      if (!res.ok) throw new Error(res.error || "Không gửi được khảo sát");
+      await log(`Tự động gửi khảo sát${channel === "link" ? " (tạo link)" : ` qua ${CHANNEL_LABEL[channel]}`}${res.url ? `: ${res.url}` : ""}`);
+      return { record: rec, note: `gửi khảo sát (${channel})` };
+    }
+    case "add_tag": {
+      const key = a.field?.replace(/^f:/, "") ?? "";
+      const def = obj?.fields.find((f) => f.key === key);
+      if (!def) throw new Error("Trường thẻ không có trong bảng này");
+      const tag = fill(a.value).trim();
+      if (!tag) throw new Error("Chưa nhập thẻ");
+      const data = dataOf(rec);
+      const prev = data[key];
+      const value = def.type === "tags" ? addTag(prev, tag) : tag;
+      if (String(prev ?? "") === value) return { record: rec, note: "đã có thẻ" };
+      const record = await db.record.update({ where: { id: rec.id }, data: { dataJson: JSON.stringify({ ...data, [key]: value }) } });
+      await log(`Tự động gắn thẻ “${tag}” (${def.label})`);
+      await nested(x, { kind: "field_changed", record, field: key, prev, value });
+      return { record, note: `gắn thẻ ${tag}` };
+    }
+    case "add_score": {
+      const score = clampScore(rec.score + (a.points ?? 0));
+      if (score === rec.score) return { record: rec, note: "điểm giữ nguyên" };
+      const record = await db.record.update({ where: { id: rec.id }, data: { score } });
+      await log(`Tự động ${(a.points ?? 0) >= 0 ? "cộng" : "trừ"} ${Math.abs(a.points ?? 0)} điểm: ${rec.score} → ${score}`);
+      await nested(x, { kind: "score_above", record, score, prevScore: rec.score });
+      return { record, note: `điểm ${rec.score} → ${score}` };
     }
     case "enroll_sequence": {
       if (!a.sequenceId) throw new Error("Chưa chọn kịch bản chăm sóc");
@@ -315,7 +414,7 @@ async function execute(row: Automation, rule: Rule, x: Omit<RunCtx, "ruleName">,
   if (!rec) return false;
   if (!rule.conditions.every((c) => checkCondition(c, rec!, x.cfg))) return false;
   const name = ruleName(rule, x.cfg);
-  const ctx: RunCtx = { ...x, ruleName: name };
+  const ctx: RunCtx = { ...x, ruleName: name, ruleId: row.id, vars: {} };
   const notes: string[] = [];
   const errors: string[] = [];
   for (const a of rule.actions) {
@@ -367,7 +466,10 @@ export async function fireEvent(
     | { kind: "call_logged"; record: DbRecord; outcome: string }
     | { kind: "message_received"; record: DbRecord; channel?: string; text?: string }
     | { kind: "field_changed"; record: DbRecord; field: string; value: FieldValue; prev?: FieldValue }
-    | { kind: "score_above"; record: DbRecord; score?: number; prevScore?: number },
+    | { kind: "score_above"; record: DbRecord; score?: number; prevScore?: number }
+    // Tín hiệu từ các module khác. value: email_engaged "open"|"click"; form_submitted mã form/landing;
+    // survey_answered "promoter"|"passive"|"detractor"; rfm_changed key nhóm RFM; voucher_used mã chiến dịch.
+    | { kind: "email_engaged" | "form_submitted" | "survey_answered" | "rfm_changed" | "voucher_used"; record: DbRecord; value?: string; count?: number },
 ) {
   try {
     return await runRules(workspaceId, cfg, ev);
@@ -420,6 +522,127 @@ export async function tickDateAutomations(now = new Date()): Promise<void> {
       }
     }
   }
+}
+
+async function activeCfg(workspaceId: string) {
+  const c = await db.workspaceConfig.findFirst({ where: { workspaceId, isActive: true } });
+  return c ? parseJson<WorkspaceConfig | null>(c.configJson, null) : null;
+}
+
+/**
+ * Phát sự kiện khi chỉ có id khách (route công khai, theo dõi email): tự nạp record và cấu hình.
+ * Không bao giờ ném lỗi.
+ */
+export async function fireRecordEvent(recordId: string, ev: { kind: "email_engaged" | "form_submitted" | "survey_answered" | "rfm_changed" | "voucher_used"; value?: string; count?: number }) {
+  try {
+    const record = await db.record.findFirst({ where: { id: recordId, deletedAt: null } });
+    if (!record) return 0;
+    const cfg = await activeCfg(record.workspaceId);
+    if (!cfg) return 0;
+    return await fireEvent(record.workspaceId, cfg, { ...ev, record });
+  } catch (e) {
+    console.error("[automation] fireRecordEvent", e instanceof Error ? e.message : e);
+    return 0;
+  }
+}
+
+/** Đọc luật theo ngày: bỏ luật đã chạy hôm nay, đánh dấu trước khi chạy để lỗi giữa chừng không làm chạy lặp. */
+async function dailyRules(type: TriggerType, today: string) {
+  const rows = await db.automation.findMany({ where: { enabled: true, triggerType: type } });
+  const out: { row: Automation; rule: ReturnType<typeof ruleOf>; cfg: WorkspaceConfig }[] = [];
+  const cfgs = new Map<string, WorkspaceConfig | null>();
+  for (const row of rows) {
+    const rule = ruleOf(row);
+    if (rule.lastRun === today) continue;
+    if (!cfgs.has(row.workspaceId)) cfgs.set(row.workspaceId, await activeCfg(row.workspaceId));
+    await db.automation.update({ where: { id: row.id }, data: { triggerValue: rowOf(rule, today).triggerValue } });
+    const cfg = cfgs.get(row.workspaceId);
+    if (cfg) out.push({ row, rule, cfg });
+  }
+  return out;
+}
+
+/**
+ * Job (mỗi giờ, tự chạy một lần mỗi ngày cho từng luật): ngày kỷ niệm hằng năm — so ngày-tháng của trường ngày
+ * (sinh nhật, ngày cưới, ngày mua đầu tiên…) với hôm nay + N ngày, không quan tâm năm. Ghép vào src/lib/jobs.ts.
+ */
+export async function tickAnniversaryAutomations(now = new Date()): Promise<number> {
+  let ran = 0;
+  for (const { row, rule, cfg } of await dailyRules("anniversary", ymd(now))) {
+    const field = rule.trigger.field?.replace(/^f:/, "");
+    if (!field) continue;
+    const recs = await db.record.findMany({ where: { workspaceId: row.workspaceId, objectKey: rule.trigger.object, deletedAt: null } });
+    for (const rec of recs) {
+      const v = dataOf(rec)[field];
+      if (!v || !isAnniversaryToday(String(v), now, rule.trigger.days ?? 0)) continue;
+      try {
+        if (await execute(row, rule, { workspaceId: row.workspaceId, cfg, depth: 0, kind: "anniversary" }, { kind: "anniversary", record: rec })) ran++;
+      } catch (e) {
+        console.error("[automation] anniversary", row.id, e instanceof Error ? e.message : e);
+      }
+    }
+  }
+  return ran;
+}
+
+const chunks = <T,>(xs: T[], n = 400) => Array.from({ length: Math.ceil(xs.length / n) }, (_, i) => xs.slice(i * n, i * n + n));
+/** Hoạt động tính là "có tương tác" (bỏ ghi chú hệ thống như đổi trạng thái, tự động giao người). */
+const INTERACTION_KINDS = ["update", "call", "message", "email_open", "email_click", "ai"];
+
+/**
+ * Lần tương tác gần nhất của từng mục = mới nhất trong: ngày tạo mục, hoạt động không phải hệ thống
+ * (cập nhật, ghi chú cuộc gọi, tin đã gửi, mở/nhấp email), cuộc gọi, hội thoại Hộp thư, đơn hàng.
+ */
+export async function lastInteractions(workspaceId: string, recs: { id: string; createdAt: Date }[]) {
+  const last = new Map(recs.map((r) => [r.id, r.createdAt]));
+  const bump = (id: string | null | undefined, d: Date | null | undefined) => {
+    if (!id || !d) return;
+    const cur = last.get(id);
+    if (cur && d > cur) last.set(id, d);
+  };
+  for (const ids of chunks(recs.map((r) => r.id))) {
+    const [acts, calls, convs, orders, orders2] = await Promise.all([
+      db.activity.groupBy({ by: ["recordId"], where: { recordId: { in: ids }, kind: { in: INTERACTION_KINDS } }, _max: { createdAt: true } }),
+      db.call.groupBy({ by: ["recordId"], where: { workspaceId, recordId: { in: ids } }, _max: { createdAt: true } }),
+      db.conversation.groupBy({ by: ["recordId"], where: { workspaceId, recordId: { in: ids } }, _max: { lastAt: true } }),
+      db.order.groupBy({ by: ["recordId"], where: { workspaceId, recordId: { in: ids } }, _max: { createdAt: true } }),
+      db.order.groupBy({ by: ["contactId"], where: { workspaceId, contactId: { in: ids } }, _max: { createdAt: true } }),
+    ]);
+    for (const x of acts) bump(x.recordId, x._max.createdAt);
+    for (const x of calls) bump(x.recordId, x._max.createdAt);
+    for (const x of convs) bump(x.recordId, x._max.lastAt);
+    for (const x of orders) bump(x.recordId, x._max.createdAt);
+    for (const x of orders2) bump(x.contactId, x._max.createdAt);
+  }
+  return last;
+}
+
+/**
+ * Job (mỗi giờ, mỗi luật chạy một lần mỗi ngày): khách không tương tác N ngày (xem lastInteractions).
+ * Cùng một khách không bắn lại trong N ngày: dấu lần chạy lưu ở data._idle_<id luật> (ISO).
+ */
+export async function tickIdleAutomations(now = new Date()): Promise<number> {
+  let ran = 0;
+  for (const { row, rule, cfg } of await dailyRules("idle", ymd(now))) {
+    const days = Math.max(1, rule.trigger.days ?? 30);
+    const mark = `_idle_${row.id}`;
+    const since = new Date(now.getTime() - days * 864e5);
+    // Mục tạo sau mốc N ngày chắc chắn chưa "im lặng" đủ lâu.
+    const recs = await db.record.findMany({ where: { workspaceId: row.workspaceId, objectKey: rule.trigger.object, deletedAt: null, createdAt: { lte: since } } });
+    const last = await lastInteractions(row.workspaceId, recs);
+    for (const rec of recs) {
+      const data = dataOf(rec);
+      const fired = typeof data[mark] === "string" ? new Date(String(data[mark])) : null;
+      if (!idleDue(last.get(rec.id) ?? rec.createdAt, fired && !isNaN(fired.getTime()) ? fired : null, days, now)) continue;
+      await db.record.update({ where: { id: rec.id }, data: { dataJson: JSON.stringify({ ...data, [mark]: now.toISOString() }) } });
+      try {
+        if (await execute(row, rule, { workspaceId: row.workspaceId, cfg, depth: 0, kind: "idle" }, { kind: "idle", record: rec })) ran++;
+      } catch (e) {
+        console.error("[automation] idle", row.id, e instanceof Error ? e.message : e);
+      }
+    }
+  }
+  return ran;
 }
 
 /** 20 lần chạy gần nhất của một luật (lưu trong AgentLog, agent "Tự động hoá", message bắt đầu bằng [tên luật]). */

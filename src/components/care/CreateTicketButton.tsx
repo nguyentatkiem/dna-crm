@@ -21,6 +21,8 @@ export function CreateTicketButton({ recordId, conversationId, callId, defaultSu
   const [body, setBody] = useState("");
   const [priority, setPriority] = useState<Priority>("normal");
   const [assignee, setAssignee] = useState("");
+  const [categories, setCategories] = useState<string[]>([]);
+  const [category, setCategory] = useState("");
   const [contact, setContact] = useState<PickedContact | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -34,7 +36,9 @@ export function CreateTicketButton({ recordId, conversationId, callId, defaultSu
       .then((j) => {
         if (!j) return;
         setTeam(j.team ?? []);
-        setAssignee((a) => a || j.me || "");
+        setCategories(j.categories ?? []);
+        // Có phân luồng theo bộ phận thì để trống người xử lý cho hệ thống tự chia.
+        if (!(j.categories ?? []).length) setAssignee((a) => a || j.me || "");
       })
       .catch(() => undefined);
   }, [open, team.length]);
@@ -56,7 +60,7 @@ export function CreateTicketButton({ recordId, conversationId, callId, defaultSu
     const res = await fetch("/api/tickets", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ subject, body, priority, assignee, recordId: recordId ?? contact?.id ?? null, fromConversationId: conversationId, fromCallId: callId }),
+      body: JSON.stringify({ subject, body, priority, assignee, category, recordId: recordId ?? contact?.id ?? null, fromConversationId: conversationId, fromCallId: callId }),
     });
     const j = await res.json().catch(() => ({}));
     setBusy(false);
@@ -108,6 +112,19 @@ export function CreateTicketButton({ recordId, conversationId, callId, defaultSu
                 <ContactPicker value={contact} onChange={setContact} />
               </div>
             )}
+            {categories.length > 0 && (
+              <label className="grid gap-1">
+                <span className="label">Phân loại</span>
+                <select className="input" value={category} onChange={(e) => setCategory(e.target.value)}>
+                  <option value="">Chưa phân loại</option>
+                  {categories.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <label className="grid gap-1">
                 <span className="label">Mức ưu tiên</span>
@@ -122,7 +139,7 @@ export function CreateTicketButton({ recordId, conversationId, callId, defaultSu
               <label className="grid gap-1">
                 <span className="label">Người xử lý</span>
                 <select className="input" value={assignee} onChange={(e) => setAssignee(e.target.value)}>
-                  <option value="">Chưa giao</option>
+                  <option value="">{categories.length ? "Tự giao theo bộ phận" : "Chưa giao"}</option>
                   {[...new Set([...team, ...(assignee && !team.includes(assignee) ? [assignee] : [])])].map((t) => (
                     <option key={t} value={t}>
                       {t}

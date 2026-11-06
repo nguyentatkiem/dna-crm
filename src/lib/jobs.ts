@@ -3,12 +3,15 @@ import { syncAdSpend } from "./marketing/ads";
 import { tickReminders } from "./notify";
 import { refreshPredictions } from "./predict";
 import { autoBackup } from "./backup";
-import { tickDateAutomations } from "./automation";
+import { tickAnniversaryAutomations, tickDateAutomations, tickIdleAutomations } from "./automation";
 import { purgeExpired } from "./trash";
 import { tickKpi } from "./kpi";
 import { tickTickets, tickWarranties } from "./care/jobs";
 import { tickBroadcasts } from "./marketing/broadcast";
 import { tickContracts, tickDebts } from "./sales/jobs";
+import { tickBehaviorScores, tickDuplicateScan, tickRfm } from "./c360/jobs";
+import { tickVouchers } from "./voucher/service";
+import { tickPerfAlerts } from "./perf/alerts";
 
 type Job = { name: string; everyMin: number; run: () => Promise<void> };
 
@@ -27,6 +30,13 @@ export const JOBS: Job[] = [
   { name: "Gửi hàng loạt", everyMin: 1, run: () => tickBroadcasts().then(() => undefined) },
   { name: "SLA phiếu hỗ trợ", everyMin: 5, run: () => tickTickets().then(() => undefined) },
   { name: "Bảo hành sắp hết hạn", everyMin: 360, run: () => tickWarranties().then(() => undefined) },
+  { name: "Tự động hoá ngày kỷ niệm", everyMin: 60, run: () => tickAnniversaryAutomations().then(() => undefined) },
+  { name: "Tự động hoá khách im lặng", everyMin: 60, run: () => tickIdleAutomations().then(() => undefined) },
+  { name: "Chấm điểm theo hành vi", everyMin: 60, run: () => tickBehaviorScores().then(() => undefined) },
+  { name: "Phân tích RFM", everyMin: 60, run: () => tickRfm().then(() => undefined) },
+  { name: "Quét hồ sơ trùng", everyMin: 10080, run: () => tickDuplicateScan().then(() => undefined) },
+  { name: "Voucher hết hạn", everyMin: 360, run: () => tickVouchers().then(() => undefined) },
+  { name: "Cảnh báo tiến độ KPI", everyMin: 60, run: () => tickPerfAlerts().then(() => undefined) },
 ];
 
 const g = globalThis as unknown as { crmJobs?: { started: boolean; last: Record<string, number>; running: Set<string> } };

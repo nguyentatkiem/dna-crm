@@ -35,7 +35,17 @@ type Props = {
   ext?: RowExt;
 };
 
-export type RowExt = { rowH: number; tintOf: (r: RecordDTO) => string | null; onRowMenu: (r: RecordDTO, x: number, y: number) => void; onExportGroup?: (g: Group, ids: string[]) => void };
+export type RowExt = {
+  rowH: number;
+  tintOf: (r: RecordDTO) => string | null;
+  onRowMenu: (r: RecordDTO, x: number, y: number) => void;
+  onExportGroup?: (g: Group, ids: string[]) => void;
+  /** Trường chỉ xem với vai trò hiện tại (Phân quyền trường): ô hiện giá trị nhưng không sửa được. */
+  readOnly?: Set<string>;
+  /** Kéo tiêu đề cột để đổi thứ tự; kéo mép phải để đổi độ rộng. */
+  onReorder?: (from: string, to: string) => void;
+  onResize?: (id: string, w: number) => void;
+};
 const NO_EXT: RowExt = { rowH: ROW_H, tintOf: () => null, onRowMenu: () => undefined };
 
 export type ColAction = "asc" | "desc" | "clear-sort" | "filter" | "group" | "hide";
@@ -104,7 +114,7 @@ function GroupTable({ obj, team, group, rows, cols, template, moneyCols, selecte
           <span className="pl-1">{obj.itemLabel}</span>
         </div>
         {cols.map((c) => (
-          <ColumnHeader key={c.id} c={c} sort={sort} onColumn={onColumn} canGroup={canGroup?.(c) ?? false} canFilter={canFilter?.(c) ?? false} />
+          <ColumnHeader key={c.id} c={c} sort={sort} onColumn={onColumn} canGroup={canGroup?.(c) ?? false} canFilter={canFilter?.(c) ?? false} onReorder={ext.onReorder} onResize={ext.onResize} />
         ))}
       </div>
       {virtual ? (
@@ -124,8 +134,30 @@ function GroupTable({ obj, team, group, rows, cols, template, moneyCols, selecte
 }
 
 /** Tiêu đề cột kiểu monday: rê chuột hiện nút "…" mở menu sắp xếp / lọc / nhóm / ẩn cột. */
-function ColumnHeader({ c, sort, onColumn, canGroup, canFilter }: { c: Column; sort?: ColSort | null; onColumn?: Props["onColumn"]; canGroup: boolean; canFilter: boolean }) {
+function ColumnHeader({ c, sort, onColumn, canGroup, canFilter, onReorder, onResize }: { c: Column; sort?: ColSort | null; onColumn?: Props["onColumn"]; canGroup: boolean; canFilter: boolean; onReorder?: RowExt["onReorder"]; onResize?: RowExt["onResize"] }) {
   const p = usePopover();
+  const [over, setOver] = useState(false);
+  // Kéo mép phải: cập nhật độ rộng theo từng khung hình, giữ trong 60–800px.
+  const startResize = (e: React.PointerEvent) => {
+    if (!onResize) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const x0 = e.clientX;
+    const w0 = c.w;
+    let raf = 0;
+    const move = (ev: PointerEvent) => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => onResize(c.id, Math.max(60, Math.min(800, Math.round(w0 + ev.clientX - x0)))));
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      document.body.style.cursor = "";
+    };
+    document.body.style.cursor = "col-resize";
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
   const f = fieldOf(c);
   const sorted = sort && sort.col === colKey(c) ? sort.dir : null;
   const act = (a: ColAction) => {
@@ -138,7 +170,29 @@ function ColumnHeader({ c, sort, onColumn, canGroup, canFilter }: { c: Column; s
     </button>
   );
   return (
-    <div ref={p.ref} role="columnheader" aria-sort={sorted === "asc" ? "ascending" : sorted === "desc" ? "descending" : undefined} title={f?.type === "formula" ? `Công thức: ${f.formula ?? ""}` : undefined} className="group/h relative flex h-9 items-center justify-center gap-1 border-b border-r border-t border-line-soft bg-surface px-1 text-[13px] text-ink-2">
+    <div
+      ref={p.ref}
+      role="columnheader"
+      aria-sort={sorted === "asc" ? "ascending" : sorted === "desc" ? "descending" : undefined}
+      title={f?.type === "formula" ? `Công thức: ${f.formula ?? ""}` : onReorder ? "Kéo để đổi vị trí cột" : undefined}
+      draggable={!!onReorder && !p.open}
+      onDragStart={(e) => {
+        e.dataTransfer.setData("text/x-col", c.id);
+        e.dataTransfer.effectAllowed = "move";
+      }}
+      onDragOver={(e) => {
+        if (!onReorder || !e.dataTransfer.types.includes("text/x-col")) return;
+        e.preventDefault();
+        setOver(true);
+      }}
+      onDragLeave={() => setOver(false)}
+      onDrop={(e) => {
+        setOver(false);
+        const from = e.dataTransfer.getData("text/x-col");
+        if (from && from !== c.id) onReorder?.(from, c.id);
+      }}
+      className={`group/h relative flex h-9 items-center justify-center gap-1 border-b border-r border-t border-line-soft bg-surface px-1 text-[13px] text-ink-2 ${onReorder ? "cursor-grab active:cursor-grabbing" : ""} ${over ? "shadow-[inset_3px_0_0_var(--primary)]" : ""}`}
+    >
       {f?.type === "formula" && <Icon name="formula" size={13} className="flex-none" />}
       <span className="truncate">{c.label}</span>
       {sorted && <span className="flex-none text-[11px] text-primary" aria-hidden="true">{sorted === "asc" ? "▲" : "▼"}</span>}
@@ -165,6 +219,18 @@ function ColumnHeader({ c, sort, onColumn, canGroup, canFilter }: { c: Column; s
           {canGroup && item("group", "board", "Nhóm theo cột này")}
           {item("hide", "eye-off", "Ẩn cột")}
         </div>
+      )}
+      {onResize && (
+        <span
+          role="separator"
+          aria-orientation="vertical"
+          aria-label={`Đổi độ rộng cột ${c.label}`}
+          draggable={false}
+          onDragStart={(e) => e.preventDefault()}
+          onPointerDown={startResize}
+          onDoubleClick={() => onResize(c.id, 0)}
+          className="absolute -right-1 top-0 z-10 h-full w-2 cursor-col-resize hover:bg-primary/30"
+        />
       )}
     </div>
   );
@@ -290,7 +356,20 @@ const Row = memo(function Row({ obj, team, r, cols, template, moneyCols, on, onS
       </div>
       {cols.map((c) => (
         <div key={c.id} role="cell" className={`min-w-0 border-b border-r border-line-soft ${c.id === "status" || fieldOf(c)?.type === "select" ? "" : cellBg}`} style={c.id === "status" || fieldOf(c)?.type === "select" ? h : { ...h, ...tintStyle }}>
-          <CellFor obj={obj} team={team} r={r} c={c} money={moneyCols.has(c.id)} onPatch={onPatch} />
+          {(() => {
+            const f = fieldOf(c);
+            const cell = <CellFor obj={obj} team={team} r={r} c={c} money={moneyCols.has(c.id)} onPatch={onPatch} />;
+            // Trường chỉ xem: vẫn hiện giá trị nhưng chặn mọi thao tác sửa (server cũng bỏ qua nếu có gửi lên).
+            return f && ext.readOnly?.has(f.key) ? (
+              <div className="h-full cursor-not-allowed" title="Chỉ xem: bạn không được sửa trường này">
+                <div inert className="h-full">
+                  {cell}
+                </div>
+              </div>
+            ) : (
+              cell
+            );
+          })()}
         </div>
       ))}
     </div>

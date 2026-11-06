@@ -8,6 +8,7 @@ import { lineNet, totals, type Line } from "@/lib/sales/lines";
 import { money } from "@/lib/sales/shared";
 import { ContactPicker, DealPicker, ProductPicker, customerOfRecord, type ProductOpt } from "./Pickers";
 import { TotalsBox } from "./LinesView";
+import { VoucherField, type AppliedVoucher } from "@/components/voucher/VoucherField";
 
 export type DocDraft = {
   contactId: string | null;
@@ -24,6 +25,8 @@ export type DocDraft = {
   dueAt: string;
   note: string;
   terms: string;
+  /** Đơn hàng: mã giảm giá đang áp (không gồm trong discount). */
+  voucherCode?: string;
 };
 
 /**
@@ -37,7 +40,9 @@ export function DocEditor({ kind, id, initial, products, seeAll, dealLabel, back
   const [err, setErr] = useState("");
   const set = <K extends keyof DocDraft>(k: K, v: DocDraft[K]) => setD((x) => ({ ...x, [k]: v }));
   const setLine = (i: number, patch: Partial<Line>) => setD((x) => ({ ...x, items: x.items.map((l, j) => (j === i ? { ...l, ...patch } : l)) }));
-  const t = useMemo(() => totals(d.items, d.discount), [d.items, d.discount]);
+  const [voucher, setVoucher] = useState<AppliedVoucher | null>(null);
+  const t = useMemo(() => totals(d.items, d.discount + (kind === "order" ? voucher?.discount ?? 0 : 0)), [d.items, d.discount, voucher, kind]);
+  const voucherBase = useMemo(() => totals(d.items, d.discount).subtotal - d.discount, [d.items, d.discount]);
 
   const addProduct = (p: ProductOpt) => set("items", [...d.items, { productId: p.id, code: p.code, name: p.name, unit: p.unit, qty: 1, price: p.price, discountPct: 0, vatPct: p.vat }]);
   const addFree = () => set("items", [...d.items, { code: "", name: "", unit: "", qty: 1, price: 0, discountPct: 0, vatPct: 0 }]);
@@ -54,6 +59,7 @@ export function DocEditor({ kind, id, initial, products, seeAll, dealLabel, back
       intent,
       validUntil: kind === "quote" ? d.validUntil || null : undefined,
       dueAt: kind === "order" ? d.dueAt || null : undefined,
+      voucherCode: kind === "order" ? voucher?.code ?? "" : undefined,
     };
     const res = await fetch(id ? `${base}/${id}` : base, { method: id ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     const j = await res.json().catch(() => ({}));
@@ -201,6 +207,7 @@ export function DocEditor({ kind, id, initial, products, seeAll, dealLabel, back
             <input className="input tnum" inputMode="numeric" value={d.discount ? d.discount.toLocaleString("vi-VN") : ""} placeholder="0" onChange={(e) => set("discount", Math.max(0, num(e.target.value)))} />
             <span className="text-[12px] text-ink-2">Trừ trước thuế, chia theo tỷ lệ giá trị từng dòng.</span>
           </label>
+          {kind === "order" && <VoucherField base={voucherBase} contactId={d.contactId} orderId={id} initialCode={initial.voucherCode} onChange={setVoucher} />}
           {kind === "quote" ? (
             <label className="grid gap-1">
               <span className="label">Hiệu lực đến</span>

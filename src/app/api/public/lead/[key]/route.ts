@@ -3,6 +3,7 @@ import { db, parseJson } from "@/lib/db";
 import { fail, ok } from "@/lib/http";
 import { getObject, type WorkspaceConfig } from "@/lib/config/schema";
 import { createRecord } from "@/lib/records";
+import { fireEvent } from "@/lib/automation";
 
 const Body = z.object({
   name: z.string().trim().min(1, "Hãy nhập họ tên").max(120),
@@ -50,5 +51,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ key: st
   const rec = await createRecord(ws.id, cfg, { objectKey: "contacts", title: b.name, data }, "Form website");
   if (b.need) await db.activity.create({ data: { recordId: rec.id, kind: "update", body: `Nhu cầu khách để lại: ${b.need}`, author: b.name } });
   await db.agentLog.create({ data: { workspaceId: ws.id, agent: "Form thu lead", message: `Lead mới: ${b.name}` } });
+  await fireEvent(ws.id, cfg, { kind: "form_submitted", record: rec, value: "website" });
   return ok({ ok: true }, 201);
 }

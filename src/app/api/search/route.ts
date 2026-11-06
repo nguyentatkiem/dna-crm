@@ -3,6 +3,8 @@ import { appApi, ok } from "@/lib/http";
 import { getRole, recordScope } from "@/lib/permissions";
 import { getPrivacy, maskPhoneFor } from "@/lib/privacy";
 import { color } from "@/lib/colors";
+import { getPref } from "@/lib/prefs";
+import { hiddenKeys, type FieldAccessPref } from "@/lib/field-access";
 
 /** Bỏ dấu, chữ thường để tìm không phân biệt dấu ("nguyen" khớp "Nguyễn"). */
 const fold = (s: string) =>
@@ -37,14 +39,18 @@ export async function GET(req: Request) {
     phoneQuery ? db.record.findMany({ where: { AND: [scope, { dataJson: { contains: dq.slice(-7) } }] }, select, take: 50 }) : Promise.resolve([]),
   ]);
 
+  // Phân quyền trường: không tìm theo và không hiện trường bị ẩn với vai trò này.
+  const [role, prefs, access] = await Promise.all([getRole(a.ctx.user.id, a.ctx.workspace.id), getPrivacy(a.ctx.workspace.id), getPref<FieldAccessPref>(a.ctx.workspace.id, "fieldAccess", {})]);
+  const hiddenOf = new Map<string, Set<string>>(config.objects.map((o) => [o.key, hiddenKeys(role, access[o.key])]));
   const seen = new Set<string>();
   const hits: { rank: number; r: (typeof recent)[number]; phone: string }[] = [];
   for (const r of [...byPhone, ...recent]) {
     if (seen.has(r.id)) continue;
     seen.add(r.id);
     const obj = config.objects.find((o) => o.key === r.objectKey);
-    const data = parseJson<Record<string, unknown>>(r.dataJson, {});
-    const phoneKeys = obj?.fields.filter((f) => f.type === "phone").map((f) => f.key) ?? [];
+    const hide = hiddenOf.get(r.objectKey);
+    const data = Object.fromEntries(Object.entries(parseJson<Record<string, unknown>>(r.dataJson, {})).filter(([k]) => !hide?.has(k)));
+    const phoneKeys = obj?.fields.filter((f) => f.type === "phone" && !hide?.has(f.key)).map((f) => f.key) ?? [];
     const phone = phoneKeys.map((k) => String(data[k] ?? "")).find(Boolean) ?? "";
     const title = fold(r.title);
     let rank = -1;
@@ -56,7 +62,6 @@ export async function GET(req: Request) {
   }
   hits.sort((x, y) => x.rank - y.rank);
 
-  const [role, prefs] = await Promise.all([getRole(a.ctx.user.id, a.ctx.workspace.id), getPrivacy(a.ctx.workspace.id)]);
   const records = hits.slice(0, LIMIT).map(({ r, phone }) => {
     const obj = config.objects.find((o) => o.key === r.objectKey);
     const st = obj?.statuses.find((s) => s.key === r.status);

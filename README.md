@@ -186,6 +186,26 @@ Mỗi agent có công tắc bật/tắt và **mức tự chủ** (Chỉ gợi ý
 - **Việc của tôi**: giao việc cho từng người, quản lý xem việc của mọi người.
 - **Thông báo**: được giao khách/việc, khách nhắn tin, việc sắp đến hạn và hẹn gọi lại (nhắc trước 30 phút), tự động hoá.
 - **Dự báo khả năng chốt**: học từ chính các giao dịch đã thắng/thua của bạn (hồi quy logistic khi có từ 20 giao dịch đã đóng, ít hơn thì dùng mô hình theo giai đoạn). Trang chủ có pipeline, doanh thu kỳ vọng theo tháng và top giao dịch.
+- **Phòng ban / đội**: KPI theo đội, xem theo tháng, quý, năm. Doanh thu tính cho người phụ trách giao dịch, nếu không có thì người phụ trách khách, rồi người tạo đơn.
+- **Đánh giá nhân viên** theo tiêu chí có trọng số (tự lấy từ KPI + quản lý chấm tay), xếp loại, chốt kỳ, xuất Excel. **Hoa hồng** theo bậc doanh thu, thưởng trưởng nhóm. Nhân viên chỉ thấy phần của mình.
+- Từ ngày 10 hằng tháng, **báo nhân viên và trưởng nhóm** khi doanh thu chậm nhịp quá 20%.
+
+### Chân dung khách hàng 360°
+- **Tab 360°** trong hồ sơ khách: thẻ tổng quan (tổng chi, số đơn, lần mua cuối, NPS, hạng, nhóm RFM, điểm) và một dòng thời gian gộp mọi điểm chạm, lọc theo loại.
+- **Hồ sơ trùng lặp**: quét theo SĐT (kể cả +84, có dấu chấm), email, tên; so sánh cạnh nhau và gộp: toàn bộ đơn, phiếu, cuộc gọi, tin nhắn, điểm thưởng… chuyển về hồ sơ giữ lại, bản bị gộp vào thùng rác. Hằng tuần báo khi có nhóm trùng mới.
+- **Chấm điểm theo hành vi**: điểm hồ sơ cộng điểm mở mail, điền form, nhắn tin, gọi tốt, mua hàng, khảo sát…; giảm dần khi khách im lặng. Xem "vì sao điểm này", chỉnh điểm ở **Cài đặt → Chấm điểm khách**.
+- **Phân tích RFM**: 8 nhóm (VIP, Trung thành, Sắp rời bỏ, Đã ngủ đông…), lưu thành nhóm khách để gửi hàng loạt.
+- **Quét danh thiếp / CCCD** bằng AI để điền sẵn hồ sơ (cần khoá Claude; ảnh không được lưu).
+
+### Khảo sát, voucher, tuỳ chỉnh hiển thị
+- **Khảo sát**: câu hỏi NPS, chấm sao, chọn, văn bản; link riêng cho từng khách hoặc link chung; báo cáo NPS theo tuần; tự gửi sau khi xử lý phiếu hỗ trợ; báo người phụ trách khi khách chấm thấp.
+- **Voucher**: chiến dịch giảm % hoặc tiền, trần giảm, đơn tối thiểu, số lượt mỗi khách; phát tay, theo nhóm khách hoặc tự động; nhập mã trong đơn hàng.
+- **Dạng xem đã lưu**: lưu cột, thứ tự, độ rộng, bộ lọc, nhóm, sắp xếp; chia sẻ cho đội; kéo đổi thứ tự và độ rộng cột.
+- **Quyền theo trường** (Sửa / Chỉ xem / Ẩn cho Quản lý và Nhân viên) và **bố cục hồ sơ** theo nhóm trường: **Cài đặt → Quyền & bố cục trường**.
+- **Tự động hoá thêm**: khi đến sinh nhật hằng năm, khách im lặng N ngày, mở/nhấp email, điền form, trả lời khảo sát, đổi nhóm RFM, dùng voucher → phát voucher, gửi khảo sát, gắn thẻ, cộng/trừ điểm, giao theo đội hoặc khu vực, gửi tin kênh tự chọn (ZNS → Zalo → SMS → Email).
+- Phiếu hỗ trợ có **phân loại** và tự chuyển cho đúng đội.
+
+So sánh đầy đủ với BizCRM (Bizfly) trong [docs/SO-SANH-BIZFLY.md](docs/SO-SANH-BIZFLY.md).
 
 ### Vận hành
 - **Docker một lệnh** (`docker compose up -d`), kèm tuỳ chọn chép lời (speaches), đường hầm webhook (cloudflared) và Postgres.

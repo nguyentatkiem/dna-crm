@@ -41,6 +41,15 @@ export default async function SettingsPage() {
           <Link href="/w/settings/privacy" className="btn-outline">
             Bảo mật dữ liệu
           </Link>
+          <Link href="/w/settings/teams" className="btn-outline">
+            Phòng ban / đội
+          </Link>
+          <Link href="/w/settings/scoring" className="btn-outline">
+            Chấm điểm khách
+          </Link>
+          <Link href="/w/settings/fields" className="btn-outline">
+            Quyền & bố cục trường
+          </Link>
           <Link href="/onboarding" className="btn-primary">
             Sửa DNA và sinh lại
           </Link>
