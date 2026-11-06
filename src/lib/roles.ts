@@ -86,6 +86,18 @@ export const MODULES = [
     ],
   },
   {
+    key: "inbox",
+    label: "Hộp thư & fanpage",
+    actions: [
+      { key: "inbox_view_all", label: "Xem mọi hội thoại", hint: "Thấy cả hội thoại đã giao cho người khác (theo phạm vi dữ liệu).", manager: true, member: false },
+      { key: "inbox_assign", label: "Phân công hội thoại", hint: "Giao, chuyển hội thoại cho người khác.", manager: true, member: false },
+      { key: "comment_moderate", label: "Ẩn, xoá bình luận", hint: "Ẩn/hiện, xoá bình luận trên fanpage.", manager: true, member: true },
+      { key: "quick_reply_manage", label: "Quản lý trả lời nhanh & thẻ", hint: "Tạo, sửa mẫu trả lời nhanh, chủ đề và thẻ hội thoại.", manager: true, member: false },
+      { key: "inbox_settings", label: "Cài đặt hộp thư", hint: "Chia hội thoại xoay vòng, cài đặt trang, bài viết, giờ làm việc.", manager: true, member: false },
+      { key: "inbox_stats", label: "Thống kê hộp thư", hint: "Xem thống kê trang, nhân viên, thẻ.", manager: true, member: false },
+    ],
+  },
+  {
     key: "telesales",
     label: "Telesales",
     actions: [

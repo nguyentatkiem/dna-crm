@@ -98,12 +98,21 @@ Và bộ công cụ Work OS: **Gantt**, kanban kéo thả, bảng hàng nghìn d
 - **Chống trùng và gộp**: chuẩn hoá SĐT Việt Nam (+84, 84, dấu chấm...), lead quay lại được gộp vào khách cũ kèm ghi chú. Mỗi sự kiện có mã riêng nên nền tảng gửi lại cũng không nhân đôi.
 - **Báo cáo theo nguồn**: lead 30 ngày theo kênh, theo nguồn/chiến dịch: số lead, khách nóng, tỷ lệ gọi được, tỷ lệ hẹn/chốt, doanh thu đơn hàng. Có nhật ký nhận lead để đối soát lỗi.
 
-### Hộp thư hợp nhất (Zalo OA + Messenger)
-- Mỗi người nhắn là một hội thoại; lọc **Chưa đọc / Của tôi / Đã xong**, theo kênh, tìm theo tên hoặc nội dung.
-- **AI soạn trả lời** dựa trên lịch sử chat, hồ sơ khách và DNA doanh nghiệp (không có AI thì dùng mẫu theo ý định: hỏi giá, địa chỉ, đặt lịch, khuyến mãi...). **Mẫu trả lời nhanh**, **ghi chú nội bộ**, giao hội thoại cho thành viên, đánh dấu đã xong.
-- Lần đầu khách nhắn là thành khách trong CRM; khách nhắn số điện thoại thì tự điền vào hồ sơ. Cột phải hiện thẻ khách, nút **Gọi** và **Mở hồ sơ**.
-- Khách trả lời thì **kịch bản chăm sóc tự dừng**, người phụ trách nhận thông báo.
-- Messenger quá 24 giờ: báo rõ và cho gửi lại với tag HUMAN_AGENT.
+### Hộp thư hợp nhất: Zalo OA, Messenger, bình luận fanpage
+- **Nhiều fanpage** (Hộp thư → Trang): mỗi trang một token (không bao giờ gửi xuống trình duyệt), xem gộp tất cả hoặc từng trang. Bật tắt từng trang: tự ẩn bình luận có SĐT, ẩn mọi bình luận, tự thích, tự đánh dấu đã đọc, chữ ký cuối tin nhắn.
+- **Bình luận về chung hộp thư**: mỗi người bình luận trên một bài là một hội thoại. Trả lời công khai, **nhắn riêng từ bình luận**, thích, ẩn/hiện, xoá, đánh dấu tạo đơn.
+- **Bài viết** (Hộp thư → Bài viết): lọc theo loại (ảnh, video, livestream), sắp xếp theo số bình luận hoặc SĐT. Cài riêng từng bài: tự ẩn, tự trả lời bình luận đầu, tự nhắn riêng. **Gộp các bài livestream** để xem bình luận trực tiếp.
+- **Bộ lọc kiểu Pancake**: chưa đọc, chưa trả lời (đợi lâu nhất lên đầu), đã đọc chưa trả lời, có/không SĐT, thẻ (gồm/loại trừ), người phụ trách, nguồn (bài viết, quảng cáo, website, link m.me), khoảng thời gian, bình luận chưa nhắn riêng, livestream. Tìm theo tên, SĐT, nội dung. Phím tắt ↑↓, Enter, e, /. Chọn nhiều để đánh dấu đã đọc, gắn thẻ, phân công.
+- **Trả lời nhanh**: gõ `/` + ký tự tắt; chủ đề có màu; biến {ten}, {nhan_vien}, {trang}, {sdt}; nhập/xuất CSV, JSON. **Thẻ hội thoại** có màu.
+- **CRM ngay trong chat**: tự nhận SĐT, địa chỉ trong tin nhắn và bình luận, tự nối khách cũ hoặc tạo khách mới. Cột phải: thẻ khách (tổng chi, đơn gần nhất, NPS), **tạo đơn hàng** (sản phẩm, mã giảm giá, địa chỉ, tin xác nhận), tạo giao dịch, lịch hẹn, phiếu hỗ trợ, khảo sát, voucher.
+- **Chia hội thoại** (Hộp thư → Cài đặt): tắt / nhân viên tự nhận / tự động xoay vòng theo nhóm có tỉ lệ, chỉ người đang trực tuyến hoặc ít việc nhất; người nhận tin nhắn khác người nhận bình luận; giờ làm việc; khách cũ quay lại giao người cũ; nhân viên chỉ thấy hội thoại của mình.
+- **Thống kê** (Hộp thư → Thống kê): theo trang, nhân viên (tin gửi, phiên trả lời, thời gian phản hồi trong giờ làm việc, SĐT mang về), thẻ, bản đồ nhiệt giờ; xuất Excel.
+- **AI**: soạn nháp trả lời; phát hiện khách bực để báo người phụ trách và quản lý; chấm chất lượng chăm sóc từng hội thoại.
+- **Link m.me theo nguồn**: đếm lượt bấm, hội thoại và khách theo từng link. Ghi nhận khách đến từ quảng cáo.
+- Khách trả lời thì **kịch bản chăm sóc tự dừng**. Messenger quá 24 giờ: báo rõ và cho gửi lại với tag HUMAN_AGENT.
+- Webhook Facebook cần đăng ký các trường `messages`, `messaging_postbacks`, `messaging_referrals`, `feed`. Chạy thử không cần Facebook: đặt `MESSAGING_DRY_RUN=1` hoặc dùng token bắt đầu bằng `demo_`.
+
+So sánh với Pancake trong [docs/SO-SANH-PANCAKE.md](docs/SO-SANH-PANCAKE.md).
 
 ### Marketing & ROAS
 - **Kéo chi phí quảng cáo** từ Facebook Marketing API và Google Ads API (6 tiếng một lần hoặc bấm "Đồng bộ ngay"); TikTok và nền tảng khác nhập CSV hoặc nhập tay.

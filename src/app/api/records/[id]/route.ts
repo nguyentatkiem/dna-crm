@@ -64,7 +64,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
 
   const diff = snapshotDiff(recordSnapshot(rec), recordSnapshot(updated));
   if (Object.keys(diff).length) {
-    const fields = Object.keys(diff).map((k) => (k.startsWith("data.") ? (obj?.fields.find((f) => f.key === k.slice(5))?.label ?? k.slice(5)) : FIELD_NAME[k] ?? k));
+    const fields = Object.keys(diff).map((k) => (k.startsWith("data.") ? (obj?.fields.find((f) => f.key === k.slice(5))?.label ?? (k === "data._dia_chi" ? "địa chỉ" : k.slice(5))) : FIELD_NAME[k] ?? k));
     await audit({ workspaceId: a.ctx.workspace.id, user: a.ctx.user }, "record.update", rec.objectKey, id, `Sửa “${updated.title}”: ${fields.join(", ")}`, diff);
   }
 

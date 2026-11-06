@@ -1,7 +1,6 @@
-import { db } from "./db";
-import { getSettings } from "./settings";
-
-const GRAPH = "https://graph.facebook.com/v23.0";
+import { randomBytes } from "node:crypto";
+import { GRAPH, isDryRun } from "./fb/graph";
+import { pageTokenFor } from "./fb/pages";
 
 /** Lỗi gửi Messenger. windowClosed = đã quá 24 giờ kể từ tin cuối của khách. */
 export class MessengerError extends Error {
@@ -13,11 +12,11 @@ export class MessengerError extends Error {
   }
 }
 
-async function pageToken(workspaceId: string) {
-  const ws = await db.workspace.findUniqueOrThrow({ where: { id: workspaceId } });
-  const t = getSettings(ws).facebook?.pageToken;
-  if (!t) throw new MessengerError("Chưa có Page Access Token. Điền token ở trang Nguồn khách → Facebook để trả lời Messenger từ CRM.");
-  return t;
+/** Token của trang nhận tin (Hộp thư → Trang), không có thì dùng token chung ở Nguồn khách → Facebook. */
+async function pageToken(workspaceId: string, pageId?: string) {
+  const { token } = await pageTokenFor(workspaceId, pageId);
+  if (!token) throw new MessengerError("Chưa có Page Access Token. Kết nối trang ở Hộp thư → Trang (hoặc Nguồn khách → Facebook) để trả lời Messenger từ CRM.");
+  return token;
 }
 
 /**
@@ -25,8 +24,10 @@ async function pageToken(workspaceId: string) {
  * humanAgent = true dùng tag HUMAN_AGENT (cho phép tới 7 ngày, app cần được Meta duyệt quyền này).
  * Trả message_id (mid) để chống trùng khi Facebook gửi lại echo.
  */
-export async function sendMessengerText(workspaceId: string, psid: string, text: string, opts: { humanAgent?: boolean } = {}): Promise<string> {
-  const token = await pageToken(workspaceId);
+export async function sendMessengerText(workspaceId: string, psid: string, text: string, opts: { humanAgent?: boolean; pageId?: string } = {}): Promise<string> {
+  const token = await pageToken(workspaceId, opts.pageId);
+  // Chạy thử (MESSAGING_DRY_RUN=1 hoặc token mẫu): không gọi Facebook.
+  if (isDryRun(token)) return `dry_mid_${randomBytes(5).toString("hex")}`;
   const body = opts.humanAgent
     ? { messaging_type: "MESSAGE_TAG", tag: "HUMAN_AGENT", recipient: { id: psid }, message: { text } }
     : { messaging_type: "RESPONSE", recipient: { id: psid }, message: { text } };
@@ -56,7 +57,7 @@ export async function sendMessengerText(workspaceId: string, psid: string, text:
 
 /** Tên và ảnh đại diện của người nhắn (PSID). Không có token hoặc lỗi thì trả null. */
 export async function getMessengerProfile(token: string | undefined, psid: string): Promise<{ name: string; avatar: string } | null> {
-  if (!token) return null;
+  if (!token || isDryRun(token)) return null;
   try {
     const res = await fetch(`${GRAPH}/${encodeURIComponent(psid)}?fields=first_name,last_name,profile_pic&access_token=${encodeURIComponent(token)}`, { signal: AbortSignal.timeout(4000) });
     const j = (await res.json().catch(() => ({}))) as { first_name?: string; last_name?: string; profile_pic?: string; error?: unknown };

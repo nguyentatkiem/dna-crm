@@ -73,6 +73,9 @@ model Workspace {
   teams         Team[]
   perfReviews   PerfReview[]
   boardViews    BoardView[]
+  fbPages       FbPage[]
+  fbPosts       FbPost[]
+  quickReplies  QuickReply[]
 }
 
 model Membership {
@@ -289,26 +292,43 @@ model Lesson {
 
 // Hộp thư hợp nhất: mỗi người nhắn Zalo OA / Facebook Messenger là một hội thoại.
 model Conversation {
-  id          String    @id @default(cuid())
-  workspaceId String
-  channel     String
-  externalId  String
-  pageId      String    @default("")
-  recordId    String?
-  name        String    @default("")
-  avatar      String    @default("")
-  lastText    String    @default("")
-  lastAt      DateTime  @default(now())
-  unread      Int       @default(0)
-  assignee    String    @default("")
-  status      String    @default("open")
-  tagsJson    String    @default("[]")
-  createdAt   DateTime  @default(now())
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  messages    Message[]
+  id             String    @id @default(cuid())
+  workspaceId    String
+  channel        String
+  externalId     String
+  pageId         String    @default("")
+  recordId       String?
+  name           String    @default("")
+  avatar         String    @default("")
+  lastText       String    @default("")
+  lastAt         DateTime  @default(now())
+  unread         Int       @default(0)
+  assignee       String    @default("")
+  status         String    @default("open")
+  tagsJson       String    @default("[]")
+  // Pancake-style: inbox | comment (một hội thoại bình luận = một người bình luận trên một bài viết).
+  kind           String    @default("inbox")
+  postId         String    @default("")
+  // Nguồn: "" | post | ad | website | ref (link m.me có tham số) — sourceRef giữ mã bài/ad/ref.
+  source         String    @default("")
+  sourceRef      String    @default("")
+  phones         String    @default("") // các SĐT phát hiện trong tin của khách, cách nhau dấu phẩy
+  lastInAt       DateTime?
+  lastOutAt      DateTime?
+  readAt         DateTime? // nhân viên mở xem lần cuối
+  firstReplyAt   DateTime?
+  sentiment      String    @default("") // "" | negative | positive
+  orderMarked    Boolean   @default(false) // đánh dấu đã/ cần tạo đơn
+  privateReplied Boolean   @default(false) // đã nhắn riêng từ bình luận
+  quality        Int? // điểm chất lượng chăm sóc 0–100 (AI hoặc luật)
+  qualityNote    String    @default("")
+  createdAt      DateTime  @default(now())
+  workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  messages       Message[]
 
   @@unique([workspaceId, channel, externalId])
   @@index([workspaceId, lastAt])
+  @@index([workspaceId, lastInAt])
   @@index([workspaceId, recordId])
 }
 
@@ -322,6 +342,12 @@ model Message {
   author          String       @default("")
   status          String       @default("sent")
   error           String       @default("")
+  // Bình luận: kind "comment", commentId của nền tảng, parentId = bình luận cha; hidden = đã ẩn trên trang.
+  kind            String       @default("message")
+  commentId       String       @default("")
+  parentId        String       @default("")
+  hidden          Boolean      @default(false)
+  liked           Boolean      @default(false)
   createdAt       DateTime     @default(now())
   conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
@@ -965,4 +991,62 @@ model BoardView {
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId, objectKey])
+}
+
+// ---------- Pancake: fanpage, bài viết, trả lời nhanh ----------
+// Một fanpage (hoặc Zalo OA về sau) đã kết nối. token là Page Access Token — bí mật, không trả về trình duyệt.
+model FbPage {
+  id           String    @id @default(cuid())
+  workspaceId  String
+  platform     String    @default("facebook") // facebook | instagram
+  pageId       String
+  name         String    @default("")
+  avatar       String    @default("")
+  token        String    @default("")
+  active       Boolean   @default(true)
+  settingsJson String    @default("{}") // { autoHidePhone, autoHideAll, autoLike, signature, autoMarkRead, ... }
+  createdAt    DateTime  @default(now())
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, pageId])
+}
+
+model FbPost {
+  id            String    @id @default(cuid())
+  workspaceId   String
+  pageId        String
+  postId        String
+  message       String    @default("")
+  image         String    @default("")
+  permalink     String    @default("")
+  kind          String    @default("post") // post | photo | video | live
+  live          Boolean   @default(false)
+  postedAt      DateTime  @default(now())
+  commentsCount Int       @default(0)
+  phonesCount   Int       @default(0)
+  topic         String    @default("")
+  settingsJson  String    @default("{}") // { autoHidePhone, autoHideAll, skip, replyComment, replyInbox, productIds }
+  mergeKey      String    @default("") // gộp nhiều bài (livestream) để xem chung
+  updatedAt     DateTime  @updatedAt
+  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, postId])
+  @@index([workspaceId, postedAt])
+}
+
+// Mẫu trả lời nhanh: gõ /shortcut khi chat. content có biến {ten}, {nhan_vien}, {trang}...
+model QuickReply {
+  id              String    @id @default(cuid())
+  workspaceId     String
+  shortcut        String    @default("")
+  topic           String    @default("")
+  content         String
+  attachmentsJson String    @default("[]")
+  sort            Int       @default(0)
+  uses            Int       @default(0)
+  createdBy       String    @default("")
+  createdAt       DateTime  @default(now())
+  workspace       Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, shortcut])
 }

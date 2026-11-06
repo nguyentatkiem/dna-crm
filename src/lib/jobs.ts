@@ -13,6 +13,7 @@ import { tickBehaviorScores, tickDuplicateScan, tickRfm } from "./c360/jobs";
 import { tickVouchers } from "./voucher/service";
 import { tickPerfAlerts } from "./perf/alerts";
 import { tickPerfDigest } from "./perf/digest";
+import { tickInboxReassign, tickQuality, tickSentiment } from "./chat/jobs";
 
 type Job = { name: string; everyMin: number; run: () => Promise<void> };
 
@@ -37,6 +38,9 @@ export const JOBS: Job[] = [
   { name: "Phân tích RFM", everyMin: 60, run: () => tickRfm().then(() => undefined) },
   { name: "Quét hồ sơ trùng", everyMin: 10080, run: () => tickDuplicateScan().then(() => undefined) },
   { name: "Voucher hết hạn", everyMin: 360, run: () => tickVouchers().then(() => undefined) },
+  { name: "Chia lại hội thoại", everyMin: 5, run: () => tickInboxReassign().then(() => undefined) },
+  { name: "Cảm xúc khách trong chat", everyMin: 5, run: () => tickSentiment().then(() => undefined) },
+  { name: "Chất lượng chăm sóc chat", everyMin: 15, run: () => tickQuality().then(() => undefined) },
   { name: "Bản tin hiệu suất tuần", everyMin: 60, run: () => tickPerfDigest().then(() => undefined) },
   { name: "Cảnh báo tiến độ KPI", everyMin: 60, run: () => tickPerfAlerts().then(() => undefined) },
 ];

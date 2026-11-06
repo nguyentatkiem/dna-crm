@@ -1,7 +1,7 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import type { Integrations } from "../settings";
 import type { Channel, Lead } from "./ingest";
-import type { Attachment, InboxEvent } from "../inbox";
+import type { Attachment, InboxComment, InboxEvent, InboxPostEvent, InboxReferral } from "../inbox";
 
 type Json = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 type Ctx = { raw: string; body: Json; headers: Headers; settings: Integrations; url: URL };
@@ -90,13 +90,80 @@ function utmChannel(b: Json): Channel {
   return "website";
 }
 
+/** referral của Messenger → nguồn hội thoại. */
+export function toReferral(r: Json | undefined): InboxReferral | undefined {
+  if (!r || typeof r !== "object") return undefined;
+  const src = str(r.source).toUpperCase();
+  const adId = str(r.ad_id);
+  const ref = str(r.ref);
+  if (adId || src === "ADS") return { source: "ad", ref, adId: adId || undefined, postId: str(r.ads_context_data?.post_id) || undefined };
+  if (src === "CUSTOMER_CHAT_PLUGIN") return { source: "website", ref: ref || str(r.referer_uri) };
+  if (ref || src === "SHORTLINK" || src === "MESSENGER_CODE") return { source: "ref", ref };
+  return undefined;
+}
+
+const FEED_POST_KIND: Record<string, InboxPostEvent["kind"]> = { status: "post", post: "post", share: "post", photo: "photo", video: "video" };
+
+/**
+ * Sự kiện "feed" của trang → InboxEvent. item = comment: bình luận (verb add/edited/remove/hide/unhide);
+ * item = status/photo/video/post: bài viết mới của trang. Bỏ qua reaction, like...
+ */
+export function feedEvents(pageId: string, v: Json): InboxEvent[] {
+  const item = str(v.item);
+  const verb = str(v.verb) as InboxComment["verb"];
+  const at = tsDate(v.created_time);
+  const postObj: Json = v.post ?? {};
+  const live = /live/i.test(str(postObj.status_type)) || str(postObj.live_status) !== "" || !!v.is_live;
+  const postKind: InboxPostEvent["kind"] = live ? "live" : /video/.test(str(postObj.status_type)) ? "video" : /photo/.test(str(postObj.status_type)) ? "photo" : "post";
+  if (item === "comment") {
+    if (!["add", "edited", "remove", "hide", "unhide"].includes(verb)) return [];
+    const postId = str(v.post_id) || str(postObj.id);
+    const commentId = str(v.comment_id);
+    const fromId = str(v.from?.id);
+    if (!postId || !commentId) return [];
+    const fromPage = !!fromId && fromId === pageId;
+    const photo = str(v.photo);
+    const atts: Attachment[] = photo ? [{ type: "image", url: photo }] : v.video ? [{ type: "video", url: str(v.video) }] : [];
+    return [
+      {
+        channel: "messenger",
+        kind: "comment",
+        externalId: fromPage ? "" : `c:${postId}:${fromId}`,
+        pageId,
+        direction: fromPage ? "out" : "in",
+        text: str(v.message),
+        attachments: atts,
+        msgId: commentId,
+        at,
+        name: str(v.from?.name) || undefined,
+        comment: {
+          commentId,
+          parentId: str(v.parent_id) && str(v.parent_id) !== postId ? str(v.parent_id) : "",
+          postId,
+          senderId: fromId,
+          verb,
+          fromPage,
+          post: { kind: postKind, live, permalink: str(postObj.permalink_url) || undefined },
+        },
+      },
+    ];
+  }
+  if (FEED_POST_KIND[item] && (verb === "add" || verb === "edited" || verb === "remove")) {
+    const postId = str(v.post_id);
+    if (!postId) return [];
+    const kind = live ? "live" : FEED_POST_KIND[item];
+    return [{ channel: "messenger", externalId: "", pageId, direction: "out", text: "", post: { postId, kind, live, message: str(v.message), permalink: item === "photo" ? "" : str(v.link), image: item === "photo" ? str(v.link) : "", at, remove: verb === "remove" } }];
+  }
+  return [];
+}
+
 export const PROVIDERS: Provider[] = [
   {
     key: "facebook",
     label: "Facebook Lead Ads",
     channel: "ads",
     guide:
-      "Meta for Developers → App → Webhooks → Page → đăng ký trường leadgen (và messages, messaging_postbacks để tin Messenger về Hộp thư), dán URL bên dưới và Verify token. Cấp Page Access Token có quyền leads_retrieval để CRM tải được tên, SĐT của lead.",
+      "Meta for Developers → App → Webhooks → Page → đăng ký trường leadgen (và messages, messaging_postbacks, messaging_referrals để tin Messenger về Hộp thư; feed để bình luận về Hộp thư), dán URL bên dưới và Verify token. Cấp Page Access Token có quyền leads_retrieval để CRM tải được tên, SĐT của lead.",
     secrets: [
       ["verifyToken", "Verify token (tự đặt)"],
       ["pageToken", "Page Access Token"],
@@ -136,11 +203,19 @@ export const PROVIDERS: Provider[] = [
     },
     messages({ body }) {
       const out: InboxEvent[] = [];
-      for (const entry of body.entry ?? [])
+      for (const entry of body.entry ?? []) {
+        // Bình luận / bài viết trên trang (trường "feed").
+        for (const ch of entry.changes ?? []) if (ch.field === "feed") out.push(...feedEvents(str(entry.id), ch.value ?? {}));
         for (const m of entry.messaging ?? []) {
           const msg = m.message;
           const post = m.postback;
-          if (!msg && !post) continue; // bỏ qua delivery/read/reaction
+          // Nguồn: quảng cáo Click-to-Messenger, link m.me?ref=, plugin chat website (referral ở message, postback hoặc sự kiện riêng).
+          const referral = toReferral(m.referral ?? post?.referral ?? msg?.referral);
+          if (!msg && !post) {
+            if (referral && m.sender?.id)
+              out.push({ channel: "messenger", externalId: str(m.sender.id), pageId: str(m.recipient?.id) || str(entry.id), direction: "in", text: "", msgId: `ref:${m.sender.id}:${m.timestamp}`, at: tsDate(m.timestamp), system: true, referral });
+            continue; // bỏ qua delivery/read/reaction
+          }
           const echo = !!msg?.is_echo;
           // Echo: Trang gửi cho khách (từ CRM hoặc Meta Business Suite) → người dùng là recipient.
           const psid = str(echo ? m.recipient?.id : m.sender?.id);
@@ -162,10 +237,15 @@ export const PROVIDERS: Provider[] = [
             attachments: atts,
             msgId: mid,
             at: tsDate(m.timestamp),
-            // Messenger không có SĐT: chỉ tạo lead khi khách tự nhắn số điện thoại.
-            lead: !echo && phone ? { provider: "facebook", providerLabel: "Facebook Messenger", channel: "organic", name: "Khách nhắn Messenger", phone, externalId: `msg:${mid}`, note: `Tin nhắn: ${text}` } : undefined,
+            ...(referral && !echo ? { referral } : {}),
+            // Messenger không có SĐT: chỉ tạo lead khi khách tự nhắn số điện thoại (Hộp thư nhận diện kỹ hơn bằng detectContact).
+            lead:
+              !echo && phone
+                ? { provider: "facebook", providerLabel: "Facebook Messenger", channel: referral?.source === "ad" ? "ads" : "organic", name: "Khách nhắn Messenger", phone, externalId: `msg:${mid}`, note: `Tin nhắn: ${text}`, campaign: referral?.adId ? `Quảng cáo ${referral.adId}` : undefined }
+                : undefined,
           });
         }
+      }
       return out;
     },
   },

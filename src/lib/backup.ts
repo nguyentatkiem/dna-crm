@@ -84,6 +84,9 @@ const WS_TABLES: { key: string; via?: { parent: string; field: string } }[] = [
   { key: "voucher" },
   { key: "perfReview" },
   { key: "boardView" },
+  { key: "fbPage" },
+  { key: "fbPost" },
+  { key: "quickReply" },
 ];
 const SYSTEM_TABLES = ["user", "workspace", "membership", "invite"];
 /** Cột trỏ sang bảng khác: khi khôi phục sang workspace khác phải đổi id theo. */

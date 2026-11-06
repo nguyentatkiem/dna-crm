@@ -3,10 +3,12 @@ import { audit } from "@/lib/audit";
 import { getObject } from "@/lib/config/schema";
 import { db, parseJson } from "@/lib/db";
 import { appApi, fail, ok } from "@/lib/http";
-import { CHANNEL_LABEL, findConversation, type InboxChannel } from "@/lib/inbox";
+import { CHANNEL_LABEL, type InboxChannel } from "@/lib/inbox";
+import { findVisibleConversation } from "@/lib/inbox-list";
 import { recordScope } from "@/lib/permissions";
 import { createRecord, type FieldValue } from "@/lib/records";
 import { normPhone } from "@/lib/sources/ingest";
+import { caseVariants } from "@/lib/inbox-query";
 
 type P = { params: Promise<{ id: string }> };
 
@@ -14,14 +16,14 @@ type P = { params: Promise<{ id: string }> };
 export async function GET(req: Request, { params }: P) {
   const a = await appApi();
   if ("error" in a) return a.error;
-  if (!(await findConversation(a.ctx, (await params).id))) return fail("Không tìm thấy hội thoại", 404);
+  if (!(await findVisibleConversation(a.ctx, (await params).id))) return fail("Không tìm thấy hội thoại", 404);
   const q = (new URL(req.url).searchParams.get("q") ?? "").trim();
   const obj = getObject(a.ctx.config, "contacts");
   const phoneKey = obj?.fields.find((f) => f.type === "phone")?.key;
   const digits = q.replace(/\D/g, "");
   const needle = digits.length >= 4 ? digits.slice(-9) : q;
   const rows = await db.record.findMany({
-    where: { AND: [await recordScope(a.ctx), { objectKey: "contacts" }, q ? { OR: [{ title: { contains: q } }, { dataJson: { contains: needle } }] } : {}] },
+    where: { AND: [await recordScope(a.ctx), { objectKey: "contacts" }, q ? { OR: [...caseVariants(q).map((v) => ({ title: { contains: v } })), { dataJson: { contains: needle } }] } : {}] },
     orderBy: { updatedAt: "desc" },
     take: 8,
   });
@@ -34,7 +36,7 @@ export async function GET(req: Request, { params }: P) {
 }
 
 const Body = z.union([
-  z.object({ mode: z.literal("create"), title: z.string().trim().max(120).optional(), phone: z.string().max(30).optional() }),
+  z.object({ mode: z.literal("create"), title: z.string().trim().max(120).optional(), phone: z.string().max(30).optional(), email: z.string().trim().max(120).optional(), address: z.string().trim().max(300).optional(), note: z.string().trim().max(1000).optional() }),
   z.object({ mode: z.literal("existing"), recordId: z.string().min(1) }),
 ]);
 
@@ -42,7 +44,7 @@ const Body = z.union([
 export async function POST(req: Request, { params }: P) {
   const a = await appApi();
   if ("error" in a) return a.error;
-  const conv = await findConversation(a.ctx, (await params).id);
+  const conv = await findVisibleConversation(a.ctx, (await params).id);
   if (!conv) return fail("Không tìm thấy hội thoại", 404);
   const p = Body.safeParse(await req.json().catch(() => null));
   if (!p.success) return fail("Dữ liệu không hợp lệ");
@@ -56,11 +58,19 @@ export async function POST(req: Request, { params }: P) {
     const data: Record<string, FieldValue> = { _kenh: conv.channel === "zalo" ? "zalo" : "organic", _nguon: conv.channel === "zalo" ? "Zalo OA" : "Facebook Messenger" };
     const phone = normPhone(p.data.phone);
     if (phoneKey && phone) data[phoneKey] = phone;
+    const emailKey = obj.fields.find((f) => f.type === "email")?.key;
+    if (emailKey && p.data.email) data[emailKey] = p.data.email;
+    // Không có ô địa chỉ thì lưu "_dia_chi" (thẻ khách trong Hộp thư và ô tạo đơn đọc lại được).
+    const addressKey = obj.fields.find((f) => /dia_chi|address/.test(f.key) || /địa chỉ/i.test(f.label))?.key;
+    if (p.data.address) data[addressKey ?? "_dia_chi"] = p.data.address;
     if (conv.channel === "zalo") data._zalo_uid = conv.externalId;
     const src = obj.fields.find((f) => f.key === "nguon")?.options.find((o) => (conv.channel === "zalo" ? /zalo/i : /facebook|messenger|fb/i).test(o.label));
     if (src) data.nguon = src.label;
     const rec = await createRecord(a.ctx.workspace.id, cfg, { objectKey: "contacts", title: p.data.title || conv.name, ownerName: conv.assignee || a.ctx.user.name, data }, a.ctx.user.name);
     await db.activity.create({ data: { recordId: rec.id, kind: "system", body: `Tạo từ hội thoại ${label}`, author: a.ctx.user.name } });
+    // Địa chỉ / ghi chú không có ô riêng trong bảng khách thì lưu thành ghi chú để không mất.
+    const extra = [!addressKey && p.data.address ? `Địa chỉ: ${p.data.address}` : "", p.data.note ?? ""].filter(Boolean).join("\n");
+    if (extra) await db.activity.create({ data: { recordId: rec.id, kind: "update", body: extra, author: a.ctx.user.name } });
     recordId = rec.id;
   } else {
     const rec = await db.record.findFirst({ where: { AND: [{ id: p.data.recordId }, await recordScope(a.ctx)] } });
