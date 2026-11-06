@@ -49,14 +49,17 @@ Và bộ công cụ Work OS: **Gantt**, kanban kéo thả, bảng hàng nghìn d
 - Mỗi giai đoạn là một **nhóm có màu riêng**. Ô trạng thái **tô kín màu**, bấm vào để đổi.
 - **Sửa trực tiếp mọi ô**, gán người phụ trách bằng avatar, có hàng "+ Thêm" ở cuối mỗi nhóm.
 - **Hàng tổng** cho tiền và số, cùng **thanh tỉ lệ** trạng thái của cả bảng.
-- **4 chế độ xem**, lưu trên URL để gửi link cho đồng nghiệp:
-  - **Bảng chính**: nhóm theo trạng thái hoặc người phụ trách, ẩn/hiện cột, chọn nhiều dòng để đổi trạng thái/giao người/xoá hàng loạt, nhóm trên 200 dòng tự cuộn ảo nên hàng nghìn dòng vẫn mượt.
+- **5 chế độ xem**, lưu trên URL để gửi link cho đồng nghiệp:
+  - **Bảng chính**: nhóm theo trạng thái, người phụ trách hoặc **bất kỳ cột lựa chọn nào**, ẩn/hiện cột, chọn nhiều dòng để đổi trạng thái/giao người/xoá hàng loạt, nhóm trên 200 dòng tự cuộn ảo nên hàng nghìn dòng vẫn mượt.
   - **Kanban** kéo thả (cả trên điện thoại), tổng tiền mỗi cột, **% khả năng chốt** trên thẻ giao dịch.
   - **Lịch** tháng/tuần, kéo mục sang ngày khác.
   - **Gantt / Timeline**: thang Ngày/Tuần/Tháng, vạch hôm nay, kéo thanh để dời ngày, kéo mép để đổi hạn.
+  - **Biểu đồ**: chia theo trạng thái, người phụ trách hoặc một cột lựa chọn; đo bằng số mục hoặc tổng một cột tiền/số/công thức; dạng cột hoặc tròn.
 - **Cột công thức** kiểu Excel: `{so_luong} * {don_gia}`, `IF({diem} > 70; "Nóng"; "Theo dõi")`, `DAYS(TODAY(); {tao_luc})`... Gần 400 hàm (formula.js), kiểm tra cú pháp và xem trước khi lưu, tự cộng ở hàng tổng.
+- **Menu trên tiêu đề cột** (nút “…”): sắp xếp tăng/giảm theo cột đó, lọc theo cột, nhóm theo cột, ẩn cột.
+- **Thanh tỉ lệ màu** dưới mỗi cột lựa chọn, giống cột trạng thái.
 - **Lọc nâng cao** nhiều điều kiện (bằng, khác, lớn hơn, chứa, rỗng...), sắp xếp, tìm kiếm.
-- **Panel chi tiết**: tab Cập nhật, Thông tin, Việc cần làm và **Tài liệu**.
+- **Panel chi tiết**: tab Cập nhật, Thông tin, Việc cần làm, **Tài liệu** và **Lịch sử** (ai đổi ô nào, từ giá trị gì sang giá trị gì, lọc theo người sửa).
 - **Tài liệu** (trình soạn thảo kiểu Notion): gắn vào từng khách hoặc dùng chung, tự lưu, 4 mẫu sẵn (Kịch bản tư vấn, Biên bản họp, Báo giá, Quy trình chăm sóc).
 
 ### Dữ liệu vào và ra
@@ -112,7 +115,7 @@ Và bộ công cụ Work OS: **Gantt**, kanban kéo thả, bảng hàng nghìn d
 - Trình tạo dạng câu kiểu monday: **Khi** [sự kiện] **và** [điều kiện] **thì** [hành động] **và** [hành động]. Bấm từng phần để chọn, kéo thả sắp thứ tự hành động.
 - 7 sự kiện: có mục mới, đổi trạng thái (từ → sang), đổi trường, điểm AI vượt ngưỡng, có cuộc gọi với kết quả…, khách nhắn tin, đến ngày (trước/sau N ngày của một trường ngày).
 - 10 hành động: tạo việc (giao cho ai), thông báo, giao người phụ trách (xoay vòng / ít việc nhất), đổi trạng thái, đổi trường, **gửi tin Zalo/ZNS/SMS/email**, **đưa vào kịch bản chăm sóc**, **gọi webhook** (n8n, Make...), ghi chú, tạo giao dịch từ khách.
-- Chống vòng lặp, lịch sử 20 lần chạy gần nhất, thư viện mẫu theo ngành. **Mô tả bằng lời → AI tạo luật**.
+- Chống vòng lặp, lịch sử từng luật, tab **Lịch sử chạy** chung (số lần chạy 7 ngày, số lần lỗi, tỉ lệ chạy trơn tru, lọc theo luật và theo kết quả), thư viện mẫu theo ngành. **Mô tả bằng lời → AI tạo luật**.
 
 ### Đội AI Agent
 
@@ -276,6 +279,18 @@ Mỗi agent có công tắc bật/tắt và **mức tự chủ** (Chỉ gợi ý
 ![Dashboard tối](docs/screenshots/45-dashboard-toi.png)
 
 <p align="center"><img src="docs/screenshots/46-dien-thoai-trang-chu.png" width="280" alt="Trang chủ trên điện thoại"> <img src="docs/screenshots/44-dien-thoai-hop-thu.png" width="280" alt="Hộp thư trên điện thoại"></p>
+
+**Thao tác trên bảng kiểu monday** (menu cột, nhóm theo cột lựa chọn, biểu đồ, lịch sử thay đổi, lịch sử chạy tự động hoá):
+
+| Menu tiêu đề cột | Nhóm theo cột lựa chọn |
+|---|---|
+| ![Menu cột](docs/screenshots/47-menu-tieu-de-cot.png) | ![Nhóm theo dịch vụ](docs/screenshots/48-nhom-theo-truong-lua-chon.png) |
+
+| Chế độ Biểu đồ | Lịch sử thay đổi của một mục |
+|---|---|
+| ![Biểu đồ](docs/screenshots/49-che-do-bieu-do.png) | ![Lịch sử](docs/screenshots/50-lich-su-thay-doi.png) |
+
+![Lịch sử chạy tự động hoá](docs/screenshots/51-lich-su-chay-tu-dong-hoa.png)
 
 ---
 

@@ -4,8 +4,11 @@ import { evalField, isMoneyFormula, numericFormula } from "@/lib/formula";
 import { avatarColor } from "@/lib/colors";
 
 export type Patch = Partial<Pick<RecordDTO, "title" | "status" | "ownerName" | "amount">> & { data?: Record<string, FieldValue> };
-export type View = "table" | "kanban" | "calendar" | "gantt";
-export type GroupBy = "status" | "owner";
+export type View = "table" | "kanban" | "calendar" | "gantt" | "chart";
+/** Nhóm theo trạng thái, người phụ trách, hoặc một trường lựa chọn ("f:<khoá>"). */
+export type GroupBy = "status" | "owner" | `f:${string}`;
+/** Sắp xếp theo một cột bất kỳ (khoá giống filterFields: title, status, owner, f:<khoá>, amount…). */
+export type ColSort = { col: string; dir: "asc" | "desc" };
 
 // ---------- Cột của bảng chính ----------
 export type Column =
@@ -99,7 +102,7 @@ export function filterFields(obj: ObjectDef, team: string[]): FilterField[] {
   return out;
 }
 
-function rawValue(r: RecordDTO, key: string, obj: ObjectDef): FieldValue | null {
+export function rawValue(r: RecordDTO, key: string, obj: ObjectDef): FieldValue | null {
   if (key === "title") return r.title;
   if (key === "status") return r.status;
   if (key === "owner") return r.ownerName;
@@ -157,9 +160,23 @@ export function applyFilters(rows: RecordDTO[], filters: Filter[], mode: "and" |
 }
 
 // ---------- Nhóm ----------
-export type Group = { key: string; label: string; color: string; match: (r: RecordDTO) => boolean; status?: string; owner?: string };
+export type Group = { key: string; label: string; color: string; match: (r: RecordDTO) => boolean; status?: string; owner?: string; field?: { key: string; value: string } };
+
+/** Trường lựa chọn dùng được để nhóm (cột nhãn màu). */
+export const groupableFields = (obj: ObjectDef) => obj.fields.filter((f) => f.type === "select" && f.options.length > 0);
 
 export function groupsOf(obj: ObjectDef, team: string[], rows: RecordDTO[], by: GroupBy, colorOf: (o: Option) => string): Group[] {
+  if (by.startsWith("f:")) {
+    const f = groupableFields(obj).find((x) => `f:${x.key}` === by);
+    if (f) {
+      const labels = new Set(f.options.map((o) => o.label));
+      return [
+        ...f.options.map((o) => ({ key: `${by}:${o.label}`, label: o.label, color: colorOf(o), match: (r: RecordDTO) => String(r.data[f.key] ?? "") === o.label, field: { key: f.key, value: o.label } })),
+        { key: `${by}:`, label: `Chưa có ${f.label.toLowerCase()}`, color: "#c4c4c4", match: (r: RecordDTO) => !labels.has(String(r.data[f.key] ?? "")) },
+      ];
+    }
+    by = "status";
+  }
   if (by === "status") return obj.statuses.map((s) => ({ key: s.key, label: s.label, color: colorOf(s), match: (r) => r.status === s.key, status: s.key }));
   const names = [...team];
   for (const r of rows) if (r.ownerName && !names.includes(r.ownerName)) names.push(r.ownerName);
@@ -167,6 +184,27 @@ export function groupsOf(obj: ObjectDef, team: string[], rows: RecordDTO[], by: 
     ...names.map((n) => ({ key: `o:${n}`, label: n, color: avatarColor(n), match: (r: RecordDTO) => r.ownerName === n, owner: n })),
     { key: "o:", label: "Chưa giao", color: "#c4c4c4", match: (r: RecordDTO) => !r.ownerName || !names.includes(r.ownerName), owner: "" },
   ];
+}
+
+// ---------- Sắp xếp theo cột ----------
+/** Khoá lọc/sắp xếp của một cột bảng (cột "updated" sắp theo ngày tạo vì không có trong bộ lọc). */
+export const colKey = (c: Column) => ("field" in c ? `f:${c.field.key}` : c.id === "updated" ? "updatedAt" : c.id);
+
+export function sortRows(rows: RecordDTO[], s: ColSort, obj: ObjectDef): RecordDTO[] {
+  const val = (r: RecordDTO): FieldValue | null => (s.col === "updatedAt" ? r.updatedAt : rawValue(r, s.col, obj));
+  const sign = s.dir === "asc" ? 1 : -1;
+  return [...rows].sort((a, b) => {
+    const x = val(a);
+    const y = val(b);
+    const ex = x === null || x === undefined || x === "";
+    const ey = y === null || y === undefined || y === "";
+    if (ex || ey) return ex === ey ? 0 : ex ? 1 : -1; // ô trống luôn nằm cuối
+    if (typeof x === "number" && typeof y === "number") return (x - y) * sign;
+    const nx = Number(x);
+    const ny = Number(y);
+    if (!isNaN(nx) && !isNaN(ny) && String(x).trim() !== "" && String(y).trim() !== "") return (nx - ny) * sign;
+    return String(x).localeCompare(String(y), "vi") * sign;
+  });
 }
 
 // ---------- Ngày ----------

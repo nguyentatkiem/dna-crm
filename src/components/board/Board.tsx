@@ -9,14 +9,16 @@ import { Icon } from "../Icon";
 import { ItemPanel } from "./ItemPanel";
 import { ImportDialog } from "./ImportDialog";
 import { CalendarView } from "./CalendarView";
-import { TableView } from "./TableView";
+import { TableView, type ColAction } from "./TableView";
 import { KanbanView } from "./KanbanView";
 import { GanttView } from "./GanttView";
+import { ChartView } from "./ChartView";
 import { BulkBar, ColumnsMenu, FilterMenu } from "./BoardMenus";
-import { applyFilters, columnsOf, filterFields, groupsOf, readLS, writeLS, type Filter, type Group, type GroupBy, type Patch, type View } from "./model";
+import { OPS, applyFilters, colKey, columnsOf, filterFields, groupableFields, groupsOf, readLS, sortRows, writeLS, type ColSort, type Column, type Filter, type Group, type GroupBy, type Patch, type View } from "./model";
+import type { FieldValue } from "@/lib/records";
 
 type Sort = "new" | "name" | "amount" | "score";
-const VIEWS: View[] = ["table", "kanban", "calendar", "gantt"];
+const VIEWS: View[] = ["table", "kanban", "calendar", "gantt", "chart"];
 
 /** Chạy hàm bất đồng bộ theo lô nhỏ để không dồn hàng trăm request cùng lúc. */
 async function inBatches<T>(items: T[], size: number, fn: (x: T) => Promise<unknown>) {
@@ -71,6 +73,8 @@ export function Board({
   const [q, setQ] = useState(initialQ);
   const [owner, setOwner] = useState("");
   const [sort, setSort] = useState<Sort>("new");
+  // Sắp xếp theo cột (menu tiêu đề cột) — khi bật thì thay cho kiểu sắp xếp có sẵn.
+  const [colSort, setColSort] = useState<ColSort | null>(null);
   const [filters, setFilters] = useState<Filter[]>([]);
   const [mode, setMode] = useState<"and" | "or">("and");
   const [groupBy, setGroupBy] = useState<GroupBy>("status");
@@ -86,12 +90,13 @@ export function Board({
   const prefKey = `board:${obj.key}`;
   useEffect(() => {
     setHidden(readLS<string[]>(`board-cols:${obj.key}`, []));
-    const p = readLS<{ groupBy?: GroupBy; filters?: Filter[]; mode?: "and" | "or" }>(prefKey, {});
+    const p = readLS<{ groupBy?: GroupBy; filters?: Filter[]; mode?: "and" | "or"; colSort?: ColSort | null }>(prefKey, {});
     if (p.groupBy) setGroupBy(p.groupBy);
+    if (p.colSort) setColSort(p.colSort);
     if (p.filters) setFilters(p.filters);
     if (p.mode) setMode(p.mode);
   }, [obj.key, prefKey]);
-  const savePref = (p: { groupBy?: GroupBy; filters?: Filter[]; mode?: "and" | "or" }) => writeLS(prefKey, { groupBy, filters, mode, ...p });
+  const savePref = (p: { groupBy?: GroupBy; filters?: Filter[]; mode?: "and" | "or"; colSort?: ColSort | null }) => writeLS(prefKey, { groupBy, filters, mode, colSort, ...p });
 
   const flash = useCallback((t: string) => {
     setToast(t);
@@ -113,8 +118,8 @@ export function Board({
       amount: (a, b) => b.amount - a.amount,
       score: (a, b) => b.score - a.score,
     };
-    return [...list].sort(by[sort]);
-  }, [records, q, owner, sort, filters, mode, fields, obj]);
+    return colSort ? sortRows(list, colSort, obj) : [...list].sort(by[sort]);
+  }, [records, q, owner, sort, colSort, filters, mode, fields, obj]);
 
   const groups = useMemo(() => groupsOf(obj, team, records, groupBy, (o) => color(o.color).bg), [obj, team, records, groupBy]);
 
@@ -137,8 +142,8 @@ export function Board({
   );
   const onPatch = useCallback((id: string, b: Patch) => void patch(id, b), [patch]);
 
-  async function create(title: string, status?: string, ownerName?: string) {
-    const res = await fetch("/api/records", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ objectKey: obj.key, title, status, ownerName }) });
+  async function create(title: string, status?: string, ownerName?: string, data?: Record<string, FieldValue>) {
+    const res = await fetch("/api/records", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ objectKey: obj.key, title, status, ownerName, data }) });
     if (!res.ok) {
       flash((await res.json().catch(() => ({}))).error ?? "Không thêm được mục");
       return;
@@ -148,7 +153,46 @@ export function Board({
     flash(`Đã thêm “${rec.title}”`);
     return rec;
   }
-  const createIn = (title: string, g: Group) => void create(title, g.status, g.owner || undefined);
+  const createIn = (title: string, g: Group) => void create(title, g.status, g.owner || undefined, g.field ? { [g.field.key]: g.field.value } : undefined);
+
+  // Menu tiêu đề cột: sắp xếp, lọc, nhóm, ẩn — giống thao tác trên tiêu đề cột của bảng kiểu monday.
+  const groupKeyOf = (c: Column): GroupBy | null => (c.id === "status" ? "status" : c.id === "owner" ? "owner" : "field" in c && c.field.type === "select" && c.field.options.length ? `f:${c.field.key}` : null);
+  const canGroup = useCallback((c: Column) => groupKeyOf(c) !== null, []);
+  const canFilter = useCallback((c: Column) => fields.some((f) => f.key === colKey(c)), [fields]);
+  const onColumn = useCallback(
+    (c: Column, a: ColAction) => {
+      if (a === "asc" || a === "desc" || a === "clear-sort") {
+        const next = a === "clear-sort" ? null : { col: colKey(c), dir: a };
+        setColSort(next);
+        savePref({ colSort: next });
+        if (next) flash(`Sắp xếp theo “${c.label}” ${a === "asc" ? "tăng dần" : "giảm dần"}`);
+        return;
+      }
+      if (a === "hide") {
+        const h = [...hidden, c.id];
+        setHidden(h);
+        writeLS(`board-cols:${obj.key}`, h);
+        flash(`Đã ẩn cột “${c.label}” — mở lại trong nút Cột`);
+        return;
+      }
+      if (a === "group") {
+        const g = groupKeyOf(c);
+        if (g) {
+          setGroupBy(g);
+          savePref({ groupBy: g });
+        }
+        return;
+      }
+      const ff = fields.find((f) => f.key === colKey(c));
+      if (!ff) return;
+      const next = [...filters, { id: Math.random().toString(36).slice(2, 8), field: ff.key, op: OPS[ff.kind][0].op, value: "" }];
+      setFilters(next);
+      savePref({ filters: next });
+      flash(`Đã thêm điều kiện lọc “${c.label}” — chọn giá trị trong nút Lọc`);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [hidden, fields, filters, obj.key, flash, groupBy, mode, colSort],
+  );
 
   async function removeOne(id: string) {
     const res = await fetch(`/api/records/${id}`, { method: "DELETE" });
@@ -214,6 +258,7 @@ export function Board({
     ["kanban", "Kanban", "kanban"],
     ...(dateFields.length ? ([["calendar", "Lịch", "calendar"]] as [View, string, string][]) : []),
     ["gantt", "Gantt", "gantt"],
+    ["chart", "Biểu đồ", "chart"],
   ];
 
   return (
@@ -268,7 +313,18 @@ export function Board({
         />
         <label className="btn-ghost">
           <Icon name="sort" size={16} />
-          <select id="board-sort" value={sort} onChange={(e) => setSort(e.target.value as Sort)} className="bg-transparent text-[14px] outline-none" aria-label="Sắp xếp">
+          <select
+            id="board-sort"
+            value={colSort ? "col" : sort}
+            onChange={(e) => {
+              setSort(e.target.value as Sort);
+              setColSort(null);
+              savePref({ colSort: null });
+            }}
+            className="bg-transparent text-[14px] outline-none"
+            aria-label="Sắp xếp"
+          >
+            {colSort && <option value="col">{colSort.dir === "asc" ? "↑" : "↓"} {allCols.find((c) => colKey(c) === colSort.col)?.label ?? colSort.col}</option>}
             <option value="new">Mới nhất</option>
             <option value="name">Theo tên</option>
             {isDeals && <option value="amount">Giá trị cao</option>}
@@ -291,6 +347,11 @@ export function Board({
             >
               <option value="status">Nhóm theo {obj.statusLabel.toLowerCase()}</option>
               <option value="owner">Nhóm theo người phụ trách</option>
+              {groupableFields(obj).map((f) => (
+                <option key={f.key} value={`f:${f.key}`}>
+                  Nhóm theo {f.label.toLowerCase()}
+                </option>
+              ))}
             </select>
           </label>
         )}
@@ -337,12 +398,14 @@ export function Board({
         <CalendarView rows={shown} obj={obj} fieldKey={calField} onOpen={setOpenId} onMove={(id, d) => void patch(id, { data: { [calField]: d } }).then((ok) => ok && flash("Đã dời lịch"))} onFieldChange={setCalField} />
       ) : view === "gantt" ? (
         <GanttView obj={obj} team={team} rows={shown} groupBy={groupBy} onPatch={(id, b) => void patch(id, b).then((ok) => ok && flash("Đã cập nhật ngày"))} onOpen={setOpenId} />
+      ) : view === "chart" ? (
+        <ChartView obj={obj} team={team} rows={shown} />
       ) : view === "kanban" ? (
         <KanbanView obj={obj} rows={shown} onMove={(id, st) => void patch(id, { status: st })} onOpen={setOpenId} onAdd={(t, st) => void create(t, st)} />
       ) : records.length ? (
         <>
           {shown.length === 0 && <p className="mt-6 text-center text-ink-2">Không có mục nào khớp bộ lọc.</p>}
-          <TableView obj={obj} team={team} groups={groups} rows={shown} cols={cols} selected={selected} onSelect={onSelect} onPatch={onPatch} onCreate={createIn} onOpen={setOpenId} />
+          <TableView obj={obj} team={team} groups={groups} rows={shown} cols={cols} selected={selected} onSelect={onSelect} onPatch={onPatch} onCreate={createIn} onOpen={setOpenId} sort={colSort} onColumn={onColumn} canGroup={canGroup} canFilter={canFilter} />
         </>
       ) : null}
 

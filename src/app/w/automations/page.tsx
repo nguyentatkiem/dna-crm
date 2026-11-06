@@ -21,6 +21,7 @@ export default async function AutomationsPage() {
       canManage={can(role, "manage_automations")}
       team={team}
       sequences={sequences}
+      runs={logs.slice(0, 300).map((l) => ({ at: l.createdAt.toISOString(), message: l.message }))}
       initial={rows.map((r) => {
         const rule = ruleOf(r);
         const name = ruleName(rule, config);

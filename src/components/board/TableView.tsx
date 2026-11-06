@@ -7,8 +7,8 @@ import type { RecordDTO } from "@/lib/records";
 import { color } from "@/lib/colors";
 import { ago, heat, vnd } from "@/lib/format";
 import { Icon } from "../Icon";
-import { FieldCell, InputCell, LabelCell, PersonCell } from "./cells";
-import { CHECK_W, TITLE_W, fieldOf, formulaMoney, formulaNumber, formulaOf, type Column, type Group, type Patch } from "./model";
+import { FieldCell, InputCell, LabelCell, PersonCell, usePopover } from "./cells";
+import { CHECK_W, TITLE_W, colKey, fieldOf, formulaMoney, formulaNumber, formulaOf, type ColSort, type Column, type Group, type Patch } from "./model";
 
 const VIRTUAL_FROM = 200;
 const ROW_H = 36;
@@ -24,10 +24,19 @@ type Props = {
   onPatch: (id: string, b: Patch) => void;
   onCreate: (title: string, g: Group) => void;
   onOpen: (id: string) => void;
+  /** Sắp xếp đang bật theo cột (hiện mũi tên trên tiêu đề cột). */
+  sort?: ColSort | null;
+  /** Menu tiêu đề cột; bỏ trống thì tiêu đề chỉ là chữ. */
+  onColumn?: (c: Column, a: ColAction) => void;
+  /** Cột nào nhóm được (trạng thái, người phụ trách, trường lựa chọn). */
+  canGroup?: (c: Column) => boolean;
+  canFilter?: (c: Column) => boolean;
 };
 
+export type ColAction = "asc" | "desc" | "clear-sort" | "filter" | "group" | "hide";
+
 /** Bảng chính kiểu monday: mỗi nhóm có viền trái màu, cột tiêu đề dính trái; nhóm > 200 dòng render ảo. */
-export function TableView({ obj, team, groups, rows, cols, selected, onSelect, onPatch, onCreate, onOpen }: Props) {
+export function TableView({ obj, team, groups, rows, cols, selected, onSelect, onPatch, onCreate, onOpen, sort, onColumn, canGroup, canFilter }: Props) {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const template = `${CHECK_W + TITLE_W}px ${cols.map((c) => `${c.w}px`).join(" ")}`;
   const moneyCols = useMemo(() => new Set(cols.filter((c) => fieldOf(c)?.type === "formula" && formulaMoney(fieldOf(c)!, obj)).map((c) => c.id)), [cols, obj]);
@@ -48,7 +57,7 @@ export function TableView({ obj, team, groups, rows, cols, selected, onSelect, o
               {list.length > VIRTUAL_FROM && <span className="rounded bg-surface-2 px-1.5 text-[11.5px] text-ink-2">cuộn nhanh</span>}
             </div>
             {!collapsed[g.key] && (
-              <GroupTable obj={obj} team={team} group={g} rows={list} cols={cols} template={template} moneyCols={moneyCols} selected={selected} onSelect={onSelect} onPatch={onPatch} onCreate={onCreate} onOpen={onOpen} />
+              <GroupTable obj={obj} team={team} group={g} rows={list} cols={cols} template={template} moneyCols={moneyCols} selected={selected} onSelect={onSelect} onPatch={onPatch} onCreate={onCreate} onOpen={onOpen} sort={sort} onColumn={onColumn} canGroup={canGroup} canFilter={canFilter} />
             )}
           </section>
         ))}
@@ -57,7 +66,7 @@ export function TableView({ obj, team, groups, rows, cols, selected, onSelect, o
   );
 }
 
-function GroupTable({ obj, team, group, rows, cols, template, moneyCols, selected, onSelect, onPatch, onCreate, onOpen }: Omit<Props, "groups"> & { group: Group; template: string; moneyCols: Set<string> }) {
+function GroupTable({ obj, team, group, rows, cols, template, moneyCols, selected, onSelect, onPatch, onCreate, onOpen, sort, onColumn, canGroup, canFilter }: Omit<Props, "groups"> & { group: Group; template: string; moneyCols: Set<string> }) {
   const allOn = rows.length > 0 && rows.every((r) => selected.has(r.id));
   const someOn = !allOn && rows.some((r) => selected.has(r.id));
   const virtual = rows.length > VIRTUAL_FROM;
@@ -79,15 +88,9 @@ function GroupTable({ obj, team, group, rows, cols, template, moneyCols, selecte
           </span>
           <span className="pl-1">{obj.itemLabel}</span>
         </div>
-        {cols.map((c) => {
-          const f = fieldOf(c);
-          return (
-            <div key={c.id} role="columnheader" title={f?.type === "formula" ? `Công thức: ${f.formula ?? ""}` : undefined} className="flex h-9 items-center justify-center gap-1 truncate border-b border-r border-t border-line-soft bg-surface px-1 text-[13px] text-ink-2">
-              {f?.type === "formula" && <Icon name="formula" size={13} />}
-              <span className="truncate">{c.label}</span>
-            </div>
-          );
-        })}
+        {cols.map((c) => (
+          <ColumnHeader key={c.id} c={c} sort={sort} onColumn={onColumn} canGroup={canGroup?.(c) ?? false} canFilter={canFilter?.(c) ?? false} />
+        ))}
       </div>
       {virtual ? (
         <VirtualRows obj={obj} team={team} rows={rows} cols={cols} template={template} moneyCols={moneyCols} selected={selected} onSelect={onSelect} onPatch={onPatch} onOpen={onOpen} />
@@ -101,6 +104,53 @@ function GroupTable({ obj, team, group, rows, cols, template, moneyCols, selecte
         <div className="h-9 border-b border-line-soft" style={{ gridColumn: `span ${cols.length}` }} />
       </div>
       <SumRow obj={obj} rows={rows} cols={cols} template={template} moneyCols={moneyCols} />
+    </div>
+  );
+}
+
+/** Tiêu đề cột kiểu monday: rê chuột hiện nút "…" mở menu sắp xếp / lọc / nhóm / ẩn cột. */
+function ColumnHeader({ c, sort, onColumn, canGroup, canFilter }: { c: Column; sort?: ColSort | null; onColumn?: Props["onColumn"]; canGroup: boolean; canFilter: boolean }) {
+  const p = usePopover();
+  const f = fieldOf(c);
+  const sorted = sort && sort.col === colKey(c) ? sort.dir : null;
+  const act = (a: ColAction) => {
+    p.setOpen(false);
+    onColumn?.(c, a);
+  };
+  const item = (a: ColAction, icon: string, label: string, on = false) => (
+    <button key={a} type="button" role="menuitem" onClick={() => act(a)} className={`flex h-8 w-full items-center gap-2 rounded px-2 text-left text-[13.5px] hover:bg-hover ${on ? "font-medium text-primary" : "text-ink"}`}>
+      <Icon name={icon} size={15} className="flex-none text-ink-2" /> {label}
+    </button>
+  );
+  return (
+    <div ref={p.ref} role="columnheader" aria-sort={sorted === "asc" ? "ascending" : sorted === "desc" ? "descending" : undefined} title={f?.type === "formula" ? `Công thức: ${f.formula ?? ""}` : undefined} className="group/h relative flex h-9 items-center justify-center gap-1 border-b border-r border-t border-line-soft bg-surface px-1 text-[13px] text-ink-2">
+      {f?.type === "formula" && <Icon name="formula" size={13} className="flex-none" />}
+      <span className="truncate">{c.label}</span>
+      {sorted && <span className="flex-none text-[11px] text-primary" aria-hidden="true">{sorted === "asc" ? "▲" : "▼"}</span>}
+      {onColumn && (
+        <button
+          type="button"
+          onClick={() => p.setOpen(!p.open)}
+          aria-label={`Tuỳ chọn cột ${c.label}`}
+          aria-haspopup="menu"
+          aria-expanded={p.open}
+          className={`absolute right-1 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded bg-surface text-[15px] leading-none text-ink-2 hover:bg-hover hover:text-ink focus:opacity-100 group-hover/h:opacity-100 max-md:opacity-100 ${p.open ? "opacity-100" : "opacity-0"}`}
+        >
+          …
+        </button>
+      )}
+      {p.open && (
+        <div role="menu" aria-label={`Cột ${c.label}`} className="anim-fade absolute right-0 top-full z-40 mt-1 w-56 rounded-lg bg-surface p-1.5 text-left shadow-panel">
+          <p className="px-2 pb-1 pt-0.5 text-[11.5px] font-medium uppercase tracking-wide text-ink-2">{c.label}</p>
+          {item("asc", "sort", "Sắp xếp tăng dần", sorted === "asc")}
+          {item("desc", "sort", "Sắp xếp giảm dần", sorted === "desc")}
+          {sorted && item("clear-sort", "x", "Bỏ sắp xếp")}
+          <div className="my-1 h-px bg-line-soft" />
+          {canFilter && item("filter", "filter", "Lọc theo cột này")}
+          {canGroup && item("group", "board", "Nhóm theo cột này")}
+          {item("hide", "eye-off", "Ẩn cột")}
+        </div>
+      )}
     </div>
   );
 }
@@ -245,6 +295,18 @@ function SumRow({ obj, rows, cols, template, moneyCols }: { obj: ObjectDef; rows
             }
           }
           return any ? <Sum label="tổng" value={n} money={moneyCols.has(col.id)} /> : null;
+        }
+        if (f?.type === "select" && f.options.length) {
+          const counted = f.options.map((o) => ({ o, k: rows.filter((r) => String(r.data[f.key] ?? "") === o.label).length })).filter((x) => x.k);
+          const n = counted.reduce((a, x) => a + x.k, 0);
+          return (
+            <div className="flex h-5 w-[120px] overflow-hidden rounded-sm" title={`${n}/${rows.length} mục có ${f.label.toLowerCase()}`}>
+              {counted.map(({ o, k }) => (
+                <span key={o.label} style={{ width: `${(k / rows.length) * 100}%`, background: color(o.color).bg }} title={`${o.label}: ${k}`} />
+              ))}
+              {n < rows.length && <span className="flex-1" style={{ background: "var(--line-soft)" }} title={`Trống: ${rows.length - n}`} />}
+            </div>
+          );
         }
         if (col.id === "status")
           return (

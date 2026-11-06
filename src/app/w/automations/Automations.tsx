@@ -32,7 +32,8 @@ import {
 
 type Row = { id: string; enabled: boolean; runs: number; createdAt: string; rule: Rule; lastRunAt: string | null };
 type Seq = { id: string; name: string };
-type Props = { config: WorkspaceConfig; initial: Row[]; canManage: boolean; team: string[]; sequences: Seq[] };
+type Run = { at: string; message: string };
+type Props = { config: WorkspaceConfig; initial: Row[]; canManage: boolean; team: string[]; sequences: Seq[]; runs?: Run[] };
 
 const json = (method: string, body: unknown) => ({ method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 const CHANNELS_REC: Record<string, string> = { ads: "Quảng cáo", organic: "Tự nhiên", zalo: "Zalo OA", ecommerce: "Sàn TMĐT", website: "Website", call: "Tổng đài", other: "Khác" };
@@ -85,12 +86,12 @@ function Sentence({ rule, config, sequences }: { rule: Rule; config: WorkspaceCo
   );
 }
 
-export function Automations({ config, initial, canManage, team, sequences }: Props) {
+export function Automations({ config, initial, canManage, team, sequences, runs = [] }: Props) {
   const [rows, setRows] = useState(initial);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
-  const [tab, setTab] = useState<"rules" | "library">("rules");
+  const [tab, setTab] = useState<"rules" | "library" | "runs">("rules");
   const [editing, setEditing] = useState<{ id: string | null; rule: Rule } | null>(null);
   const [history, setHistory] = useState<Record<string, { at: string; message: string }[] | "loading">>({});
   const library = useMemo(() => templates(config), [config]);
@@ -191,6 +192,7 @@ export function Automations({ config, initial, canManage, team, sequences }: Pro
           [
             ["rules", `Luật của bạn (${rows.length})`],
             ["library", "Thư viện mẫu"],
+            ["runs", "Lịch sử chạy"],
           ] as const
         ).map(([k, label]) => (
           <button key={k} type="button" onClick={() => setTab(k)} className={`-mb-px border-b-2 px-3 py-2 text-[14px] ${tab === k ? "border-primary font-medium text-ink" : "border-transparent text-ink-2 hover:text-ink"}`}>
@@ -199,7 +201,9 @@ export function Automations({ config, initial, canManage, team, sequences }: Pro
         ))}
       </nav>
 
-      {tab === "rules" ? (
+      {tab === "runs" ? (
+        <RunHistory runs={runs} names={rows.map((r, i) => r.rule.name || `Luật ${i + 1}`)} />
+      ) : tab === "rules" ? (
         <div className="mt-4 grid gap-3 xl:grid-cols-2">
           {rows.map((r, i) => {
             const h = history[r.id];
@@ -849,6 +853,99 @@ function ActionEditor({ a, objectKey, config, team, sequences, onChange }: { a: 
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+/** Tách dòng nhật ký "[Tên luật] Mục: 2/3 hành động (…) · Lỗi: …" thành các phần để hiển thị. */
+function parseRun(r: Run) {
+  const m = /^\[([^\]]*)\]\s*(.*)$/s.exec(r.message);
+  const rule = m?.[1] ?? "";
+  const rest = m?.[2] ?? r.message;
+  const [body, err] = rest.split(" · Lỗi: ");
+  const stop = rule && body.startsWith("Dừng chuỗi");
+  return { rule, body, error: err ?? (stop ? body : ""), at: r.at };
+}
+
+/** Lịch sử chạy chung mọi luật: tình trạng 7 ngày, lọc theo luật và theo kết quả. */
+function RunHistory({ runs, names }: { runs: Run[]; names: string[] }) {
+  const [rule, setRule] = useState("");
+  const [only, setOnly] = useState<"" | "ok" | "error">("");
+  const items = useMemo(() => runs.map(parseRun), [runs]);
+  const week = items.filter((x) => Date.now() - new Date(x.at).getTime() < 7 * 864e5);
+  const failed = week.filter((x) => x.error).length;
+  const rules = [...new Set([...names, ...items.map((x) => x.rule)].filter(Boolean))];
+  const shown = items.filter((x) => (!rule || x.rule === rule) && (!only || (only === "error" ? !!x.error : !x.error)));
+  const health = week.length ? Math.round(((week.length - failed) / week.length) * 100) : 100;
+
+  return (
+    <div className="mt-4 grid gap-4">
+      <div className="grid gap-3 sm:grid-cols-3">
+        {(
+          [
+            ["Lần chạy 7 ngày", String(week.length), ""],
+            ["Lần có lỗi", String(failed), failed ? "text-[#df2f4a]" : ""],
+            ["Tỉ lệ chạy trơn tru", `${health}%`, health >= 95 ? "text-[#00a35f]" : health >= 80 ? "text-[#c97a00]" : "text-[#df2f4a]"],
+          ] as const
+        ).map(([label, value, cls]) => (
+          <div key={label} className="card p-4">
+            <p className="text-[13px] text-ink-2">{label}</p>
+            <p className={`tnum mt-1 text-[26px] font-semibold leading-tight ${cls}`}>{value}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 text-[14px]">
+        <label className="btn-ghost">
+          <Icon name="bolt" size={16} />
+          <select aria-label="Lọc theo luật" value={rule} onChange={(e) => setRule(e.target.value)} className="max-w-[260px] bg-transparent outline-none">
+            <option value="">Mọi luật</option>
+            {rules.map((n) => (
+              <option key={n}>{n}</option>
+            ))}
+          </select>
+        </label>
+        <div className="flex overflow-hidden rounded border border-line" role="group" aria-label="Lọc theo kết quả">
+          {(
+            [
+              ["", "Tất cả"],
+              ["ok", "Thành công"],
+              ["error", "Có lỗi"],
+            ] as const
+          ).map(([k, label]) => (
+            <button key={k} type="button" aria-pressed={only === k} onClick={() => setOnly(k)} className={`h-8 px-3 ${only === k ? "bg-primary-selected text-primary" : "hover:bg-hover"}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <span className="ml-auto text-[13px] text-ink-2">{shown.length} lần chạy</span>
+      </div>
+
+      {shown.length === 0 ? (
+        <div className="card grid place-items-center gap-2 p-10 text-center">
+          <Icon name="history" size={28} className="text-ink-2" />
+          <p className="font-medium">{items.length ? "Không có lần chạy nào khớp bộ lọc" : "Chưa có lần chạy nào"}</p>
+          <p className="max-w-md text-[13.5px] text-ink-2">Mỗi khi một luật được kích hoạt, kết quả từng hành động sẽ hiện ở đây.</p>
+        </div>
+      ) : (
+        <ol className="card divide-y divide-[var(--line-soft)]">
+          {shown.slice(0, 200).map((x, i) => (
+            <li key={i} className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3 px-4 py-3 text-[13.5px]">
+              <span className={`mt-1 grid h-5 w-5 place-items-center rounded-full text-[11px] text-white ${x.error ? "bg-[#df2f4a]" : "bg-[#00c875]"}`} aria-label={x.error ? "Có lỗi" : "Thành công"}>
+                {x.error ? "!" : "✓"}
+              </span>
+              <div className="min-w-0">
+                <p className="truncate font-medium">{x.rule || "Luật"}</p>
+                <p className="break-words text-ink-2">{x.body}</p>
+                {x.error && x.error !== x.body && <p className="mt-1 break-words rounded bg-[#df2f4a]/10 px-2 py-1 text-[12.5px] text-[#c4253f]">Lỗi: {x.error}</p>}
+              </div>
+              <span className="flex-none text-[12.5px] text-ink-2" suppressHydrationWarning title={new Date(x.at).toLocaleString("vi-VN")}>
+                {ago(x.at)}
+              </span>
+            </li>
+          ))}
+        </ol>
+      )}
     </div>
   );
 }
