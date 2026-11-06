@@ -6,6 +6,7 @@ import { toCsv } from "@/lib/csv";
 import { slug } from "@/lib/config/templates";
 import { can, getRole, recordScope } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
+import { afterExport, checkExportQuota, getPrivacy, maskRecord } from "@/lib/privacy";
 import { buildXlsx, recordsSheet, XLSX_MIME, type Cell } from "@/lib/xlsx";
 
 /**
@@ -17,7 +18,9 @@ export async function GET(req: Request) {
   const a = await appApi();
   if ("error" in a) return a.error;
   const { ctx } = a;
-  if (!can(await getRole(ctx.user.id, ctx.workspace.id), "export")) return fail("Bạn không có quyền xuất dữ liệu. Hãy nhờ chủ hoặc quản lý.", 403);
+  const role = await getRole(ctx.user.id, ctx.workspace.id);
+  if (!can(role, "export")) return fail("Bạn không có quyền xuất dữ liệu. Hãy nhờ chủ hoặc quản lý.", 403);
+  const prefs = await getPrivacy(ctx.workspace.id);
 
   const sp = new URL(req.url).searchParams;
   const key = sp.get("object") ?? "contacts";
@@ -32,14 +35,17 @@ export async function GET(req: Request) {
       const rows = await db.record.findMany({ where: { ...scope, objectKey: obj.key }, orderBy: { createdAt: "asc" } });
       return recordsSheet(
         obj,
-        rows.map((r) => ({ ...r, data: parseJson<Record<string, string | number>>(r.dataJson, {}) })),
+        rows.map((r) => maskRecord({ ...r, data: parseJson<Record<string, string | number>>(r.dataJson, {}) }, obj, role, prefs)),
       );
     }),
   );
   const total = sheets.reduce((s, x) => s + x.rows.length, 0);
+  const quota = await checkExportQuota(ctx, total, role);
+  if (!quota.ok) return fail(quota.message, 429);
   const date = new Date().toISOString().slice(0, 10);
   const name = key === "all" ? "crm" : key;
-  await audit({ workspaceId: ctx.workspace.id, user: ctx.user }, "export", "record", key, `Xuất ${total} mục (${objs.map((o) => o.label).join(", ")}) ra ${format.toUpperCase()}`);
+  await audit({ workspaceId: ctx.workspace.id, user: ctx.user }, "export", "record", key, `Xuất ${total} mục (${objs.map((o) => o.label).join(", ")}) ra ${format.toUpperCase()}`, { rows: total });
+  await afterExport(ctx, total, objs.map((o) => o.label).join(", "));
 
   if (format === "csv") {
     const s = sheets[0];
@@ -61,19 +67,24 @@ export async function POST(req: Request) {
   const a = await appApi();
   if ("error" in a) return a.error;
   const { ctx } = a;
-  if (!can(await getRole(ctx.user.id, ctx.workspace.id), "export")) return fail("Bạn không có quyền xuất dữ liệu. Hãy nhờ chủ hoặc quản lý.", 403);
+  const role = await getRole(ctx.user.id, ctx.workspace.id);
+  if (!can(role, "export")) return fail("Bạn không có quyền xuất dữ liệu. Hãy nhờ chủ hoặc quản lý.", 403);
   const p = Pick.safeParse(await req.json().catch(() => ({})));
   if (!p.success) return fail("Thiếu danh sách mục cần xuất");
   const obj = getObject(ctx.config, p.data.object);
   if (!obj) return fail("Không có bảng này", 404);
   const scope = await recordScope(ctx);
   const rows = await db.record.findMany({ where: { AND: [scope, { objectKey: obj.key, id: { in: p.data.ids } }] }, orderBy: { createdAt: "asc" } });
+  const prefs = await getPrivacy(ctx.workspace.id);
   const sheet = recordsSheet(
     obj,
-    rows.map((r) => ({ ...r, data: parseJson<Record<string, string | number>>(r.dataJson, {}) })),
+    rows.map((r) => maskRecord({ ...r, data: parseJson<Record<string, string | number>>(r.dataJson, {}) }, obj, role, prefs)),
   );
+  const quota = await checkExportQuota(ctx, rows.length, role);
+  if (!quota.ok) return fail(quota.message, 429);
   const label = p.data.label?.trim() || obj.label;
-  await audit({ workspaceId: ctx.workspace.id, user: ctx.user }, "export", "record", obj.key, `Xuất ${rows.length} mục nhóm “${label}” (${obj.label}) ra XLSX`);
+  await audit({ workspaceId: ctx.workspace.id, user: ctx.user }, "export", "record", obj.key, `Xuất ${rows.length} mục nhóm “${label}” (${obj.label}) ra XLSX`, { rows: rows.length });
+  await afterExport(ctx, rows.length, `nhóm ${label}`);
   const buf = await buildXlsx([sheet]);
   const file = `${obj.key}-${slug(label) || "nhom"}-${new Date().toISOString().slice(0, 10)}.xlsx`;
   return new Response(new Uint8Array(buf), {

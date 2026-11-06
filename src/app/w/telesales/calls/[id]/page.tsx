@@ -7,6 +7,7 @@ import { customerSentiment, scoreColor, segmentsOf, talkStats } from "@/lib/call
 import { color } from "@/lib/colors";
 import { Review } from "./Review";
 import { Conversation } from "./Conversation";
+import { CreateTicketButton } from "@/components/care/CreateTicketButton";
 
 const SENT: Record<string, string> = { tich_cuc: "Tích cực", trung_lap: "Trung lập", tieu_cuc: "Tiêu cực" };
 
@@ -35,6 +36,9 @@ export default async function CallPage({ params }: { params: Promise<{ id: strin
         </h1>
         <span className="rounded px-2 py-0.5 text-[13px] font-medium" style={{ background: color(o.color).bg, color: color(o.color).fg }}>
           {o.label}
+        </span>
+        <span className="ml-auto">
+          <CreateTicketButton callId={call.id} className="btn-outline h-8 text-[13px]" label="Tạo phiếu hỗ trợ" />
         </span>
       </header>
       <p className="mt-1 text-[13.5px] text-ink-2">

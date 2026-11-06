@@ -6,7 +6,7 @@ import { contactInfo, loadCfg } from "./store";
 import { CHANNEL_LABEL, fillVars, type VarValues } from "./shared";
 
 export type Channel = "zalo" | "zns" | "sms" | "email" | "messenger";
-export type SendInput = { channel: Channel; recordId?: string; sequenceId?: string; to?: string; subject?: string; body: string; templateId?: string; params?: Record<string, string> };
+export type SendInput = { channel: Channel; recordId?: string; sequenceId?: string; broadcastId?: string; to?: string; subject?: string; body: string; templateId?: string; params?: Record<string, string> };
 export type SendResult = { ok: boolean; error?: string; skipped?: boolean };
 
 /** Đổi SĐT Việt Nam về dạng 84xxxxxxxxx (ZNS, nhà mạng yêu cầu). */
@@ -64,7 +64,7 @@ export async function sendMessage(workspaceId: string, input: SendInput): Promis
 
   const log = async (status: "sent" | "failed" | "skipped" | "dry_run", error = "", provider = "") => {
     await db.outMessage.create({
-      data: { workspaceId, recordId: record?.id, sequenceId: input.sequenceId, channel: input.channel, to: to.slice(0, 200), subject: subject.slice(0, 300), body: body.slice(0, 5000), status, error: error.slice(0, 500), provider },
+      data: { workspaceId, recordId: record?.id, sequenceId: input.sequenceId, broadcastId: input.broadcastId, channel: input.channel, to: to.slice(0, 200), subject: subject.slice(0, 300), body: body.slice(0, 5000), status, error: error.slice(0, 500), provider },
     });
     if (record) {
       const head = status === "sent" ? `Đã gửi ${CHANNEL_LABEL[input.channel]}` : status === "dry_run" ? `Chạy thử ${CHANNEL_LABEL[input.channel]} (không gửi thật)` : status === "skipped" ? `Bỏ qua tin ${CHANNEL_LABEL[input.channel]}: ${error}` : `Gửi ${CHANNEL_LABEL[input.channel]} lỗi: ${error}`;

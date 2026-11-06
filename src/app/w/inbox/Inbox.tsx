@@ -7,6 +7,7 @@ import { Avatar } from "@/components/Avatar";
 import { color } from "@/lib/colors";
 import { ago } from "@/lib/format";
 import type { Attachment, ConversationDTO, MessageDTO, RecordCard } from "@/lib/inbox";
+import { CreateTicketButton } from "@/components/care/CreateTicketButton";
 
 type Counts = { all: number; unread: number; mine: number; done: number };
 type ListData = { items: ConversationDTO[]; counts: Counts; unreadTotal: number };
@@ -367,6 +368,7 @@ function Thread({ conv, messages, me, team, onBack, onInfo, onChanged }: { conv:
             ))}
             {conv.assignee && !members.includes(conv.assignee) && <option value={conv.assignee}>{conv.assignee}</option>}
           </select>
+          <CreateTicketButton conversationId={conv.id} className="btn-ghost h-8 text-[13px]" label="Tạo phiếu" />
           {conv.status === "done" ? (
             <button type="button" className="btn-outline h-8 text-[13px]" disabled={!!busy} onClick={() => patch({ status: "open" }, "status")}>
               <Icon name="refresh" size={14} /> Mở lại

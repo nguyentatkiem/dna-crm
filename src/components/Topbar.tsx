@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { InstallAppButton } from "./pwa/InstallAppButton";
+import { clearPwaPages } from "./pwa/PwaRegister";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Icon, Logo } from "./Icon";
@@ -119,6 +121,8 @@ export function Topbar({ workspace, user, searchHref = "/w/b/contacts" }: { work
   }
 
   async function logout() {
+    // Xoá các trang app điện thoại đã lưu để người sau dùng máy không thấy dữ liệu cũ.
+    clearPwaPages();
     await fetch("/api/auth/logout", { method: "POST" });
     window.location.href = "/login";
   }
@@ -149,6 +153,8 @@ export function Topbar({ workspace, user, searchHref = "/w/b/contacts" }: { work
       <button type="button" onClick={cycleTheme} className="btn-ghost h-8 w-8 flex-none justify-center p-0" aria-label={`Giao diện: ${THEME_LABEL[theme]}. Bấm để đổi`} title={`Giao diện: ${THEME_LABEL[theme]}`}>
         <Icon name={THEME_ICON[theme]} size={17} />
       </button>
+
+      <InstallAppButton compact className="btn-ghost h-8 flex-none px-2" />
 
       <div ref={bellRef} className="relative flex-none">
         <button

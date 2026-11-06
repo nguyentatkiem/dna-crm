@@ -7,6 +7,10 @@ import { seedMarketing } from "./marketing/sequences";
 import { seedDocs } from "./docs";
 import { seedDashboards } from "./dashboards";
 import { refreshPredictions } from "./predict";
+import { seedAdmin } from "./admin-seed";
+import { seedCare } from "./care/seed";
+import { seedSales } from "./sales/seed";
+import { seedMarketing3 } from "./marketing/seed3";
 
 const NAMES = ["Nguyễn Thị Lan", "Trần Minh Khoa", "Lê Thu Hà", "Phạm Quốc Bảo", "Hoàng Ngọc Mai", "Vũ Đức Anh", "Đặng Thảo Vy", "Bùi Gia Huy", "Đỗ Phương Linh", "Ngô Thanh Tùng", "Dương Mỹ Duyên", "Lý Hoàng Nam", "Trịnh Khánh Ngân", "Phan Tuấn Kiệt"];
 const COMPANIES = ["Cty TNHH Minh Phát", "CP Đại Tín", "Tân Hưng Logistics", "Hoàng Gia Foods", "An Khang Pharma", "Việt Á Steel"];
@@ -102,6 +106,15 @@ export async function seedSample(workspaceId: string, cfg: WorkspaceConfig) {
     ["dashboards", seedDashboards],
   ] as const) {
     await fn(workspaceId, cfg).catch((e) => console.error(`[sample ${name}]`, e instanceof Error ? e.message : e));
+  }
+  // Module bán hàng, chăm sóc, marketing hàng loạt, KPI/bảng tin: chạy theo thứ tự (chăm sóc cần sản phẩm, KPI cần đơn hàng).
+  for (const [name, fn] of [
+    ["sales", seedSales],
+    ["care", seedCare],
+    ["marketing3", seedMarketing3],
+    ["admin", seedAdmin],
+  ] as const) {
+    await fn(workspaceId).catch((e) => console.error(`[sample ${name}]`, e instanceof Error ? e.message : e));
   }
   await refreshPredictions(workspaceId).catch(() => undefined);
 }

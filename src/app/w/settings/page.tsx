@@ -7,6 +7,7 @@ import { SettingsActions } from "./SettingsActions";
 import { Members } from "./Members";
 import { FormEmbed } from "./FormEmbed";
 import { FieldEditor } from "./FieldEditor";
+import { PushToggle } from "@/components/pwa/PushToggle";
 
 export default async function SettingsPage() {
   const { workspace, config, configVersion } = await requireApp();
@@ -33,6 +34,12 @@ export default async function SettingsPage() {
           </Link>
           <Link href="/w/trash" className="btn-outline">
             Thùng rác
+          </Link>
+          <Link href="/w/settings/company" className="btn-outline">
+            Thông tin doanh nghiệp
+          </Link>
+          <Link href="/w/settings/privacy" className="btn-outline">
+            Bảo mật dữ liệu
           </Link>
           <Link href="/onboarding" className="btn-primary">
             Sửa DNA và sinh lại
@@ -79,6 +86,7 @@ export default async function SettingsPage() {
         </section>
       </div>
 
+      <PushToggle className="card mt-4 p-4" />
       <Members />
       <FormEmbed formKey={workspace.formKey} />
       <FieldEditor config={config} />

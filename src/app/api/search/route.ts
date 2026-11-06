@@ -1,6 +1,7 @@
 import { db, parseJson } from "@/lib/db";
 import { appApi, ok } from "@/lib/http";
-import { recordScope } from "@/lib/permissions";
+import { getRole, recordScope } from "@/lib/permissions";
+import { getPrivacy, maskPhoneFor } from "@/lib/privacy";
 import { color } from "@/lib/colors";
 
 /** Bỏ dấu, chữ thường để tìm không phân biệt dấu ("nguyen" khớp "Nguyễn"). */
@@ -55,6 +56,7 @@ export async function GET(req: Request) {
   }
   hits.sort((x, y) => x.rank - y.rank);
 
+  const [role, prefs] = await Promise.all([getRole(a.ctx.user.id, a.ctx.workspace.id), getPrivacy(a.ctx.workspace.id)]);
   const records = hits.slice(0, LIMIT).map(({ r, phone }) => {
     const obj = config.objects.find((o) => o.key === r.objectKey);
     const st = obj?.statuses.find((s) => s.key === r.status);
@@ -65,7 +67,7 @@ export async function GET(req: Request) {
       objectLabel: obj?.label ?? r.objectKey,
       status: st?.label ?? r.status,
       color: color(st?.color).bg,
-      phone,
+      phone: maskPhoneFor(role, prefs, phone),
       amount: r.amount,
       owner: r.ownerName,
       href: `/w/b/${r.objectKey}?open=${r.id}`,

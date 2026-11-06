@@ -10,6 +10,8 @@ import { Avatar } from "../Avatar";
 import { FieldCell, InputCell, LabelCell, PersonCell } from "./cells";
 import { RecordDocs } from "./RecordDocs";
 import { RecordHistory } from "./RecordHistory";
+import { RecordLoyalty } from "../care/RecordLoyalty";
+import { RecordSales } from "../sales/RecordSales";
 import { MentionTextarea, WithMentions } from "./Mentions";
 import { WinProb } from "./TableView";
 import { evalField, isMoneyFormula } from "@/lib/formula";
@@ -19,7 +21,7 @@ type Task = { id: string; title: string; dueAt: string | null; done: boolean; so
 type Patch = Partial<Pick<RecordDTO, "title" | "status" | "ownerName" | "amount">> & { data?: Record<string, FieldValue> };
 
 export function ItemPanel({ obj, team, record, onClose, onPatch, onDelete, canDelete = true }: { obj: ObjectDef; team: string[]; record: RecordDTO; onClose: () => void; onPatch: (b: Patch) => void; onDelete: () => void; canDelete?: boolean }) {
-  const [tab, setTab] = useState<"updates" | "info" | "tasks" | "docs" | "history">("updates");
+  const [tab, setTab] = useState<"updates" | "info" | "tasks" | "docs" | "history" | "loyalty">("updates");
   const [docCount, setDocCount] = useState<number | null>(null);
   const [acts, setActs] = useState<Activity[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -123,6 +125,7 @@ export function ItemPanel({ obj, team, record, onClose, onPatch, onDelete, canDe
                   ["tasks", `Việc (${tasks.filter((t) => !t.done).length})`],
                   ["docs", docCount === null ? "Tài liệu" : `Tài liệu (${docCount})`],
                   ["history", "Lịch sử"],
+                  ...(obj.key === "contacts" ? ([["loyalty", "Điểm thưởng"]] as const) : []),
                 ] as const
               ).map(([k, label]) => (
                 <button key={k} type="button" onClick={() => setTab(k)} className={`-mb-px h-9 flex-none border-b-2 px-3 text-[14px] ${tab === k ? "border-primary" : "border-transparent text-ink-2 hover:text-ink"}`}>
@@ -251,8 +254,11 @@ export function ItemPanel({ obj, team, record, onClose, onPatch, onDelete, canDe
               </div>}
             </dl>
           )}
+          {tab === "info" && <RecordSales recordId={record.id} objectKey={record.objectKey} />}
 
           {tab === "history" && <RecordHistory obj={obj} recordId={record.id} version={record.updatedAt} />}
+
+          {tab === "loyalty" && <RecordLoyalty recordId={record.id} />}
 
           {tab === "docs" && <RecordDocs recordId={record.id} onCount={setDocCount} />}
 

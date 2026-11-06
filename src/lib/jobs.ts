@@ -5,6 +5,10 @@ import { refreshPredictions } from "./predict";
 import { autoBackup } from "./backup";
 import { tickDateAutomations } from "./automation";
 import { purgeExpired } from "./trash";
+import { tickKpi } from "./kpi";
+import { tickTickets, tickWarranties } from "./care/jobs";
+import { tickBroadcasts } from "./marketing/broadcast";
+import { tickContracts, tickDebts } from "./sales/jobs";
 
 type Job = { name: string; everyMin: number; run: () => Promise<void> };
 
@@ -17,6 +21,12 @@ export const JOBS: Job[] = [
   { name: "Sao lưu", everyMin: 60, run: autoBackup },
   { name: "Tự động hoá theo ngày", everyMin: 60, run: () => tickDateAutomations() },
   { name: "Dọn thùng rác", everyMin: 360, run: () => purgeExpired() },
+  { name: "Nhắc KPI hằng tuần", everyMin: 60, run: () => tickKpi() },
+  { name: "Nhắc hợp đồng", everyMin: 60, run: () => tickContracts().then(() => undefined) },
+  { name: "Nhắc công nợ", everyMin: 60, run: () => tickDebts().then(() => undefined) },
+  { name: "Gửi hàng loạt", everyMin: 1, run: () => tickBroadcasts().then(() => undefined) },
+  { name: "SLA phiếu hỗ trợ", everyMin: 5, run: () => tickTickets().then(() => undefined) },
+  { name: "Bảo hành sắp hết hạn", everyMin: 360, run: () => tickWarranties().then(() => undefined) },
 ];
 
 const g = globalThis as unknown as { crmJobs?: { started: boolean; last: Record<string, number>; running: Set<string> } };

@@ -1,0 +1,26 @@
+{
+  "name": "DNA CRM",
+  "short_name": "DNA CRM",
+  "description": "CRM đa ngành tự may đo theo DNA doanh nghiệp",
+  "lang": "vi",
+  "dir": "ltr",
+  "id": "/w",
+  "start_url": "/w",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "theme_color": "#0073ea",
+  "background_color": "#eceff8",
+  "categories": ["business", "productivity"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Việc của tôi", "url": "/w/my-work", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Bảng tin", "url": "/w/feed", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Chỉ tiêu KPI", "url": "/w/kpi", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

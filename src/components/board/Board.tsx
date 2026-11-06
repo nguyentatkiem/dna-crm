@@ -14,6 +14,7 @@ import { KanbanView } from "./KanbanView";
 import { GanttView } from "./GanttView";
 import { ChartView } from "./ChartView";
 import { BoardActivity, RowMenu, ViewOptions, type RowAction } from "./BoardExtras";
+import { SaveSegmentButton } from "../care/SaveSegmentButton";
 import { BulkBar, ColumnsMenu, FilterMenu } from "./BoardMenus";
 import { OPS, applyFilters, colKey, columnsOf, filterFields, groupableFields, groupsOf, readLS, sortRows, writeLS, ROW_HEIGHT, tintOf, type ColorRule, type Density, type ColSort, type Column, type Filter, type Group, type GroupBy, type Patch, type View } from "./model";
 import type { FieldValue } from "@/lib/records";
@@ -292,18 +293,30 @@ export function Board({
     else if (a.kind === "delete") void remove(r.id);
   };
 
-  async function exportGroup(g: Group, ids: string[]) {
-    flash(`Đang xuất nhóm “${g.label}”…`);
-    const res = await fetch("/api/records/export", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ object: obj.key, ids, label: g.label }) });
-    if (!res.ok) return flash((await res.json().catch(() => ({}))).error ?? "Không xuất được");
-    const name = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") ?? "")?.[1] ?? `${obj.key}.xlsx`;
+  // Tải qua fetch để báo lỗi dễ hiểu (vượt hạn mức xuất trong ngày, không có quyền) thay vì hiện JSON thô.
+  async function download(res: Response, fallback: string) {
+    if (!res.ok) {
+      flash((await res.json().catch(() => ({}))).error ?? "Không xuất được");
+      return false;
+    }
+    const name = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") ?? "")?.[1] ?? fallback;
     const url = URL.createObjectURL(await res.blob());
     const a = document.createElement("a");
     a.href = url;
     a.download = name;
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
-    flash(`Đã xuất ${ids.length} mục nhóm “${g.label}”`);
+    return true;
+  }
+  async function exportAll() {
+    flash("Đang xuất Excel…");
+    if (await download(await fetch(`/api/records/export?object=${obj.key}`), `${obj.key}.xlsx`)) flash("Đã xuất Excel");
+  }
+
+  async function exportGroup(g: Group, ids: string[]) {
+    flash(`Đang xuất nhóm “${g.label}”…`);
+    const res = await fetch("/api/records/export", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ object: obj.key, ids, label: g.label }) });
+    if (await download(res, `${obj.key}.xlsx`)) flash(`Đã xuất ${ids.length} mục nhóm “${g.label}”`);
   }
 
   const ext = useMemo<RowExt>(
@@ -379,6 +392,7 @@ export function Board({
             savePref({ filters: f, mode: m });
           }}
         />
+        <SaveSegmentButton objectKey={obj.key} filters={filters} mode={mode} />
         <label className="btn-ghost">
           <Icon name="sort" size={16} />
           <select
@@ -454,9 +468,9 @@ export function Board({
             </button>
           )}
           {canExport && (
-            <a className="btn-ghost" href={`/api/records/export?object=${obj.key}`}>
+            <button type="button" className="btn-ghost" onClick={() => void exportAll()}>
               <Icon name="download" size={16} /> <span className="max-sm:hidden">Xuất Excel</span>
-            </a>
+            </button>
           )}
         </span>
       </div>

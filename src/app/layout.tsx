@@ -1,10 +1,20 @@
 import type { Metadata, Viewport } from "next";
 import { THEME_SCRIPT } from "@/components/ui/theme";
+import { PwaRegister } from "@/components/pwa/PwaRegister";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "DNA CRM",
   description: "CRM đa ngành tự may đo theo DNA doanh nghiệp",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: { capable: true, title: "DNA CRM", statusBarStyle: "default" },
+  icons: {
+    icon: [
+      { url: "/icons/favicon-32.png", sizes: "32x32" },
+      { url: "/icons/icon-192.png", sizes: "192x192" },
+    ],
+    apple: "/icons/apple-touch-icon.png",
+  },
 };
 
 export const viewport: Viewport = {
@@ -28,7 +38,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Poppins:wght@500;600;700&display=swap"
         />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        <PwaRegister />
+      </body>
     </html>
   );
 }

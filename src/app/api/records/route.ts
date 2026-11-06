@@ -2,7 +2,8 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { appApi, fail, ok } from "@/lib/http";
 import { createRecord, toDTO } from "@/lib/records";
-import { recordScope } from "@/lib/permissions";
+import { getRole, recordScope } from "@/lib/permissions";
+import { getPrivacy, maskRecord } from "@/lib/privacy";
 import { audit, recordSnapshot } from "@/lib/audit";
 import { notify, userIdByName } from "@/lib/notify";
 import { getObject } from "@/lib/config/schema";
@@ -17,7 +18,10 @@ export async function GET(req: Request) {
     orderBy: { createdAt: "desc" },
     include: { _count: { select: { activities: true } } },
   });
-  return ok(rows.map(toDTO));
+  // Che SĐT/email với nhân viên nếu chủ bật trong Bảo mật dữ liệu.
+  const [role, prefs] = await Promise.all([getRole(a.ctx.user.id, a.ctx.workspace.id), getPrivacy(a.ctx.workspace.id)]);
+  const obj = getObject(a.ctx.config, object);
+  return ok(rows.map((r) => maskRecord(toDTO(r), obj, role, prefs)));
 }
 
 const Body = z.object({

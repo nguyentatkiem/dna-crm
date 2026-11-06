@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { sendPushToUser, sendPushToWorkspace } from "./push";
 
 export type NotifyInput = { userId?: string; kind: string; text: string; href?: string };
 
@@ -6,6 +7,10 @@ export type NotifyInput = { userId?: string; kind: string; text: string; href?: 
 export async function notify(workspaceId: string, n: NotifyInput) {
   try {
     await db.notification.create({ data: { workspaceId, userId: n.userId ?? "", kind: n.kind, text: n.text.slice(0, 300), href: n.href ?? "" } });
+    // Thông báo đẩy lên điện thoại (chỉ khi đã cấu hình VAPID). Thông báo chung cả workspace chỉ đẩy với bảng tin để tránh làm phiền.
+    const p = { title: "DNA CRM", body: n.text.slice(0, 300), url: n.href || "/w" };
+    if (n.userId) void sendPushToUser(workspaceId, n.userId, p);
+    else if (n.kind === "feed") void sendPushToWorkspace(workspaceId, p);
   } catch (e) {
     console.error("[notify]", e instanceof Error ? e.message : e);
   }

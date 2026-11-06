@@ -1,0 +1,81 @@
+import { db } from "@/lib/db";
+import { appApi, fail, ok } from "@/lib/http";
+import { audit, diffOf } from "@/lib/audit";
+import { can } from "@/lib/permissions";
+import { docScope, scoped, resolveLinks } from "@/lib/sales/access";
+import { totals } from "@/lib/sales/lines";
+import { OrderInput, OrderPatch, firstError } from "@/lib/sales/schemas";
+import { completeIfReady } from "@/lib/sales/service";
+import { ORDER_NEXT, ORDER_STATUS, type OrderStatus } from "@/lib/sales/shared";
+
+type Ctx = { params: Promise<{ id: string }> };
+
+export async function GET(_req: Request, { params }: Ctx) {
+  const a = await appApi();
+  if ("error" in a) return a.error;
+  const { id } = await params;
+  const s = await docScope(a.ctx);
+  const order = await db.order.findFirst({ where: scoped(s.where, { id }), include: { payments: { orderBy: { paidAt: "desc" } } } });
+  if (!order) return fail("Không tìm thấy đơn hàng", 404);
+  return ok(order);
+}
+
+/** Đổi trạng thái / hạn thanh toán / ghi chú; khi đơn còn "Mới" thì sửa được cả dòng hàng (gửi kèm items). */
+export async function PATCH(req: Request, { params }: Ctx) {
+  const a = await appApi();
+  if ("error" in a) return a.error;
+  const { id } = await params;
+  const s = await docScope(a.ctx);
+  const before = await db.order.findFirst({ where: scoped(s.where, { id }) });
+  if (!before) return fail("Không tìm thấy đơn hàng", 404);
+  const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+  const p = OrderPatch.safeParse(body);
+  if (!p.success) return fail(firstError(p.error));
+  const d = p.data;
+  const data: Record<string, unknown> = {};
+
+  if (d.status && d.status !== before.status) {
+    if (!ORDER_NEXT[before.status as OrderStatus]?.includes(d.status as OrderStatus)) return fail(`Không chuyển được từ “${ORDER_STATUS[before.status as OrderStatus]?.label ?? before.status}” sang “${ORDER_STATUS[d.status as OrderStatus].label}”`, 409);
+    if (d.status === "cancelled" && before.paid > 0 && !s.seeAll) return fail("Đơn đã thu tiền, chỉ quản lý được huỷ", 403);
+    data.status = d.status;
+  }
+  if (d.dueAt !== undefined) data.dueAt = d.dueAt;
+  if (d.note !== undefined) data.note = d.note;
+
+  if (Array.isArray(body.items)) {
+    if (before.status !== "new") return fail("Chỉ sửa dòng hàng khi đơn còn ở trạng thái Mới", 409);
+    const full = OrderInput.safeParse({ ...body, customerName: body.customerName ?? before.customerName });
+    if (!full.success) return fail(firstError(full.error));
+    Object.assign(data, {
+      ...(await resolveLinks(a.ctx, full.data)),
+      customerName: full.data.customerName,
+      customerPhone: full.data.customerPhone,
+      itemsJson: JSON.stringify(full.data.items),
+      ...totals(full.data.items, full.data.discount),
+    });
+  }
+
+  const order = await db.order.update({ where: { id }, data });
+  const diff = diffOf(before as unknown as Record<string, unknown>, data);
+  if (Object.keys(diff).length) {
+    const what = data.status ? `trạng thái → ${ORDER_STATUS[data.status as OrderStatus].label}` : Object.keys(diff).join(", ");
+    await audit({ workspaceId: a.ctx.workspace.id, user: a.ctx.user }, "order.update", "order", id, `Sửa đơn ${order.number}: ${what}`, diff);
+  }
+  await completeIfReady(id);
+  return ok(await db.order.findUnique({ where: { id }, include: { payments: { orderBy: { paidAt: "desc" } } } }));
+}
+
+export async function DELETE(_req: Request, { params }: Ctx) {
+  const a = await appApi();
+  if ("error" in a) return a.error;
+  const { id } = await params;
+  const s = await docScope(a.ctx);
+  if (!can(s.role, "delete")) return fail("Bạn không có quyền xoá. Hãy nhờ chủ hoặc quản lý.", 403);
+  const before = await db.order.findFirst({ where: scoped(s.where, { id }), include: { payments: true } });
+  if (!before) return fail("Không tìm thấy đơn hàng", 404);
+  await db.order.delete({ where: { id } });
+  // Báo giá gốc mở lại được để tạo đơn mới.
+  await db.quote.updateMany({ where: { workspaceId: a.ctx.workspace.id, orderId: id }, data: { orderId: null } });
+  await audit({ workspaceId: a.ctx.workspace.id, user: a.ctx.user }, "order.delete", "order", id, `Xoá đơn ${before.number} (${before.customerName})`, { before });
+  return ok({ deleted: true });
+}
