@@ -4,7 +4,7 @@ import { appApi, fail, ok } from "@/lib/http";
 import { OUTCOMES, outcomeOf, saveRecording, scoreCall, sttConfigured, transcribeDetailed } from "@/lib/calls";
 import { normPhone } from "@/lib/sources/ingest";
 import { fireEvent } from "@/lib/automation";
-import { findScopedRecord } from "@/lib/permissions";
+import { callScope, findScopedRecord } from "@/lib/permissions";
 
 const Body = z.object({
   recordId: z.string().optional(),
@@ -25,7 +25,7 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const agent = url.searchParams.get("agent") ?? undefined;
   const recordId = url.searchParams.get("record") ?? undefined;
-  const calls = await db.call.findMany({ where: { workspaceId: a.ctx.workspace.id, agentName: agent, recordId }, orderBy: { startedAt: "desc" }, take: 200 });
+  const calls = await db.call.findMany({ where: { AND: [await callScope(a.ctx), { agentName: agent, recordId }] }, orderBy: { startedAt: "desc" }, take: 200 });
   return ok({ calls: calls.map(({ scoreJson, transcript, ...c }) => ({ ...c, hasTranscript: !!transcript, scored: !!scoreJson })) });
 }
 

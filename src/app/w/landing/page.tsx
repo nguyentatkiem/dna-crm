@@ -2,7 +2,7 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { requireApp } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { can, getRole } from "@/lib/permissions";
+import { allow, getAccess } from "@/lib/permissions";
 import { ago } from "@/lib/format";
 import { Icon } from "@/components/Icon";
 import { themeColor } from "@/app/lp/model";
@@ -12,7 +12,7 @@ const rate = (a: number, b: number) => (b ? `${Math.round((a / b) * 1000) / 10}%
 
 export default async function LandingListPage() {
   const { user, workspace } = await requireApp();
-  const manage = can(await getRole(user.id, workspace.id), "manage_marketing");
+  const manage = allow(await getAccess(user.id, workspace.id), "landing_manage");
   const pages = await db.landingPage.findMany({ where: { workspaceId: workspace.id }, orderBy: { createdAt: "desc" } });
   const h = await headers();
   const origin = process.env.APP_URL?.replace(/\/$/, "") || `${h.get("x-forwarded-proto") ?? "http"}://${h.get("host")}`;

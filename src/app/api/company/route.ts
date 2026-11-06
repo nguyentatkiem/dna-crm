@@ -1,6 +1,6 @@
 import { appApi, fail, ok } from "@/lib/http";
 import { audit, diffOf } from "@/lib/audit";
-import { can, getRole } from "@/lib/permissions";
+import { allow, getAccess } from "@/lib/permissions";
 import { COMPANY_DEFAULT, getPref, setPref, type Company } from "@/lib/prefs";
 import { CompanyInput, firstError } from "@/lib/sales/schemas";
 
@@ -13,7 +13,7 @@ export async function GET() {
 export async function PUT(req: Request) {
   const a = await appApi();
   if ("error" in a) return a.error;
-  if (!can(await getRole(a.ctx.user.id, a.ctx.workspace.id), "see_all")) return fail("Chỉ chủ và quản lý được sửa thông tin doanh nghiệp", 403);
+  if (!allow(await getAccess(a.ctx.user.id, a.ctx.workspace.id), "company_edit")) return fail("Bạn chưa có quyền sửa thông tin doanh nghiệp", 403);
   const p = CompanyInput.safeParse(await req.json().catch(() => ({})));
   if (!p.success) return fail(firstError(p.error));
   const before = await getPref<Company>(a.ctx.workspace.id, "company", COMPANY_DEFAULT);

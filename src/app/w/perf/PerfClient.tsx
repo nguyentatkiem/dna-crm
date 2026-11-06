@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/Icon";
 import { Avatar } from "@/components/Avatar";
+import { PersonLink } from "@/components/perf/PersonLink";
+import { METRIC_DEFS, METRIC_KEYS } from "@/lib/perf/metrics";
 import { RANK_LABEL, RANK_TONE, SOURCE_LABEL, rankOf, weightedTotal, type Criterion } from "@/lib/perf/shared";
 import type { PerfRow } from "@/lib/perf/review";
 
@@ -26,6 +28,8 @@ const SOURCES: { key: string; label: string }[] = [
   { key: "kpi:calls", label: "KPI: Cuộc gọi" },
   { key: "kpi:win_rate", label: "KPI: Tỉ lệ chốt" },
   { key: "kpi:tickets_resolved", label: "KPI: Phiếu đã xử lý" },
+  // Chỉ số hoạt động thực tế (bộ đo hiệu suất): tỉ lệ/điểm lấy thẳng, còn lại theo bách phân vị trong đội.
+  ...METRIC_KEYS.filter((k) => !METRIC_DEFS[k].snapshot).map((k) => ({ key: `metric:${k}`, label: `Chỉ số: ${METRIC_DEFS[k].label}` })),
 ];
 
 const draftOf = (b: Board, r: PerfRow): Draft => ({
@@ -136,7 +140,7 @@ export function PerfClient({ initial, me, canReview, isOwner }: { initial: Board
                 <th key={c.id} className="w-[118px] min-w-[118px] px-3 py-2.5 font-medium" title={`${c.label} · trọng số ${c.weight}% · ${SOURCE_LABEL(c.source)}`}>
                   <span className="line-clamp-2 leading-snug">{c.label}</span>
                   <span className="mt-0.5 block whitespace-nowrap text-[11.5px] font-normal">
-                    <span className="tnum font-medium text-ink">{c.weight}%</span> · {c.source === "manual" ? "Chấm tay" : c.source === "csat" ? "Tự động · CSAT" : "Tự động · KPI"}
+                    <span className="tnum font-medium text-ink">{c.weight}%</span> · {c.source === "manual" ? "Chấm tay" : c.source === "csat" ? "Tự động · CSAT" : c.source.startsWith("metric:") ? "Tự động · Chỉ số" : "Tự động · KPI"}
                   </span>
                 </th>
               ))}
@@ -172,7 +176,7 @@ export function PerfClient({ initial, me, canReview, isOwner }: { initial: Board
                   <td className="tnum hidden px-3 py-3 align-top text-ink-2 sm:table-cell">{i + 1}</td>
                   <th scope="row" className={`sticky left-0 z-10 px-3 py-3 text-left align-top font-medium ${r.who === me ? "bg-primary-selected" : "bg-surface"}`}>
                     <span className="flex items-center gap-2 whitespace-nowrap">
-                      <Avatar name={r.who} size={26} /> {r.who}
+                      <Avatar name={r.who} size={26} /> <PersonLink name={r.who} />
                     </span>
                     <span className="mt-1 flex flex-wrap items-center gap-1 text-[12px] font-normal text-ink-2">
                       <span className={STATUS[r.status].cls}>{STATUS[r.status].label}</span>

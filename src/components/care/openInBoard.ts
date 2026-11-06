@@ -1,4 +1,5 @@
-import { readLS, writeLS, type Filter } from "@/components/board/model";
+import { readLS, writeLS } from "@/components/board/ls";
+import type { Filter } from "@/components/board/filters";
 
 /** Ghi bộ lọc vào tuỳ chọn bảng trên máy rồi mở bảng, để bảng hiện đúng nhóm khách. */
 export function openInBoard(objectKey: string, filters: Filter[], mode: "and" | "or") {

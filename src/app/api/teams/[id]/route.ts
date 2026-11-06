@@ -1,7 +1,7 @@
 import { appApi, fail, ok } from "@/lib/http";
 import { audit, diffOf } from "@/lib/audit";
 import { deleteTeam, getTeam, updateTeam } from "@/lib/perf/teams";
-import { perfRole } from "@/lib/perf/server";
+import { allowed } from "@/lib/permissions";
 import { TeamBody } from "@/lib/perf/schemas";
 
 type P = { params: Promise<{ id: string }> };
@@ -10,7 +10,7 @@ type P = { params: Promise<{ id: string }> };
 export async function PATCH(req: Request, { params }: P) {
   const a = await appApi();
   if ("error" in a) return a.error;
-  if (!(await perfRole(a.ctx)).manager) return fail("Chỉ chủ và quản lý được sửa phòng ban / đội", 403);
+  if (!(await allowed(a.ctx, "teams_manage"))) return fail("Bạn chưa có quyền sửa phòng ban / đội", 403);
   const { id } = await params;
   const p = TeamBody.partial().safeParse(await req.json().catch(() => ({})));
   if (!p.success) return fail(p.error.issues[0]?.message ?? "Dữ liệu chưa hợp lệ");
@@ -26,7 +26,7 @@ export async function PATCH(req: Request, { params }: P) {
 export async function DELETE(_req: Request, { params }: P) {
   const a = await appApi();
   if ("error" in a) return a.error;
-  if (!(await perfRole(a.ctx)).manager) return fail("Chỉ chủ và quản lý được sửa phòng ban / đội", 403);
+  if (!(await allowed(a.ctx, "teams_manage"))) return fail("Bạn chưa có quyền sửa phòng ban / đội", 403);
   const t = await deleteTeam(a.ctx.workspace.id, (await params).id);
   if (!t) return fail("Không tìm thấy đội", 404);
   await audit({ workspaceId: a.ctx.workspace.id, user: a.ctx.user }, "team.delete", "team", t.id, `Xoá đội “${t.name}”`);

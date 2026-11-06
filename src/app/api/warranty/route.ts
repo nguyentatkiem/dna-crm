@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { appApi, fail, ok } from "@/lib/http";
+import { allowed } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import { contactCard } from "@/lib/care/server";
 import { addMonths, normPhone } from "@/lib/care/shared";
@@ -34,6 +35,7 @@ export async function POST(req: Request) {
   const a = await appApi();
   if ("error" in a) return a.error;
   const wid = a.ctx.workspace.id;
+  if (!(await allowed(a.ctx, "warranty_manage"))) return fail("Bạn chưa có quyền quản lý bảo hành", 403);
   const p = Body.safeParse(await req.json().catch(() => ({})));
   if (!p.success) return fail(p.error.issues[0]?.message ?? "Dữ liệu chưa hợp lệ");
   const b = p.data;

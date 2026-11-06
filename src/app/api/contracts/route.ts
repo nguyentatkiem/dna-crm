@@ -29,11 +29,12 @@ function byExpiry(a: { status: string; endAt: Date | null; createdAt: Date }, b:
 export async function POST(req: Request) {
   const a = await appApi();
   if ("error" in a) return a.error;
+  const s = await docScope(a.ctx);
+  if (!s.perm.contract) return fail("Bạn chưa có quyền tạo hợp đồng", 403);
   const p = ContractInput.safeParse(await req.json().catch(() => ({})));
   if (!p.success) return fail(firstError(p.error));
   const d = p.data;
   const wid = a.ctx.workspace.id;
-  const s = await docScope(a.ctx);
   const order = d.orderId ? await db.order.findFirst({ where: scoped(s.where, { id: d.orderId }) }) : null;
   const number = await nextNumber(wid, "HD");
   const c = await db.contract.create({

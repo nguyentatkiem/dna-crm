@@ -22,7 +22,7 @@ export async function GET(_: Request, { params }: P) {
 
 /** { action: "cancel" } huỷ; { action: "send" } gửi ngay; còn lại là sửa nội dung (chỉ khi chưa gửi). */
 export async function PATCH(req: Request, { params }: P) {
-  const a = await marketingApi(true);
+  const a = await marketingApi("broadcast_send");
   if ("error" in a) return a.error;
   const wid = a.ctx.workspace.id;
   const b = await load(wid, (await params).id);
@@ -58,7 +58,7 @@ export async function PATCH(req: Request, { params }: P) {
 }
 
 export async function DELETE(_: Request, { params }: P) {
-  const a = await marketingApi(true);
+  const a = await marketingApi("broadcast_send");
   if ("error" in a) return a.error;
   const b = await load(a.ctx.workspace.id, (await params).id);
   if (!b) return fail("Không tìm thấy đợt gửi", 404);

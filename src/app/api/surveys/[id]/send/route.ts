@@ -24,7 +24,7 @@ export async function POST(req: Request, { params }: P) {
   if (!p.success) return fail("Dữ liệu chưa hợp lệ");
   const { recordId, segmentId, channel } = p.data;
   if (segmentId) {
-    if (!(await canManageSurveys(a.ctx))) return fail("Chỉ chủ hoặc quản lý gửi được cho cả nhóm", 403);
+    if (!(await canManageSurveys(a.ctx))) return fail("Bạn chưa có quyền gửi khảo sát cho cả nhóm", 403);
     if (!(await db.segment.findFirst({ where: { id: segmentId, workspaceId: wid }, select: { id: true } }))) return fail("Không tìm thấy nhóm khách", 404);
     const r = await sendSurveyToSegment(wid, s.id, segmentId, channel);
     if (!r.total) return fail("Nhóm khách chưa có khách nào", 400);

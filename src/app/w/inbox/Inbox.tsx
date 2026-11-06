@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { Avatar } from "@/components/Avatar";
 import { color } from "@/lib/colors";
-import { ago } from "@/lib/format";
+import { ago, viMessage } from "@/lib/format";
 import type { Attachment, ConversationDTO, MessageDTO, RecordCard } from "@/lib/inbox";
 import { CreateTicketButton } from "@/components/care/CreateTicketButton";
 
@@ -118,14 +118,19 @@ export function Inbox({ me, team, contactLabel, initial, initialId, setup }: Pro
   const selRef = useRef(selId);
   selRef.current = selId;
 
+  // Đánh số yêu cầu: kết quả về muộn (tìm cũ, lần tự làm mới trước) không ghi đè danh sách mới hơn.
+  const listSeq = useRef(0);
   const loadList = useCallback(async () => {
     const { filter, channel, q } = query.current;
     const u = new URLSearchParams({ filter, channel, q });
+    const seq = ++listSeq.current;
     try {
-      setList(await api<ListData>(`/api/inbox?${u}`));
+      const data = await api<ListData>(`/api/inbox?${u}`);
+      if (seq !== listSeq.current) return;
+      setList(data);
       setLoadErr("");
     } catch (e) {
-      setLoadErr(e instanceof Error ? e.message : "Không tải được hộp thư");
+      setLoadErr(viMessage(e, "Không tải được hộp thư"));
     }
   }, []);
 
@@ -140,7 +145,7 @@ export function Inbox({ me, team, contactLabel, initial, initialId, setup }: Pro
 
   // Đổi bộ lọc: tải lại ngay (ô tìm chờ 300ms).
   useEffect(() => {
-    const t = setTimeout(loadList, q ? 300 : 0);
+    const t = setTimeout(loadList, q ? 250 : 0);
     return () => clearTimeout(t);
   }, [filter, channel, q, loadList]);
 
@@ -168,9 +173,15 @@ export function Inbox({ me, team, contactLabel, initial, initialId, setup }: Pro
   }, [list.unreadTotal]);
   useEffect(() => () => void (document.title = TITLE), []);
 
+  const [refreshing, setRefreshing] = useState(false);
   const refresh = useCallback(async () => {
-    if (selRef.current) await loadDetail(selRef.current);
-    await loadList();
+    setRefreshing(true);
+    try {
+      if (selRef.current) await loadDetail(selRef.current);
+      await loadList();
+    } finally {
+      setRefreshing(false);
+    }
   }, [loadDetail, loadList]);
 
   const empty = !list.counts.all && !list.counts.done && !q && !channel;
@@ -185,8 +196,8 @@ export function Inbox({ me, team, contactLabel, initial, initialId, setup }: Pro
           <div className="border-b border-line-soft px-4 pb-3 pt-4">
             <div className="flex items-center justify-between gap-2">
               <h1 className="text-[20px] font-semibold">Hộp thư</h1>
-              <button type="button" onClick={refresh} className="btn-ghost h-8 w-8 justify-center px-0" title="Làm mới" aria-label="Làm mới">
-                <Icon name="refresh" size={16} />
+              <button type="button" onClick={refresh} disabled={refreshing} aria-busy={refreshing} className="btn-ghost h-8 w-8 justify-center px-0" title="Làm mới" aria-label="Làm mới">
+                <Icon name="refresh" size={16} className={refreshing ? "animate-spin" : ""} />
               </button>
             </div>
             <div className="relative mt-2">
@@ -326,7 +337,7 @@ function Thread({ conv, messages, me, team, onBack, onInfo, onChanged }: { conv:
       await api(`/api/inbox/${conv.id}`, { method: "PATCH", json: body });
       await onChanged();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "Lỗi");
+      setErr(viMessage(e, "Lỗi"));
     } finally {
       setBusy("");
     }
@@ -553,7 +564,7 @@ function Composer({ conv, onSent }: { conv: ConversationDTO; onSent: () => Promi
       if (!r.ok && r.error) setErr(r.error);
       await onSent();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "Không gửi được");
+      setErr(viMessage(e, "Không gửi được"));
     } finally {
       setBusy("");
       box.current?.focus();
@@ -570,7 +581,7 @@ function Composer({ conv, onSent }: { conv: ConversationDTO; onSent: () => Promi
       setHint(r.source === "ai" ? `Claude soạn · ý định: ${r.intentLabel}. Kiểm tra lại trước khi gửi.` : `Mẫu câu theo ý định “${r.intentLabel}” (chưa có AI). Sửa phần [ ] trước khi gửi.`);
       box.current?.focus();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "Không soạn được");
+      setErr(viMessage(e, "Không soạn được"));
     } finally {
       setBusy("");
     }
@@ -689,15 +700,19 @@ function CustomerPanel({ detail, contactLabel, onBack, onChanged }: { detail: De
 
   useEffect(() => {
     if (mode !== "link") return;
+    let live = true;
     const t = setTimeout(async () => {
       try {
         const res = await api<{ items: typeof found }>(`/api/inbox/${conv.id}/link?q=${encodeURIComponent(q)}`);
-        setFound(res.items);
+        if (live) setFound(res.items);
       } catch {
-        setFound([]);
+        if (live) setFound([]);
       }
     }, 250);
-    return () => clearTimeout(t);
+    return () => {
+      live = false;
+      clearTimeout(t);
+    };
   }, [q, mode, conv.id]);
 
   async function link(body: Record<string, unknown>) {
@@ -708,16 +723,18 @@ function CustomerPanel({ detail, contactLabel, onBack, onChanged }: { detail: De
       setMode("");
       await onChanged();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "Lỗi");
+      setErr(viMessage(e, "Lỗi"));
     } finally {
       setBusy(false);
     }
   }
 
   async function unlink() {
-    if (!confirm(`Bỏ gắn hội thoại này khỏi hồ sơ ${r?.title}?`)) return;
-    await api(`/api/inbox/${conv.id}`, { method: "PATCH", json: { recordId: null } }).catch(() => {});
+    if (busy || !confirm(`Bỏ gắn hội thoại này khỏi hồ sơ ${r?.title}?`)) return;
+    setBusy(true);
+    await api(`/api/inbox/${conv.id}`, { method: "PATCH", json: { recordId: null } }).catch((e) => setErr(viMessage(e, "Không bỏ gắn được")));
     await onChanged();
+    setBusy(false);
   }
 
   const st = r ? color(r.statusColor) : null;
@@ -766,7 +783,7 @@ function CustomerPanel({ detail, contactLabel, onBack, onChanged }: { detail: De
               <Icon name="phone" size={14} /> Gọi
             </Link>
           </div>
-          <button type="button" onClick={unlink} className="mt-2 w-full text-center text-[12px] text-ink-2 hover:text-ink hover:underline">
+          <button type="button" onClick={unlink} disabled={busy} className="mt-2 w-full text-center text-[12px] text-ink-2 hover:text-ink hover:underline">
             Bỏ gắn hồ sơ
           </button>
         </div>

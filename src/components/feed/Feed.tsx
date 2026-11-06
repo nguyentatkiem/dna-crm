@@ -109,19 +109,36 @@ function PostCard({ post, me, manager, team, onChange, onDelete }: { post: PostD
   const [reply, setReply] = useState("");
   const [open, setOpen] = useState(post.comments.length > 0 && post.comments.length <= 3);
   const [busy, setBusy] = useState(false);
+  const [pinning, setPinning] = useState(false);
   const [err, setErr] = useState("");
   const k = KIND[post.kind];
   const canDel = manager || post.author === me;
 
+  // Bày tỏ cảm xúc & ghim: cập nhật ngay trên màn hình, máy chủ trả lỗi thì quay lại như cũ.
   async function react(e: Reaction) {
+    const cur = post.reactions[e] ?? [];
+    const next = { ...post.reactions, [e]: cur.includes(me) ? cur.filter((x) => x !== me) : [...cur, me] };
+    if (!next[e]?.length) delete next[e];
+    onChange({ ...post, reactions: next });
+    setErr("");
     const r = await api<{ reactions: PostDTO["reactions"] }>(`/api/feed/${post.id}/react`, { method: "POST", body: JSON.stringify({ emoji: e }) });
     if (r.ok) onChange({ ...post, reactions: r.data.reactions });
-    else setErr(r.error);
+    else {
+      onChange(post);
+      setErr(r.error);
+    }
   }
   async function pin() {
+    if (pinning) return;
+    setPinning(true);
+    onChange({ ...post, pinned: !post.pinned });
     const r = await api<PostDTO>(`/api/feed/${post.id}`, { method: "PATCH", body: JSON.stringify({ pinned: !post.pinned }) });
+    setPinning(false);
     if (r.ok) onChange(r.data);
-    else setErr(r.error);
+    else {
+      onChange(post);
+      setErr(r.error);
+    }
   }
   async function del() {
     if (!confirm("Xoá bài này? Bình luận cũng bị xoá.")) return;
@@ -168,7 +185,7 @@ function PostCard({ post, me, manager, team, onChange, onDelete }: { post: PostD
         </div>
         <div className="flex flex-none items-center gap-1">
           {manager && (
-            <button className="btn-ghost h-8 px-2" onClick={pin} aria-label={post.pinned ? "Bỏ ghim" : "Ghim bài"} title={post.pinned ? "Bỏ ghim" : "Ghim lên đầu"}>
+            <button type="button" className="btn-ghost h-8 px-2" onClick={pin} disabled={pinning} aria-label={post.pinned ? "Bỏ ghim" : "Ghim bài"} title={post.pinned ? "Bỏ ghim" : "Ghim lên đầu"}>
               <Pin />
               <span className="hidden text-[13px] sm:inline">{post.pinned ? "Bỏ ghim" : "Ghim"}</span>
             </button>

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { Icon } from "@/components/Icon";
 import { Avatar } from "@/components/Avatar";
 import { Badge, EmptyState, Tabs } from "@/components/ui";
@@ -36,6 +36,7 @@ export function TicketsClient({ team, me, canManage, sla, initialStatus, teams =
   const [overdue, setOverdue] = useState(0);
   const [showSla, setShowSla] = useState(false);
 
+  const seq = useRef(0);
   const load = useCallback(async () => {
     const sp = new URLSearchParams({ status, assignee });
     if (priority) sp.set("priority", priority);
@@ -43,9 +44,13 @@ export function TicketsClient({ team, me, canManage, sla, initialStatus, teams =
     if (overdueOnly) sp.set("overdue", "1");
     if (teamId) sp.set("teamId", teamId);
     if (category) sp.set("category", category);
-    const r = await fetch(`/api/tickets?${sp}`);
-    if (!r.ok) return setItems([]);
+    const n = ++seq.current;
+    const r = await fetch(`/api/tickets?${sp}`).catch(() => null);
+    // Bỏ kết quả về muộn của lần tìm/lọc cũ; lỗi mạng thì giữ danh sách đang hiện thay vì xoá trắng.
+    if (n !== seq.current) return;
+    if (!r?.ok) return setItems((x) => x ?? []);
     const j = await r.json();
+    if (n !== seq.current) return;
     setItems(j.items);
     setCounts(j.counts);
     setOverdue(j.overdue);

@@ -1,3 +1,4 @@
+import { membersWith } from "./permissions";
 import { db, parseJson } from "./db";
 import { getObject, type WorkspaceConfig } from "./config/schema";
 import { wonLost } from "./metrics";
@@ -446,7 +447,7 @@ export async function tickKpi(now = new Date()): Promise<void> {
       const userId = await userIdByName(wid, row.who);
       if (userId) await notifyOnce(wid, { userId, kind: "kpi", text: `KPI tuần ${wk}: bạn đang chậm nhịp — ${detail}`, href: `/w/kpi?period=${period}` });
     }
-    const managers = await db.membership.findMany({ where: { workspaceId: wid, role: { in: ["owner", "manager"] } }, select: { userId: true } });
+    const managers = (await membersWith(wid, "kpi_set")).map((userId) => ({ userId }));
     const text = lines.length ? `KPI tuần ${wk}: ${lines.length} người chậm nhịp quá 20% — ${lines.join("; ")}` : `KPI tuần ${wk}: cả đội đang theo kịp nhịp chỉ tiêu tháng ${period}.`;
     for (const m of managers) await notifyOnce(wid, { userId: m.userId, kind: "kpi", text, href: `/w/kpi?period=${period}` });
   }

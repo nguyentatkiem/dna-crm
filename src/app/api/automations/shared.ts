@@ -1,15 +1,14 @@
 import { getObject, type WorkspaceConfig } from "@/lib/config/schema";
 import { appApi } from "@/lib/http";
 import { fail } from "@/lib/http";
-import { can, getRole } from "@/lib/permissions";
+import { allowed } from "@/lib/permissions";
 import type { Rule } from "@/lib/automation";
 
-/** Route sửa luật: cần đăng nhập và có quyền manage_automations. */
+/** Route sửa luật: cần đăng nhập và có quyền automations_manage. */
 export async function managerApi() {
   const a = await appApi();
   if ("error" in a) return a;
-  const role = await getRole(a.ctx.user.id, a.ctx.workspace.id);
-  if (!can(role, "manage_automations")) return { error: fail("Chỉ chủ hoặc quản lý được tạo và sửa tự động hoá", 403) } as const;
+  if (!(await allowed(a.ctx, "automations_manage"))) return { error: fail("Bạn chưa có quyền tạo và sửa tự động hoá", 403) } as const;
   return a;
 }
 

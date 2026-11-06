@@ -1,20 +1,21 @@
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { appApi, fail, ok } from "@/lib/http";
-import { can, getRole } from "@/lib/permissions";
+import { allow, getAccess, getRole } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import { getPrivacy, maskRecord } from "@/lib/privacy";
 import { toDTO } from "@/lib/records";
 import { contactKeys } from "@/lib/c360/common";
 import { ignoreGroup, mergeContacts, mergeHistory, scanDuplicates } from "@/lib/c360/dupes";
 import { parseJson } from "@/lib/db";
+import { viMessage } from "@/lib/format";
 
 /** Quét nhóm hồ sơ trùng. Chỉ chủ/quản lý (quyền xoá). */
 export async function GET() {
   const a = await appApi();
   if ("error" in a) return a.error;
   const role = await getRole(a.ctx.user.id, a.ctx.workspace.id);
-  if (!can(role, "delete")) return fail("Chỉ chủ hoặc quản lý được gộp hồ sơ trùng", 403);
+  if (!allow(await getAccess(a.ctx.user.id, a.ctx.workspace.id), "record_merge")) return fail("Bạn chưa có quyền gộp hồ sơ trùng", 403);
   const { groups, rows } = await scanDuplicates(a.ctx.workspace.id, a.ctx.config);
   const { obj } = contactKeys(a.ctx.config);
   const prefs = await getPrivacy(a.ctx.workspace.id);
@@ -43,7 +44,7 @@ const Body = z.union([
 export async function POST(req: Request) {
   const a = await appApi();
   if ("error" in a) return a.error;
-  if (!can(await getRole(a.ctx.user.id, a.ctx.workspace.id), "delete")) return fail("Chỉ chủ hoặc quản lý được gộp hồ sơ trùng", 403);
+  if (!allow(await getAccess(a.ctx.user.id, a.ctx.workspace.id), "record_merge")) return fail("Bạn chưa có quyền gộp hồ sơ trùng", 403);
   const p = Body.safeParse(await req.json().catch(() => ({})));
   if (!p.success) return fail("Dữ liệu gộp chưa hợp lệ");
   if (p.data.action === "ignore") {
@@ -59,6 +60,6 @@ export async function POST(req: Request) {
       console.error("[merge]", e.message);
       return fail("Không gộp được do lỗi dữ liệu, thử lại sau hoặc báo quản trị viên", 500);
     }
-    return fail(e instanceof Error ? e.message : "Không gộp được");
+    return fail(viMessage(e, "Không gộp được"));
   }
 }

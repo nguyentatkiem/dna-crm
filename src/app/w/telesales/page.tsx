@@ -1,9 +1,9 @@
-import { isOwner, requireApp } from "@/lib/auth";
+import { requireApp } from "@/lib/auth";
 import { db, parseJson } from "@/lib/db";
 import { getObject } from "@/lib/config/schema";
 import { getScorecard, outcomeOf, POSITIVE, sttConfigured, TALKED, teamStats } from "@/lib/calls";
 import { customerSentiment, segmentsOf, talkStats } from "@/lib/calls-shared";
-import { recordScope } from "@/lib/permissions";
+import { accessOf, allow, callScope, recordScope, visibleOwners } from "@/lib/permissions";
 import { getSettings } from "@/lib/settings";
 import { Telesales, type QueueItem } from "./Telesales";
 
@@ -19,14 +19,18 @@ export default async function TelesalesPage({ searchParams }: { searchParams: Pr
   const lostKeys = new Set(obj.statuses.filter((s) => s.color === "gray" || s.color === "red").map((s) => s.key));
 
   // Nhân viên chỉ thấy khách của mình khi chủ bật quyền đó.
-  const scope = await recordScope({ user, workspace });
-  const [contacts, calls, stats, lessons, owner] = await Promise.all([
+  const sctx = { user, workspace };
+  const [scope, cScope, acc] = await Promise.all([recordScope(sctx), callScope(sctx), accessOf(sctx)]);
+  const [contacts, calls, stats, lessons] = await Promise.all([
     db.record.findMany({ where: { AND: [scope, { objectKey: "contacts" }] }, orderBy: { createdAt: "desc" }, take: 500 }),
-    db.call.findMany({ where: { workspaceId: wid }, orderBy: { startedAt: "desc" }, take: 300 }),
+    db.call.findMany({ where: cScope, orderBy: { startedAt: "desc" }, take: 300 }),
     teamStats(wid),
     db.lesson.findMany({ where: { workspaceId: wid }, orderBy: { createdAt: "desc" }, take: 10 }),
-    isOwner(user.id, wid),
   ]);
+  const owner = allow(acc, "calls_coach");
+  // Bảng xếp hạng: chỉ người trong phạm vi được xem cuộc gọi.
+  const agentNames = allow(acc, "calls_listen_others") ? visibleOwners(acc) : [user.name];
+  if (agentNames) stats.calls = stats.calls.filter((c) => agentNames.includes(c.agentName));
   const card = await getScorecard(wid, config);
 
   // Hàng gọi: hẹn gọi lại đến hạn → lead chưa gọi (điểm cao trước) → gọi lỡ đã quá 4 giờ, tối đa 3 lần.
@@ -110,6 +114,7 @@ export default async function TelesalesPage({ searchParams }: { searchParams: Pr
       reviewedCount={stats.reviewed.length}
       lessons={lessons.map((l) => ({ id: l.id, title: l.title, body: l.body, status: l.status, at: l.createdAt.toISOString(), proposal: parseJson<{ weights: { key: string; weight: number }[]; scriptAdd: string } | null>(l.proposalJson, null) }))}
       owner={owner}
+      canSip={allow(acc, "integrations_manage")}
       stt={sttConfigured()}
       aiOn={!!process.env.ANTHROPIC_API_KEY}
       contactLabel={config.terminology.contact}

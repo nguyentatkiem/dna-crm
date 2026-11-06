@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
-import { isOwner, requireApp } from "@/lib/auth";
+import { requireApp } from "@/lib/auth";
+import { allowed } from "@/lib/permissions";
 import { db, parseJson } from "@/lib/db";
 import { ensureHookKey, getSettings, maskSettings } from "@/lib/settings";
 import { CHANNELS, type Channel } from "@/lib/sources/ingest";
@@ -21,7 +22,7 @@ export default async function SourcesPage() {
     db.record.findMany({ where: { workspaceId: wid, objectKey: "deals" }, select: { dataJson: true, amount: true, status: true } }),
     db.call.findMany({ where: { workspaceId: wid, recordId: { not: null } }, select: { recordId: true, outcome: true } }),
     db.leadEvent.findMany({ where: { workspaceId: wid }, orderBy: { createdAt: "desc" }, take: 40 }),
-    isOwner(user.id, wid),
+    allowed({ user, workspace }, "integrations_manage"),
     ensureHookKey(workspace),
   ]);
   const h = await headers();

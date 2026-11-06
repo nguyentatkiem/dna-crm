@@ -56,7 +56,8 @@ export function parseState(json: string): BoardState {
 }
 
 /** Ai sửa/xoá được một dạng xem: chủ của nó; dạng xem chia sẻ thì thêm chủ workspace và quản lý. */
-export const canEditView = (v: { ownerId: string; shared: boolean }, userId: string, role: string) => v.ownerId === userId || (v.shared && (role === "owner" || role === "manager"));
+/** role: vai trò có sẵn (code cũ) hoặc true/false = có quyền "Sửa dạng xem dùng chung". */
+export const canEditView = (v: { ownerId: string; shared: boolean }, userId: string, role: string | boolean) => v.ownerId === userId || (v.shared && (typeof role === "boolean" ? role : role === "owner" || role === "manager"));
 
 /** Sắp cột theo thứ tự đã lưu + áp độ rộng tự chỉnh. Cột lạ trong order bị bỏ qua. */
 export function arrangeColumns<C extends { id: string; w: number }>(cols: C[], order?: string[], widths?: Record<string, number>): C[] {

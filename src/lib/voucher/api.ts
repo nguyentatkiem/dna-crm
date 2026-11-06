@@ -1,10 +1,10 @@
 // Phần dùng chung của API voucher: quyền, DTO.
 import type { Voucher, VoucherCampaign } from "@prisma/client";
-import { can, getRole } from "../permissions";
+import { allow, getAccess } from "../permissions";
 import { effectiveStatus, valueText } from "./shared";
 
 /** Tạo/sửa chiến dịch, phát hàng loạt, huỷ mã: chủ, quản lý (quyền marketing). */
-export const canManageVouchers = async (ctx: { user: { id: string }; workspace: { id: string } }) => can(await getRole(ctx.user.id, ctx.workspace.id), "manage_marketing");
+export const canManageVouchers = async (ctx: { user: { id: string }; workspace: { id: string } }) => allow(await getAccess(ctx.user.id, ctx.workspace.id), "voucher_manage");
 
 export function voucherDTO(v: Voucher & { campaign: VoucherCampaign }, titles: Map<string, { title: string; objectKey: string }>, orders?: Map<string, string>) {
   const rec = v.recordId ? titles.get(v.recordId) : undefined;

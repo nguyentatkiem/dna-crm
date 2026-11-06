@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireApp } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { can, getRole } from "@/lib/permissions";
+import { allow, getAccess } from "@/lib/permissions";
 import { Icon } from "@/components/Icon";
 import { ACTION_LABEL, auditWhere, PAGE_SIZE, type AuditFilter } from "./shared";
 import { AuditTable, type Labels } from "./AuditTable";
@@ -9,12 +9,11 @@ import { AuditTable, type Labels } from "./AuditTable";
 export default async function AuditPage({ searchParams }: { searchParams: Promise<AuditFilter> }) {
   const { user, workspace, config } = await requireApp();
   const sp = await searchParams;
-  const role = await getRole(user.id, workspace.id);
-  if (!can(role, "see_all")) {
+  if (!allow(await getAccess(user.id, workspace.id), "audit_view")) {
     return (
       <div className="canvas grid place-items-center px-4 py-20 text-center">
         <Icon name="lock" size={32} className="text-ink-2" />
-        <p className="mt-3 font-semibold">Chỉ chủ và quản lý xem được nhật ký thao tác</p>
+        <p className="mt-3 font-semibold">Bạn chưa có quyền xem nhật ký thao tác</p>
         <Link href="/w/settings" className="btn-outline mt-4">Về Cài đặt</Link>
       </div>
     );

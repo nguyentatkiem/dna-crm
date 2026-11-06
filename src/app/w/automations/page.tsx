@@ -1,6 +1,6 @@
 import { requireApp } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { can, getRole } from "@/lib/permissions";
+import { allow, getAccess } from "@/lib/permissions";
 import { AUTOMATION_AGENT, ruleName, ruleOf } from "@/lib/automation";
 import { listTeams } from "@/lib/perf/teams";
 import { Automations } from "./Automations";
@@ -12,7 +12,7 @@ export default async function AutomationsPage() {
     db.automation.findMany({ where: { workspaceId: wid }, orderBy: { createdAt: "asc" } }),
     db.sequence.findMany({ where: { workspaceId: wid }, select: { id: true, name: true }, orderBy: { createdAt: "asc" } }),
     db.membership.findMany({ where: { workspaceId: wid }, select: { user: { select: { name: true } } } }),
-    getRole(user.id, wid),
+    getAccess(user.id, wid),
     db.agentLog.findMany({ where: { workspaceId: wid, agent: AUTOMATION_AGENT, message: { startsWith: "[" } }, orderBy: { createdAt: "desc" }, take: 500, select: { message: true, createdAt: true } }),
   ]);
   // Danh sách cho trình sửa luật (bảng chưa có thì để trống, không làm hỏng trang).
@@ -27,7 +27,7 @@ export default async function AutomationsPage() {
   return (
     <Automations
       config={config}
-      canManage={can(role, "manage_automations")}
+      canManage={allow(role, "automations_manage")}
       team={team}
       sequences={sequences}
       lists={{ campaigns, surveys, teams: teams.map((t) => ({ id: t.id, name: t.name })), forms: forms.map((f) => ({ id: f.slug, name: f.title })) }}

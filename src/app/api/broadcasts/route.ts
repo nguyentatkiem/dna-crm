@@ -14,7 +14,7 @@ export async function GET() {
 
 /** Tạo đợt gửi: lưu nháp, gửi ngay hoặc hẹn giờ. */
 export async function POST(req: Request) {
-  const a = await marketingApi(true);
+  const a = await marketingApi("broadcast_send");
   if ("error" in a) return a.error;
   const p = BroadcastIn.safeParse(await req.json().catch(() => ({})));
   if (!p.success) return fail(p.error.issues[0]?.message ?? "Dữ liệu không hợp lệ");

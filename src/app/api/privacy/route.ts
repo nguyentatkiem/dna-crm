@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { appApi, fail, ok } from "@/lib/http";
-import { can, getRole } from "@/lib/permissions";
+import { allow, getAccess, getRole } from "@/lib/permissions";
 import { setPref } from "@/lib/prefs";
 import { audit, diffOf } from "@/lib/audit";
 import { checkExportQuota, getPrivacy, type Privacy } from "@/lib/privacy";
@@ -26,7 +26,7 @@ export async function PUT(req: Request) {
   const a = await appApi();
   if ("error" in a) return a.error;
   const { ctx } = a;
-  if (!can(await getRole(ctx.user.id, ctx.workspace.id), "manage_settings")) return fail("Chỉ chủ workspace được đổi cài đặt bảo mật", 403);
+  if (!allow(await getAccess(ctx.user.id, ctx.workspace.id), "settings_manage")) return fail("Bạn chưa có quyền đổi cài đặt bảo mật", 403);
   const p = Body.safeParse(await req.json().catch(() => ({})));
   if (!p.success) return fail("Dữ liệu chưa hợp lệ");
   const before = await getPrivacy(ctx.workspace.id);

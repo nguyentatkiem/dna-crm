@@ -2,6 +2,7 @@ import { db, parseJson } from "@/lib/db";
 import { appApi, fail, ok } from "@/lib/http";
 import { sendZaloText } from "@/lib/zalo";
 import { findScopedRecord } from "@/lib/permissions";
+import { viMessage } from "@/lib/format";
 
 /** Nhắn khách qua Zalo OA từ khung chi tiết. Chỉ khách đã nhắn/quan tâm OA (có Zalo user id) mới nhắn được. */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -18,7 +19,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   try {
     msgId = (await sendZaloText(a.ctx.workspace.id, uid, text.trim())) ?? "";
   } catch (e) {
-    return fail(e instanceof Error ? e.message : "Gửi Zalo lỗi", 502);
+    return fail(viMessage(e, "Gửi Zalo lỗi"), 502);
   }
   // Tin gửi từ hồ sơ khách cũng hiện trong Hộp thư.
   const conv = await db.conversation.findUnique({ where: { workspaceId_channel_externalId: { workspaceId: a.ctx.workspace.id, channel: "zalo", externalId: uid } } });

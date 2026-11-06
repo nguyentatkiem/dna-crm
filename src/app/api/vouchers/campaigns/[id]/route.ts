@@ -10,7 +10,7 @@ type P = { params: Promise<{ id: string }> };
 export async function PATCH(req: Request, { params }: P) {
   const a = await appApi();
   if ("error" in a) return a.error;
-  if (!(await canManageVouchers(a.ctx))) return fail("Chỉ chủ hoặc quản lý sửa được chương trình", 403);
+  if (!(await canManageVouchers(a.ctx))) return fail("Bạn chưa có quyền quản lý voucher", 403);
   const c = await db.voucherCampaign.findFirst({ where: { id: (await params).id, workspaceId: a.ctx.workspace.id } });
   if (!c) return fail("Không tìm thấy chương trình", 404);
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
@@ -30,7 +30,7 @@ export async function PATCH(req: Request, { params }: P) {
 export async function DELETE(_req: Request, { params }: P) {
   const a = await appApi();
   if ("error" in a) return a.error;
-  if (!(await canManageVouchers(a.ctx))) return fail("Chỉ chủ hoặc quản lý xoá được chương trình", 403);
+  if (!(await canManageVouchers(a.ctx))) return fail("Bạn chưa có quyền quản lý voucher", 403);
   const c = await db.voucherCampaign.findFirst({ where: { id: (await params).id, workspaceId: a.ctx.workspace.id } });
   if (!c) return fail("Không tìm thấy chương trình", 404);
   if (await db.voucher.count({ where: { campaignId: c.id, status: "used" } })) return fail("Chương trình đã có mã được dùng. Hãy tắt chương trình thay vì xoá.", 409);

@@ -1,8 +1,10 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import dynamic from "next/dynamic";
 import { scoreColor, type Segment } from "@/lib/calls-shared";
+
+const SentimentChart = dynamic(() => import("./SentimentChart").then((m) => m.SentimentChart), { ssr: false, loading: () => <div className="h-full animate-pulse rounded-lg bg-surface-2" /> });
 
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 const FACE = { 1: "🙂", 0: "😐", [-1]: "🙁" } as Record<number, string>;
@@ -65,20 +67,7 @@ export function Conversation({ callId, hasAudio, segments, stats, sentiment }: P
             <div>
               <h3 className="mb-1 text-[13px] font-semibold uppercase tracking-wide text-ink-2">Cảm xúc khách theo thời gian</h3>
               <div className="h-40 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chart} margin={{ top: 8, right: 8, bottom: 0, left: -24 }}>
-                    <CartesianGrid stroke="var(--line-soft)" vertical={false} />
-                    <XAxis dataKey="t" tickFormatter={(t: number) => mmss(t)} tick={{ fontSize: 11, fill: "var(--ink-2)" }} stroke="var(--line)" />
-                    <YAxis domain={[0, 100]} ticks={[0, 50, 100]} tick={{ fontSize: 11, fill: "var(--ink-2)" }} stroke="var(--line)" />
-                    <ReferenceLine y={50} stroke="var(--line)" strokeDasharray="4 4" />
-                    <Tooltip
-                      contentStyle={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 6, fontSize: 12, maxWidth: 260, whiteSpace: "normal" }}
-                      labelFormatter={(t) => mmss(Number(t))}
-                      formatter={(v, _n, item) => [`${v} · “${String((item.payload as { text: string }).text).slice(0, 80)}”`, "Cảm xúc"]}
-                    />
-                    <Line type="monotone" dataKey="v" stroke="var(--primary)" strokeWidth={2} dot={{ r: 2.5 }} isAnimationActive={false} />
-                  </LineChart>
-                </ResponsiveContainer>
+                <SentimentChart chart={chart} />
               </div>
             </div>
           )}

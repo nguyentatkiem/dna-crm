@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { Icon } from "@/components/Icon";
 import { Badge, Drawer, EmptyState } from "@/components/ui";
 import { ContactPicker, type PickedContact } from "@/components/care/ContactPicker";
@@ -26,13 +26,18 @@ export function WarrantyClient({ products, lookupPath, focusId }: { products: Pr
   const [acting, setActing] = useState<{ w: WarrantyDTO; action: "claim" | "void" | "reactivate" } | null>(null);
   const [copied, setCopied] = useState(false);
 
+  const seq = useRef(0);
   const load = useCallback(async () => {
     const sp = new URLSearchParams({ status });
     if (q.trim()) sp.set("q", q.trim());
     if (expiring) sp.set("expiring", "1");
-    const r = await fetch(`/api/warranty?${sp}`);
-    if (!r.ok) return setItems([]);
+    const n = ++seq.current;
+    const r = await fetch(`/api/warranty?${sp}`).catch(() => null);
+    // Bỏ kết quả về muộn của lần tìm/lọc cũ; lỗi mạng thì giữ danh sách đang hiện thay vì xoá trắng.
+    if (n !== seq.current) return;
+    if (!r?.ok) return setItems((x) => x ?? []);
     const j = await r.json();
+    if (n !== seq.current) return;
     setItems(j.items);
     setCounts(j.counts);
   }, [q, status, expiring]);

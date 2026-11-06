@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { appApi, fail, ok } from "@/lib/http";
-import { getRole } from "@/lib/permissions";
+import { allowed } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import { copyTargets, isPeriod, kpiBoard, prevPeriod } from "@/lib/kpi";
 
@@ -11,7 +11,7 @@ export async function POST(req: Request) {
   const a = await appApi();
   if ("error" in a) return a.error;
   const { ctx } = a;
-  if ((await getRole(ctx.user.id, ctx.workspace.id)) === "member") return fail("Chỉ chủ và quản lý được đặt chỉ tiêu", 403);
+  if (!(await allowed(ctx, "kpi_set"))) return fail("Bạn chưa có quyền đặt chỉ tiêu KPI", 403);
   const p = Body.safeParse(await req.json().catch(() => ({})));
   if (!p.success) return fail(p.error.issues[0]?.message ?? "Dữ liệu chưa hợp lệ");
   const n = await copyTargets(ctx.workspace.id, p.data.period);

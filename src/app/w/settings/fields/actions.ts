@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { apiContext } from "@/lib/auth";
 import { getObject } from "@/lib/config/schema";
-import { can, getRole } from "@/lib/permissions";
+import { allow, getAccess } from "@/lib/permissions";
 import { getPref, setPref } from "@/lib/prefs";
 import { audit, diffOf } from "@/lib/audit";
 import { ACCESS_LABEL, FieldRules, cleanRules, type FieldAccessPref } from "@/lib/field-access";
@@ -14,7 +14,7 @@ type Res = { ok: true } | { ok: false; error: string };
 async function ownerCtx(objectKey: string) {
   const ctx = await apiContext();
   if (!ctx?.config) return { error: "Bạn cần đăng nhập lại" } as const;
-  if (!can(await getRole(ctx.user.id, ctx.workspace.id), "manage_settings")) return { error: "Chỉ chủ workspace được đổi cài đặt này" } as const;
+  if (!allow(await getAccess(ctx.user.id, ctx.workspace.id), "settings_manage")) return { error: "Chỉ chủ workspace được đổi cài đặt này" } as const;
   const obj = getObject(ctx.config, objectKey);
   if (!obj) return { error: "Không có bảng này" } as const;
   return { ctx, obj } as const;

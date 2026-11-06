@@ -30,16 +30,17 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const a = await appApi();
   if ("error" in a) return a.error;
+  const s = await docScope(a.ctx);
+  if (!s.perm.create) return fail("Bạn chưa có quyền tạo báo giá", 403);
   const p = QuoteInput.safeParse(await req.json().catch(() => ({})));
   if (!p.success) return fail(firstError(p.error));
   const d = p.data;
-  const s = await docScope(a.ctx);
   const wid = a.ctx.workspace.id;
   const links = await resolveLinks(a.ctx, d);
   const t = totals(d.items, d.discount);
   const company = await getPref<Company>(wid, "company", COMPANY_DEFAULT);
   // Quản lý bấm "Lưu & duyệt" thì duyệt luôn; nhân viên bấm "Gửi duyệt" thì chờ duyệt.
-  const status = d.intent === "submit" ? (s.seeAll ? "approved" : "pending") : "draft";
+  const status = d.intent === "submit" ? (s.perm.approve ? "approved" : "pending") : "draft";
   const number = await nextNumber(wid, "BG");
   const quote = await db.quote.create({
     data: {

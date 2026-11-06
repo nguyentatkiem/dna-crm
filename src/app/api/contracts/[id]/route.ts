@@ -1,7 +1,6 @@
 import { db } from "@/lib/db";
 import { appApi, fail, ok } from "@/lib/http";
 import { audit, diffOf } from "@/lib/audit";
-import { can } from "@/lib/permissions";
 import { canEditDoc, docScope, resolveLinks, scoped } from "@/lib/sales/access";
 import { ContractInput, firstError } from "@/lib/sales/schemas";
 
@@ -14,7 +13,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
   const s = await docScope(a.ctx);
   const before = await db.contract.findFirst({ where: scoped(s.where, { id }) });
   if (!before) return fail("Không tìm thấy hợp đồng", 404);
-  if (!canEditDoc(a.ctx, s.seeAll, before)) return fail("Chỉ người tạo hoặc quản lý được sửa hợp đồng này", 403);
+  if (!s.perm.contract || !canEditDoc(a.ctx, s.perm.editOthers, before)) return fail("Chỉ người tạo hoặc người có quyền “Sửa chứng từ của người khác” được sửa hợp đồng này", 403);
   const p = ContractInput.safeParse(await req.json().catch(() => ({})));
   if (!p.success) return fail(firstError(p.error));
   const d = p.data;
@@ -47,7 +46,7 @@ export async function DELETE(_req: Request, { params }: Ctx) {
   if ("error" in a) return a.error;
   const { id } = await params;
   const s = await docScope(a.ctx);
-  if (!can(s.role, "delete")) return fail("Bạn không có quyền xoá. Hãy nhờ chủ hoặc quản lý.", 403);
+  if (!s.perm.del) return fail("Bạn chưa có quyền xoá. Hãy nhờ chủ workspace cấp quyền.", 403);
   const before = await db.contract.findFirst({ where: scoped(s.where, { id }) });
   if (!before) return fail("Không tìm thấy hợp đồng", 404);
   await db.contract.delete({ where: { id } });

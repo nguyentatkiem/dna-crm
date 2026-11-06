@@ -1,12 +1,12 @@
 // Phần dùng chung của API khảo sát: quyền quản lý, DTO.
 import type { Survey } from "@prisma/client";
 import { z } from "zod";
-import { can, getRole } from "../permissions";
+import { allow, getAccess } from "../permissions";
 import { QuestionsSchema, SURVEY_KINDS } from "./shared";
 import { questionsOf } from "./service";
 
 /** Tạo/sửa/xoá khảo sát và cài đặt: chủ, quản lý (quyền marketing). */
-export const canManageSurveys = async (ctx: { user: { id: string }; workspace: { id: string } }) => can(await getRole(ctx.user.id, ctx.workspace.id), "manage_marketing");
+export const canManageSurveys = async (ctx: { user: { id: string }; workspace: { id: string } }) => allow(await getAccess(ctx.user.id, ctx.workspace.id), "survey_manage");
 
 export const SurveyBody = z.object({
   name: z.string().trim().min(1, "Cần nhập tên khảo sát").max(120),

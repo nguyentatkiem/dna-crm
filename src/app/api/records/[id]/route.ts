@@ -4,7 +4,7 @@ import { moveToTrash } from "@/lib/trash";
 import { appApi, fail, ok } from "@/lib/http";
 import { getObject } from "@/lib/config/schema";
 import { runAutomations, toDTO, type FieldValue } from "@/lib/records";
-import { can, findScopedRecord, getRole } from "@/lib/permissions";
+import { accessOf, allow, findScopedRecord, getRole } from "@/lib/permissions";
 import { audit, recordSnapshot, snapshotDiff } from "@/lib/audit";
 import { notify, userIdByName } from "@/lib/notify";
 import { fireRecordUpdate } from "@/lib/automation";
@@ -36,6 +36,11 @@ export async function PATCH(req: Request, { params }: Ctx) {
   const p = parsed.data;
   const obj = getObject(a.ctx.config, rec.objectKey);
   if (p.status && !obj?.statuses.some((s) => s.key === p.status)) return fail("Trạng thái không có trong bảng này");
+  const acc = await accessOf(a.ctx);
+  // Mục của người khác (đã có người phụ trách, không phải mình) cần quyền "Sửa mục của người khác".
+  if (rec.ownerName && rec.ownerName !== a.ctx.user.name && !allow(acc, "record_edit_others")) return fail("Bạn chỉ sửa được mục mình phụ trách. Hãy nhờ quản lý cấp quyền “Sửa mục của người khác”.", 403);
+  // Đổi người phụ trách cần quyền "Giao / đổi người phụ trách" (trừ tự nhận mục chưa giao).
+  if (p.ownerName !== undefined && p.ownerName !== rec.ownerName && !allow(acc, "record_assign") && !(rec.ownerName === "" && p.ownerName === a.ctx.user.name)) return fail("Bạn chưa có quyền giao / đổi người phụ trách", 403);
 
   // Bỏ các ô còn đang bị che (••) và ô vai trò này không được sửa (chỉ xem / ẩn theo Phân quyền trường).
   const [role, rules] = await Promise.all([getRole(a.ctx.user.id, a.ctx.workspace.id), getFieldRules(a.ctx.workspace.id, rec.objectKey)]);
@@ -79,8 +84,7 @@ export async function DELETE(_req: Request, { params }: Ctx) {
   const a = await appApi();
   if ("error" in a) return a.error;
   const { id } = await params;
-  const role = await getRole(a.ctx.user.id, a.ctx.workspace.id);
-  if (!can(role, "delete")) return fail("Bạn không có quyền xoá. Hãy nhờ chủ hoặc quản lý.", 403);
+  if (!allow(await accessOf(a.ctx), "record_delete")) return fail("Bạn chưa có quyền xoá. Hãy nhờ chủ workspace cấp quyền.", 403);
   const rec = await findScopedRecord(a.ctx, id);
   if (!rec) return fail("Không tìm thấy mục", 404);
   // Xoá mềm: chuyển vào thùng rác, khôi phục được trong TRASH_DAYS ngày.

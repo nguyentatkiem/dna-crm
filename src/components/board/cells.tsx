@@ -9,22 +9,8 @@ import type { FieldValue } from "@/lib/records";
 import { formatFormulaValue, type FormulaResult } from "@/lib/formula";
 
 /** Đóng popover khi bấm ra ngoài. */
-export function usePopover() {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const h = (e: MouseEvent) => ref.current && !ref.current.contains(e.target as Node) && setOpen(false);
-    const k = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
-    document.addEventListener("mousedown", h);
-    document.addEventListener("keydown", k);
-    return () => {
-      document.removeEventListener("mousedown", h);
-      document.removeEventListener("keydown", k);
-    };
-  }, [open]);
-  return { open, setOpen, ref };
-}
+export { usePopover } from "./popover";
+import { usePopover } from "./popover";
 
 /** Ô nhãn màu kín ô (status và select). */
 export function LabelCell({ options, value, onPick, emptyText = "", block = true }: { options: Option[]; value: string; onPick: (key: string) => void; emptyText?: string; block?: boolean }) {

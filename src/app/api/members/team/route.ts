@@ -1,6 +1,6 @@
 import { db, parseJson } from "@/lib/db";
 import { appApi, fail, ok } from "@/lib/http";
-import { can, getRole } from "@/lib/permissions";
+import { allow, getAccess } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import type { WorkspaceConfig } from "@/lib/config/schema";
 
@@ -12,7 +12,7 @@ export async function POST(req: Request) {
   const a = await appApi();
   if ("error" in a) return a.error;
   const wid = a.ctx.workspace.id;
-  if (!can(await getRole(a.ctx.user.id, wid), "manage_members")) return fail("Chỉ chủ workspace được sửa danh sách đội", 403);
+  if (!allow(await getAccess(a.ctx.user.id, wid), "members_manage")) return fail("Chỉ chủ workspace được sửa danh sách đội", 403);
   const { userId } = (await req.json().catch(() => ({}))) as { userId?: string };
   const m = userId ? await db.membership.findUnique({ where: { userId_workspaceId: { userId, workspaceId: wid } }, include: { user: { select: { name: true } } } }) : null;
   if (!m) return fail("Không tìm thấy thành viên", 404);

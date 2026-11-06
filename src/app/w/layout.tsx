@@ -4,6 +4,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
 import { Copilot } from "@/components/Copilot";
 import { CommandPalette } from "@/components/CommandPalette";
+import { Toaster } from "@/components/ui/Toast";
 import { INDUSTRIES } from "@/lib/dna";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -30,6 +31,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </div>
       <Copilot term={config.terminology} />
       <CommandPalette boards={boards} term={config.terminology} />
+      <Toaster />
     </div>
   );
 }

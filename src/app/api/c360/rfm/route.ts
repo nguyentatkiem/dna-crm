@@ -2,7 +2,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { appApi, fail, ok } from "@/lib/http";
 import { audit } from "@/lib/audit";
-import { can, getRole } from "@/lib/permissions";
+import { accessOf, allow } from "@/lib/permissions";
 import { resolveSegment } from "@/lib/care/segments";
 import { dataOf } from "@/lib/c360/common";
 import { RFM_LABEL, RFM_SEGMENTS, rfmFilter, type RfmKey } from "@/lib/c360/rfm";
@@ -17,9 +17,9 @@ export async function POST(req: Request) {
   const wid = a.ctx.workspace.id;
   const p = Body.safeParse(await req.json().catch(() => ({})));
   if (!p.success) return fail("Yêu cầu RFM chưa hợp lệ");
-  const role = await getRole(a.ctx.user.id, wid);
+  const acc = await accessOf(a.ctx);
   if (p.data.action === "recompute") {
-    if (!can(role, "see_all")) return fail("Chỉ chủ hoặc quản lý được tính lại RFM", 403);
+    if (!allow(acc, "segment_manage")) return fail("Bạn chưa có quyền “Quản lý nhóm khách” để tính lại RFM", 403);
     const pref = await rfmPref(wid);
     return ok(await recomputeRfm(wid, a.ctx.config, { fire: !!pref.lastRun }));
   }
@@ -39,5 +39,5 @@ export async function POST(req: Request) {
     return fail("Bộ lọc nhóm khách chưa hỗ trợ trường Nhóm RFM, chưa lưu được. Hãy cập nhật phiên bản mới.", 409);
   }
   if (!existing) await audit({ workspaceId: wid, user: a.ctx.user }, "segment.create", "segment", seg.id, `Tạo nhóm khách “${name}” từ phân tích RFM`);
-  return ok({ id: seg.id, name, count: got, existed: !!existing, canBroadcast: can(role, "manage_marketing") });
+  return ok({ id: seg.id, name, count: got, existed: !!existing, canBroadcast: allow(acc, "broadcast_send") });
 }

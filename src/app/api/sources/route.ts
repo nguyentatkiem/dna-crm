@@ -1,4 +1,4 @@
-import { isOwner } from "@/lib/auth";
+import { allowed as hasPerm } from "@/lib/permissions";
 import { appApi, fail, ok } from "@/lib/http";
 import { maskSettings, saveSettings, type Integrations } from "@/lib/settings";
 import { getProvider } from "@/lib/sources/providers";
@@ -7,7 +7,7 @@ import { getProvider } from "@/lib/sources/providers";
 export async function PUT(req: Request) {
   const a = await appApi();
   if ("error" in a) return a.error;
-  if (!(await isOwner(a.ctx.user.id, a.ctx.workspace.id))) return fail("Chỉ chủ workspace được sửa kết nối", 403);
+  if (!(await hasPerm(a.ctx, "integrations_manage"))) return fail("Bạn chưa có quyền sửa kết nối", 403);
   const { provider, values } = (await req.json().catch(() => ({}))) as { provider?: string; values?: Record<string, string> };
   const p = provider === "call" ? { key: "call", secrets: [["secret", ""]] } : getProvider(provider ?? "");
   if (!p) return fail("Nguồn không hợp lệ");

@@ -15,7 +15,7 @@ export default async function QuotesPage({ searchParams }: { searchParams: Promi
   });
   return (
     <div className="canvas px-4 pb-16 pt-6 sm:px-8">
-      <QuotesList initial={ser(rows)} initialStatus={status ?? ""} seeAll={scope.seeAll} />
+      <QuotesList initial={ser(rows)} initialStatus={status ?? ""} seeAll={scope.perm.approve} canCreate={scope.perm.create} />
     </div>
   );
 }

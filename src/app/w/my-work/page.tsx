@@ -1,14 +1,14 @@
 import { requireApp } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { can, getRole, taskScope } from "@/lib/permissions";
+import { allow, getAccess, taskScope } from "@/lib/permissions";
 import { MyWork } from "./MyWork";
 
 export default async function MyWorkPage({ searchParams }: { searchParams: Promise<{ who?: string; task?: string }> }) {
   const ctx = await requireApp();
   const { workspace, user, config } = ctx;
   const sp = await searchParams;
-  const role = await getRole(user.id, workspace.id);
-  const seeAll = can(role, "see_all");
+  const acc = await getAccess(user.id, workspace.id);
+  const seeAll = allow(acc, "task_view_others");
   const who = seeAll ? (sp.who ?? "mine") : "mine";
   const tasks = await db.task.findMany({ where: await taskScope(ctx, who), orderBy: [{ dueAt: "asc" }, { createdAt: "desc" }] });
   const recIds = [...new Set(tasks.map((t) => t.recordId).filter((x): x is string => !!x))];

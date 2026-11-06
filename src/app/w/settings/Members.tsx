@@ -6,23 +6,24 @@ import { useCallback, useEffect, useState } from "react";
 import { Avatar } from "@/components/Avatar";
 import { Icon } from "@/components/Icon";
 
-type Role = "owner" | "manager" | "member";
-type M = { id: string; name: string; email: string; role: Role; inTeam: boolean };
-type Perm = { action: string; label: string; owner: boolean; manager: boolean; member: boolean };
+/** Khoá vai trò: "owner" | "manager" | "member" hoặc vai trò tự tạo ("r_..."). */
+type Role = string;
+type M = { id: string; name: string; email: string; role: Role; roleName: string; roleColor: string; inTeam: boolean };
+type Matrix = { key: string; label: string; actions: { key: string; label: string; ownerOnly: boolean; roles: Record<string, boolean> }[] }[];
 type Data = {
   me: string;
   myRole: Role;
+  myRoleName: string;
   isOwner: boolean;
   canManageSettings: boolean;
-  roles: { key: Role; label: string }[];
-  permissions: Perm[];
+  canSeeAudit: boolean;
+  roles: { key: Role; label: string; color: string; builtin: boolean }[];
+  matrix: Matrix;
   memberSeesOwnOnly: boolean;
   team: string[];
   members: M[];
-  invites: { token: string; role: Role; expiresAt: string }[];
+  invites: { token: string; role: Role; roleName: string; expiresAt: string }[];
 };
-
-const ROLE_COLOR: Record<Role, string> = { owner: "#a25ddc", manager: "#0086c0", member: "#579bfc" };
 
 export function Members() {
   const router = useRouter();
@@ -106,18 +107,24 @@ export function Members() {
   }
 
   if (!d) return <section className="card mt-4 p-5 text-ink-2">Đang tải thành viên...</section>;
-  const roleLabel = (r: Role) => d.roles.find((x) => x.key === r)?.label ?? r;
+  const roleLabel = (r: Role) => d.roles.find((x) => x.key === r)?.label ?? "Vai trò không xác định";
+  const roleColor = (r: Role) => d.roles.find((x) => x.key === r)?.color ?? "#c4c4c4";
+  const counts = Object.fromEntries(d.roles.map((r) => [r.key, d.matrix.reduce((n, g) => n + g.actions.filter((a) => !a.ownerOnly && a.roles[r.key]).length, 0)]));
+  const totalPerms = d.matrix.reduce((n, g) => n + g.actions.filter((a) => !a.ownerOnly).length, 0);
   const missing = d.members.filter((m) => !m.inTeam);
 
   return (
-    <section className="card mt-4 p-5">
+    <section id="members" className="card mt-4 scroll-mt-4 p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <h2 className="text-[16px] font-semibold">Thành viên & phân quyền</h2>
           <p className="mt-1 text-[14px] text-ink-2">Mời nhân viên bằng link dùng một lần, hết hạn sau 7 ngày. Vai trò của bạn: {roleLabel(d.myRole)}.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {d.myRole !== "member" && (
+          <Link href="/w/settings/roles" className="btn-outline">
+            <Icon name="shield" size={16} /> Vai trò & quyền
+          </Link>
+          {d.canSeeAudit && (
             <Link href="/w/settings/audit" className="btn-outline">
               <Icon name="history" size={16} /> Nhật ký thao tác
             </Link>
@@ -125,8 +132,13 @@ export function Members() {
           {d.isOwner && (
             <>
               <select id="invite-role" aria-label="Vai trò người được mời" value={inviteRole} onChange={(e) => setInviteRole(e.target.value as Role)} className="input h-9 w-auto">
-                <option value="member">Mời làm Nhân viên</option>
-                <option value="manager">Mời làm Quản lý</option>
+                {d.roles
+                  .filter((r) => r.key !== "owner")
+                  .map((r) => (
+                    <option key={r.key} value={r.key}>
+                      Mời làm {r.label}
+                    </option>
+                  ))}
               </select>
               <button type="button" className="btn-primary" onClick={invite} disabled={busy}>
                 <Icon name="link" size={16} /> Tạo link mời
@@ -176,8 +188,9 @@ export function Members() {
                 disabled={busy}
                 onChange={(e) => changeRole(m, e.target.value as Role)}
                 className="h-8 rounded border border-line bg-surface px-2 text-[13px] font-semibold"
-                style={{ color: ROLE_COLOR[m.role] }}
+                style={{ color: roleColor(m.role) }}
               >
+                {!d.roles.some((r) => r.key === m.role) && <option value={m.role}>Vai trò không xác định</option>}
                 {d.roles.map((r) => (
                   <option key={r.key} value={r.key}>
                     {r.label}
@@ -185,7 +198,7 @@ export function Members() {
                 ))}
               </select>
             ) : (
-              <span className="rounded px-2 py-0.5 text-[12px] text-white" style={{ background: ROLE_COLOR[m.role] }}>
+              <span className="rounded px-2 py-0.5 text-[12px] text-white" style={{ background: roleColor(m.role) }}>
                 {roleLabel(m.role)}
               </span>
             )}
@@ -214,44 +227,34 @@ export function Members() {
       {d.invites.length > 0 && <p className="mt-2 text-[12.5px] text-ink-2">{d.invites.length} link mời đang chờ sử dụng.</p>}
 
       <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,320px)]">
-        <div className="min-w-0 overflow-x-auto rounded border border-line-soft">
-          <table className="w-full min-w-[460px] text-[13.5px]">
-            <thead className="bg-surface-2 text-left text-[12.5px] text-ink-2">
-              <tr>
-                <th className="px-3 py-2 font-medium">Quyền</th>
-                {d.roles.map((r) => (
-                  <th key={r.key} className="w-24 px-2 py-2 text-center font-medium" style={{ color: ROLE_COLOR[r.key] }}>
-                    {r.label}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--line-soft)]">
-              <tr>
-                <td className="px-3 py-2">Thêm, sửa khách và việc trong phạm vi được xem</td>
-                {d.roles.map((r) => (
-                  <td key={r.key} className="text-center text-success">✓</td>
-                ))}
-              </tr>
-              {d.permissions.map((p) => (
-                <tr key={p.action}>
-                  <td className="px-3 py-2">{p.label}</td>
-                  {d.roles.map((r) => (
-                    <td key={r.key} className={`text-center ${p[r.key] ? "text-success" : "text-ink-2"}`} aria-label={p[r.key] ? "Có" : "Không"}>
-                      {p[r.key] ? "✓" : "–"}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="min-w-0 rounded border border-line-soft">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line-soft bg-surface-2 px-3 py-2">
+            <span className="text-[13px] font-medium text-ink-2">Vai trò trong workspace</span>
+            <Link href="/w/settings/roles?tab=compare" className="text-[13px] text-primary hover:underline">
+              So sánh chi tiết {totalPerms} quyền →
+            </Link>
+          </div>
+          <ul className="divide-y divide-[var(--line-soft)]">
+            {d.roles.map((r) => (
+              <li key={r.key} className="flex flex-wrap items-center gap-2 px-3 py-2 text-[13.5px]">
+                <span className="h-2.5 w-2.5 flex-none rounded-full" style={{ background: r.color }} />
+                <span className="min-w-0 flex-1 font-medium">{r.label}</span>
+                <span className="text-[12.5px] text-ink-2 tnum">
+                  {counts[r.key]}/{totalPerms} quyền · {d.members.filter((m) => m.role === r.key).length} người
+                </span>
+                <Link href={`/w/settings/roles?role=${r.key}`} className="btn-ghost h-7 px-2 text-[12.5px]">
+                  {d.isOwner && r.key !== "owner" ? "Sửa" : "Xem"}
+                </Link>
+              </li>
+            ))}
+          </ul>
         </div>
 
         <div className="rounded border border-line-soft p-4">
           <div className="flex items-start gap-3">
             <div className="min-w-0 flex-1">
               <p className="font-semibold">Nhân viên chỉ thấy khách của mình</p>
-              <p className="mt-1 text-[13px] text-ink-2">Khi bật, Nhân viên chỉ xem và sửa được mục mình phụ trách và mục chưa giao. Chủ và Quản lý vẫn thấy tất cả.</p>
+              <p className="mt-1 text-[13px] text-ink-2">Khi bật, vai trò Nhân viên chỉ xem và sửa được mục mình phụ trách và mục chưa giao. Phạm vi “Của cả đội” và vai trò khác: chỉnh ở Vai trò & quyền.</p>
             </div>
             <button
               type="button"

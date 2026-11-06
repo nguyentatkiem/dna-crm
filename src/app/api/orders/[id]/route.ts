@@ -1,7 +1,6 @@
 import { db } from "@/lib/db";
 import { appApi, fail, ok } from "@/lib/http";
 import { audit, diffOf } from "@/lib/audit";
-import { can } from "@/lib/permissions";
 import { docScope, scoped, resolveLinks } from "@/lib/sales/access";
 import { totals } from "@/lib/sales/lines";
 import { OrderInput, OrderPatch, firstError } from "@/lib/sales/schemas";
@@ -29,6 +28,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
   const s = await docScope(a.ctx);
   const before = await db.order.findFirst({ where: scoped(s.where, { id }) });
   if (!before) return fail("Không tìm thấy đơn hàng", 404);
+  if (!s.perm.orderEdit) return fail("Bạn chưa có quyền cập nhật đơn hàng", 403);
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   const p = OrderPatch.safeParse(body);
   if (!p.success) return fail(firstError(p.error));
@@ -39,7 +39,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
 
   if (d.status && d.status !== before.status) {
     if (!ORDER_NEXT[before.status as OrderStatus]?.includes(d.status as OrderStatus)) return fail(`Không chuyển được từ “${ORDER_STATUS[before.status as OrderStatus]?.label ?? before.status}” sang “${ORDER_STATUS[d.status as OrderStatus].label}”`, 409);
-    if (d.status === "cancelled" && before.paid > 0 && !s.seeAll) return fail("Đơn đã thu tiền, chỉ quản lý được huỷ", 403);
+    if (d.status === "cancelled" && before.paid > 0 && !s.perm.cancelPaid) return fail("Đơn đã thu tiền: bạn chưa có quyền “Huỷ đơn đã thu tiền”", 403);
     data.status = d.status;
   }
   if (d.dueAt !== undefined) data.dueAt = d.dueAt;
@@ -89,7 +89,7 @@ export async function DELETE(_req: Request, { params }: Ctx) {
   if ("error" in a) return a.error;
   const { id } = await params;
   const s = await docScope(a.ctx);
-  if (!can(s.role, "delete")) return fail("Bạn không có quyền xoá. Hãy nhờ chủ hoặc quản lý.", 403);
+  if (!s.perm.del) return fail("Bạn chưa có quyền xoá. Hãy nhờ chủ workspace cấp quyền.", 403);
   const before = await db.order.findFirst({ where: scoped(s.where, { id }), include: { payments: true } });
   if (!before) return fail("Không tìm thấy đơn hàng", 404);
   await db.order.delete({ where: { id } });

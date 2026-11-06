@@ -41,6 +41,9 @@ export default async function SettingsPage() {
           <Link href="/w/settings/privacy" className="btn-outline">
             Bảo mật dữ liệu
           </Link>
+          <Link href="/w/settings/roles" className="btn-outline">
+            Vai trò & quyền
+          </Link>
           <Link href="/w/settings/teams" className="btn-outline">
             Phòng ban / đội
           </Link>

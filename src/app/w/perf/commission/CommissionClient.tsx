@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/Icon";
 import { Avatar } from "@/components/Avatar";
+import { PersonLink } from "@/components/perf/PersonLink";
 import { Segmented } from "@/components/ui";
 import { vnd } from "@/lib/format";
 import { commissionFor, normTiers, type CommissionRules } from "@/lib/perf/shared";
@@ -129,7 +130,7 @@ export function CommissionClient({ initial, me, canEdit, canSeeAll }: { initial:
               <tr key={r.who} className={`border-b border-line-soft last:border-0 ${r.who === me ? "bg-primary-selected" : ""}`}>
                 <th scope="row" className="px-3 py-3 text-left font-medium">
                   <span className="flex items-center gap-2 whitespace-nowrap">
-                    <Avatar name={r.who} size={26} /> {r.who}
+                    <Avatar name={r.who} size={26} /> <PersonLink name={r.who} />
                     {r.who === me && <span className="badge-info">Bạn</span>}
                   </span>
                   {r.teams.length > 0 && <span className="mt-0.5 block text-[12px] font-normal text-ink-2">{r.teams.join(", ")}</span>}

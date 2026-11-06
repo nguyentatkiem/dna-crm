@@ -28,11 +28,20 @@ export function DocsList({ initial, templates, boards }: { initial: DocDTO[]; te
   useEffect(() => {
     const s = q.trim();
     if (!s) return setRemote(null);
+    // Huỷ yêu cầu cũ khi gõ tiếp: kết quả về muộn không ghi đè kết quả mới.
+    const ctl = new AbortController();
     const t = setTimeout(async () => {
-      const r = await fetch(`/api/docs?q=${encodeURIComponent(s)}`);
-      if (r.ok) setRemote(new Set(((await r.json()).docs as DocDTO[]).map((d) => d.id)));
-    }, 300);
-    return () => clearTimeout(t);
+      try {
+        const r = await fetch(`/api/docs?q=${encodeURIComponent(s)}`, { signal: ctl.signal });
+        if (r.ok) setRemote(new Set(((await r.json()).docs as DocDTO[]).map((d) => d.id)));
+      } catch {
+        /* đã huỷ hoặc mất mạng: giữ kết quả lọc trên máy */
+      }
+    }, 250);
+    return () => {
+      clearTimeout(t);
+      ctl.abort();
+    };
   }, [q]);
 
   const list = useMemo(() => {

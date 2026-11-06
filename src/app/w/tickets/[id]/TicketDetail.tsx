@@ -20,7 +20,7 @@ type Via = "" | "zalo" | "email" | "sms";
 
 const when = (s: string) => new Date(s).toLocaleString("vi-VN", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit", year: "numeric" });
 
-export function TicketDetail({ id, team, me, canDelete, teams = [], categories = [] }: { id: string; team: string[]; me: string; canDelete: boolean; teams?: { id: string; name: string; color: string }[]; categories?: string[] }) {
+export function TicketDetail({ id, team, me, canDelete, canAssign = true, canClose = true, teams = [], categories = [] }: { id: string; team: string[]; me: string; canDelete: boolean; canAssign?: boolean; canClose?: boolean; teams?: { id: string; name: string; color: string }[]; categories?: string[] }) {
   const router = useRouter();
   const [d, setD] = useState<Detail | null>(null);
   const [err, setErr] = useState("");
@@ -80,9 +80,12 @@ export function TicketDetail({ id, team, me, canDelete, teams = [], categories =
   }
 
   async function remove() {
-    if (!confirm(`Xoá phiếu ${t.number}? Không hoàn tác được.`)) return;
-    const r = await fetch(`/api/tickets/${id}`, { method: "DELETE" });
-    if (r.ok) router.push("/w/tickets");
+    if (busy || !confirm(`Xoá phiếu ${t.number}? Không hoàn tác được.`)) return;
+    setBusy(true);
+    const r = await fetch(`/api/tickets/${id}`, { method: "DELETE" }).catch(() => null);
+    if (r?.ok) return router.push("/w/tickets");
+    setBusy(false);
+    setErr((await r?.json().catch(() => ({})))?.error ?? "Không xoá được phiếu");
   }
 
   const late = isOverdue(t);
@@ -218,7 +221,7 @@ export function TicketDetail({ id, team, me, canDelete, teams = [], categories =
               <span className="label">Trạng thái</span>
               <select className="input h-8" value={t.status} onChange={(e) => patch({ status: e.target.value })}>
                 {TICKET_STATUSES.map((s) => (
-                  <option key={s} value={s}>
+                  <option key={s} value={s} disabled={!canClose && s !== t.status && (s === "resolved" || s === "closed")}>
                     {TICKET_STATUS_LABEL[s]}
                   </option>
                 ))}
@@ -253,7 +256,7 @@ export function TicketDetail({ id, team, me, canDelete, teams = [], categories =
             {teams.length > 0 && (
               <label className="grid gap-1">
                 <span className="label">Đội xử lý</span>
-                <select className="input h-8" value={t.teamId ?? ""} onChange={(e) => patch({ teamId: e.target.value || null })}>
+                <select className="input h-8" disabled={!canAssign} title={canAssign ? undefined : "Bạn chưa có quyền giao phiếu"} value={t.teamId ?? ""} onChange={(e) => patch({ teamId: e.target.value || null })}>
                   <option value="">Chưa có đội</option>
                   {teams.map((x) => (
                     <option key={x.id} value={x.id}>
@@ -265,7 +268,7 @@ export function TicketDetail({ id, team, me, canDelete, teams = [], categories =
             )}
             <label className="grid gap-1">
               <span className="label">Người xử lý</span>
-              <select className="input h-8" value={t.assignee} onChange={(e) => patch({ assignee: e.target.value })}>
+              <select className="input h-8" disabled={!canAssign && !!t.assignee} title={canAssign ? undefined : "Bạn chưa có quyền giao phiếu"} value={t.assignee} onChange={(e) => patch({ assignee: e.target.value })}>
                 <option value="">Chưa giao</option>
                 {people.map((p) => (
                   <option key={p} value={p}>
@@ -331,7 +334,7 @@ export function TicketDetail({ id, team, me, canDelete, teams = [], categories =
           </section>
 
           {canDelete && (
-            <button type="button" className="btn-ghost w-fit text-danger" onClick={remove}>
+            <button type="button" className="btn-ghost w-fit text-danger" onClick={remove} disabled={busy}>
               <Icon name="trash" size={14} /> Xoá phiếu
             </button>
           )}

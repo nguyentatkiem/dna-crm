@@ -1,6 +1,6 @@
 // Phía server của Quản lý hiệu suất: cấu hình (Pref) và quyền.
 import { getPref } from "../prefs";
-import { can, getRole, type Role } from "../permissions";
+import { accessOf, allow, type Role } from "../permissions";
 import { COMMISSION_DEFAULT, PERF_DEFAULT, ROUTING_DEFAULT, normTiers, type CommissionRules, type PerfPref, type TicketRouting } from "./shared";
 
 export type PerfCtx = { user: { id: string; name: string }; workspace: { id: string } };
@@ -35,6 +35,6 @@ export async function routingPref(wid: string): Promise<TicketRouting> {
 
 /** Quyền trong mô-đun: quản lý (chủ + quản lý) chấm điểm, xem mọi người; chủ sửa tiêu chí, quy tắc, mở khoá phiếu đã chốt. */
 export async function perfRole(ctx: PerfCtx): Promise<{ role: Role; manager: boolean; owner: boolean }> {
-  const role = await getRole(ctx.user.id, ctx.workspace.id);
-  return { role, manager: can(role, "see_all"), owner: can(role, "manage_settings") };
+  const acc = await accessOf(ctx);
+  return { role: acc.base, manager: allow(acc, "perf_review") || allow(acc, "perf_view_team"), owner: allow(acc, "perf_manage_rules") };
 }

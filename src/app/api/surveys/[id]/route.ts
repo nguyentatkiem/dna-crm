@@ -20,7 +20,7 @@ export async function GET(_req: Request, { params }: P) {
 export async function PATCH(req: Request, { params }: P) {
   const a = await appApi();
   if ("error" in a) return a.error;
-  if (!(await canManageSurveys(a.ctx))) return fail("Chỉ chủ hoặc quản lý sửa được khảo sát", 403);
+  if (!(await canManageSurveys(a.ctx))) return fail("Bạn chưa có quyền quản lý khảo sát", 403);
   const s = await db.survey.findFirst({ where: { id: (await params).id, workspaceId: a.ctx.workspace.id } });
   if (!s) return fail("Không tìm thấy khảo sát", 404);
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
@@ -40,7 +40,7 @@ export async function PATCH(req: Request, { params }: P) {
 export async function DELETE(_req: Request, { params }: P) {
   const a = await appApi();
   if ("error" in a) return a.error;
-  if (!(await canManageSurveys(a.ctx))) return fail("Chỉ chủ hoặc quản lý xoá được khảo sát", 403);
+  if (!(await canManageSurveys(a.ctx))) return fail("Bạn chưa có quyền quản lý khảo sát", 403);
   const s = await db.survey.findFirst({ where: { id: (await params).id, workspaceId: a.ctx.workspace.id } });
   if (!s) return fail("Không tìm thấy khảo sát", 404);
   await db.survey.delete({ where: { id: s.id } });

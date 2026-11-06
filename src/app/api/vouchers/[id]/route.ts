@@ -9,7 +9,7 @@ type P = { params: Promise<{ id: string }> };
 export async function PATCH(req: Request, { params }: P) {
   const a = await appApi();
   if ("error" in a) return a.error;
-  if (!(await canManageVouchers(a.ctx))) return fail("Chỉ chủ hoặc quản lý huỷ được mã", 403);
+  if (!(await canManageVouchers(a.ctx))) return fail("Bạn chưa có quyền huỷ mã voucher", 403);
   const body = (await req.json().catch(() => ({}))) as { status?: string };
   if (body.status !== "void") return fail("Chỉ hỗ trợ huỷ mã");
   const v = await db.voucher.findFirst({ where: { id: (await params).id, workspaceId: a.ctx.workspace.id } });

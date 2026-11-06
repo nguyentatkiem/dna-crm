@@ -2,7 +2,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { appApi, fail, ok } from "@/lib/http";
 import { audit, diffOf } from "@/lib/audit";
-import { can, getRole } from "@/lib/permissions";
+import { accessOf, allow, getAccess } from "@/lib/permissions";
 import { contactCard, findTicket, ticketPref } from "@/lib/care/server";
 import { notifyAssignee, publicOrigin, sendTicketSurvey, ticketDTO, titlesOf } from "@/lib/care/tickets";
 import { routeTicket } from "@/lib/perf/routing";
@@ -54,6 +54,10 @@ export async function PATCH(req: Request, { params }: P) {
   const p = Patch.safeParse(await req.json().catch(() => ({})));
   if (!p.success) return fail("Dữ liệu chưa hợp lệ");
   const b = p.data;
+  const acc = await accessOf(a.ctx);
+  if (b.status && b.status !== t.status && (b.status === "resolved" || b.status === "closed") && !allow(acc, "ticket_close")) return fail("Bạn chưa có quyền đóng phiếu", 403);
+  const reassign = (b.assignee !== undefined && b.assignee !== t.assignee && !(b.assignee === a.ctx.user.name && !t.assignee)) || (b.teamId !== undefined && (b.teamId || null) !== t.teamId);
+  if (reassign && !allow(acc, "ticket_assign")) return fail("Bạn chưa có quyền giao phiếu cho người khác", 403);
   const data: Parameters<typeof db.ticket.update>[0]["data"] = {};
   const notes: string[] = [];
   if (b.status && b.status !== t.status) {
@@ -111,7 +115,7 @@ export async function PATCH(req: Request, { params }: P) {
 export async function DELETE(_req: Request, { params }: P) {
   const a = await appApi();
   if ("error" in a) return a.error;
-  if (!can(await getRole(a.ctx.user.id, a.ctx.workspace.id), "delete")) return fail("Chỉ chủ hoặc quản lý xoá được phiếu", 403);
+  if (!allow(await getAccess(a.ctx.user.id, a.ctx.workspace.id), "ticket_delete")) return fail("Bạn chưa có quyền xoá phiếu hỗ trợ", 403);
   const t = await findTicket(a.ctx, (await params).id);
   if (!t) return fail("Không tìm thấy phiếu", 404);
   await db.ticket.delete({ where: { id: t.id } });

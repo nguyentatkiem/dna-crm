@@ -33,6 +33,7 @@ export async function POST(req: Request) {
   if ("error" in a) return a.error;
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   const s = await docScope(a.ctx);
+  if (!s.perm.create) return fail("Bạn chưa có quyền tạo đơn hàng", 403);
   const wid = a.ctx.workspace.id;
 
   if (typeof body.quoteId === "string") {

@@ -32,6 +32,8 @@ type Props = {
   reviewedCount: number;
   lessons: LessonRow[];
   owner: boolean;
+  /** Sửa cấu hình tổng đài (mặc định theo owner). */
+  canSip?: boolean;
   stt: boolean;
   aiOn: boolean;
   contactLabel: string;
@@ -84,7 +86,7 @@ function TelesalesInner(p: Props) {
           </Link>
         </p>
       )}
-      {drawer && <SipDrawer sip={p.sip} owner={p.owner} onClose={() => setDrawer(false)} />}
+      {drawer && <SipDrawer sip={p.sip} owner={p.canSip ?? p.owner} onClose={() => setDrawer(false)} />}
       <nav className="mt-4 flex gap-1 overflow-x-auto border-b border-line" aria-label="Telesales">
         {TABS.map(([k, label]) => (
           <Link key={k} href={`/w/telesales?tab=${k}`} className={`-mb-px flex-none border-b-2 px-3 py-2 text-[14px] ${p.tab === k ? "border-primary font-medium text-ink" : "border-transparent text-ink-2 hover:text-ink"}`}>
@@ -718,8 +720,8 @@ function SipDrawer({ sip, owner, onClose }: { sip: SipView; owner: boolean; onCl
     </label>
   );
   return (
-    <div className="fixed inset-0 z-40 flex justify-end bg-[var(--overlay)]" onClick={onClose}>
-      <aside role="dialog" aria-modal="true" aria-label="Cài đặt tổng đài" className="flex h-full w-[min(460px,100vw)] flex-col overflow-y-auto bg-surface shadow-xl" onClick={(e) => e.stopPropagation()}>
+    <div className="anim-fade fixed inset-0 z-40 flex justify-end bg-[var(--overlay)]" onClick={onClose}>
+      <aside role="dialog" aria-modal="true" aria-label="Cài đặt tổng đài" className="anim-slide-right flex h-full w-[min(460px,100vw)] flex-col overflow-y-auto bg-surface shadow-xl" onClick={(e) => e.stopPropagation()}>
         <header className="flex items-center gap-2 border-b border-line px-5 py-4">
           <Icon name="headset" size={18} />
           <h2 className="flex-1 text-[17px] font-semibold">Cài đặt tổng đài</h2>

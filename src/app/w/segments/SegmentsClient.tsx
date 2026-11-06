@@ -5,7 +5,7 @@ import type { ObjectDef } from "@/lib/config/schema";
 import { Icon } from "@/components/Icon";
 import { EmptyState } from "@/components/ui";
 import { FilterMenu } from "@/components/board/BoardMenus";
-import { OPS, filterFields, type Filter } from "@/components/board/model";
+import { OPS, filterFields, type Filter } from "@/components/board/filters";
 import { openInBoard } from "@/components/care/openInBoard";
 import { ago } from "@/lib/format";
 
@@ -70,9 +70,11 @@ export function SegmentsClient({ objects, team, me }: { objects: ObjectDef[]; te
   }
 
   async function remove() {
-    if (!draft?.id || !confirm(`Xoá nhóm “${draft.name}”? Khách trong nhóm không bị ảnh hưởng.`)) return;
+    if (!draft?.id || busy || !confirm(`Xoá nhóm “${draft.name}”? Khách trong nhóm không bị ảnh hưởng.`)) return;
+    setBusy(true);
     const r = await fetch(`/api/segments/${draft.id}`, { method: "DELETE" });
     const j = await r.json().catch(() => ({}));
+    setBusy(false);
     if (!r.ok) return setMsg(j.error ?? "Không xoá được");
     setDraft(null);
     load();
@@ -169,7 +171,7 @@ export function SegmentsClient({ objects, team, me }: { objects: ObjectDef[]; te
                 <Icon name="open" size={14} /> Mở trong bảng
               </button>
               {draft.id && (
-                <button type="button" className="btn-ghost text-danger" onClick={remove}>
+                <button type="button" className="btn-ghost text-danger" onClick={remove} disabled={busy}>
                   <Icon name="trash" size={14} /> Xoá
                 </button>
               )}

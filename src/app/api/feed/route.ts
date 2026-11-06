@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { appApi, fail, ok } from "@/lib/http";
-import { getRole } from "@/lib/permissions";
+import { allow, getAccess } from "@/lib/permissions";
 import { notify } from "@/lib/notify";
 import { notifyMentions } from "@/lib/mentions";
 import { KINDS, listChannels, listPosts, normChannel, postDTO } from "@/lib/feed";
@@ -23,8 +23,8 @@ export async function POST(req: Request) {
   const { ctx } = a;
   const p = Body.safeParse(await req.json().catch(() => ({})));
   if (!p.success) return fail(p.error.issues[0]?.message ?? "Dữ liệu chưa hợp lệ");
-  const manager = (await getRole(ctx.user.id, ctx.workspace.id)) !== "member";
-  if (p.data.kind === "announcement" && !manager) return fail("Chỉ chủ và quản lý được đăng thông báo", 403);
+  const manager = allow(await getAccess(ctx.user.id, ctx.workspace.id), "feed_moderate");
+  if (p.data.kind === "announcement" && !manager) return fail("Bạn chưa có quyền đăng thông báo", 403);
   const post = await db.post.create({ data: { workspaceId: ctx.workspace.id, author: ctx.user.name, body: p.data.body, kind: p.data.kind, channel: normChannel(p.data.channel) } });
   const href = `/w/feed#post-${post.id}`;
   const snippet = post.body.length > 120 ? `${post.body.slice(0, 117)}…` : post.body;

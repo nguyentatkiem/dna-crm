@@ -1,6 +1,7 @@
 // Việc chạy nền của Chăm sóc. Đăng ký trong src/lib/jobs.ts.
 import { db } from "../db";
 import { notify, notifyOnce, userIdByName } from "../notify";
+import { membersWith } from "../permissions";
 import { EXPIRING_DAYS } from "./shared";
 
 /** Phiếu quá hạn SLA mà chưa xử lý: đánh dấu leo thang (một lần) và báo người phụ trách + quản lý. */
@@ -15,8 +16,8 @@ export async function tickTickets(now = new Date()): Promise<number> {
     const ids = new Set<string>();
     const assigneeId = await userIdByName(t.workspaceId, t.assignee);
     if (assigneeId) ids.add(assigneeId);
-    const managers = await db.membership.findMany({ where: { workspaceId: t.workspaceId, role: { in: ["owner", "manager"] } }, select: { userId: true } });
-    for (const m of managers) ids.add(m.userId);
+    // Người được xem mọi phiếu (chủ, quản lý, vai trò có quyền "Xem mọi phiếu hỗ trợ").
+    for (const userId of await membersWith(t.workspaceId, "ticket_view_all")) ids.add(userId);
     for (const userId of ids) await notify(t.workspaceId, { userId, kind: "ticket", text, href });
   }
   return due.length;

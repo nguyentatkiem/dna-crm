@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import type { UA } from "jssip/lib/UA";
 import type { RTCSession } from "jssip/lib/RTCSession";
 import { Icon } from "./Icon";
+import { viMessage } from "@/lib/format";
 
 /**
  * Softphone trên trình duyệt: JsSIP đăng ký máy nhánh qua WebSocket (WSS) của tổng đài có cổng WebRTC
@@ -174,7 +175,7 @@ export function SoftphoneProvider({ configured, stt, children }: { configured: b
         ua.current = agent;
       } catch (e) {
         if (stopped) return;
-        setError(e instanceof Error ? e.message : String(e));
+        setError(viMessage(e, "Không kết nối được tổng đài. Kiểm tra cấu hình SIP trong Cài đặt."));
         setStatus("error");
       }
     })();
@@ -342,7 +343,7 @@ export function SoftphoneProvider({ configured, stt, children }: { configured: b
       wire(s, m);
       return true;
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(viMessage(e, "Không gọi được. Kiểm tra micro và kết nối tổng đài."));
       return false;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { COMPANY_DEFAULT, getPref, type Company } from "@/lib/prefs";
 import { activeProducts, draftFromRecord, salesPage } from "@/lib/sales/page";
@@ -6,6 +7,7 @@ import { DocEditor } from "@/components/sales/DocEditor";
 
 export default async function NewQuotePage({ searchParams }: { searchParams: Promise<{ record?: string }> }) {
   const ctx = await salesPage();
+  if (!ctx.scope.perm.create) redirect("/w/quotes");
   const { record } = await searchParams;
   const [company, products, who] = await Promise.all([getPref<Company>(ctx.workspace.id, "company", COMPANY_DEFAULT), activeProducts(ctx.workspace.id), draftFromRecord(ctx, record)]);
   return (
@@ -17,7 +19,7 @@ export default async function NewQuotePage({ searchParams }: { searchParams: Pro
       <DocEditor
         kind="quote"
         products={products}
-        seeAll={ctx.scope.seeAll}
+        seeAll={ctx.scope.perm.approve}
         dealLabel={ctx.dealLabel}
         backHref="/w/quotes"
         initial={{ ...who, title: "", items: [], discount: 0, validUntil: ymd(new Date(Date.now() + 15 * 864e5)), dueAt: "", note: "", terms: company.quoteTerms }}

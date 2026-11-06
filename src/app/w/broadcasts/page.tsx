@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireApp } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { can, getRole } from "@/lib/permissions";
+import { allow, getAccess } from "@/lib/permissions";
 import { B_STATUS } from "@/lib/marketing/broadcast";
 import { CHANNEL_COLOR, CHANNEL_LABEL, type MsgChannel } from "@/lib/marketing/shared";
 import { ago, dateVi } from "@/lib/format";
@@ -11,7 +11,7 @@ const pct = (a: number, b: number) => (b ? `${Math.round((a / b) * 100)}%` : "â€
 
 export default async function BroadcastsPage() {
   const { user, workspace } = await requireApp();
-  const manage = can(await getRole(user.id, workspace.id), "manage_marketing");
+  const manage = allow(await getAccess(user.id, workspace.id), "broadcast_send");
   const list = await db.broadcast.findMany({ where: { workspaceId: workspace.id }, orderBy: { createdAt: "desc" }, take: 200 });
   const segIds = [...new Set(list.map((b) => b.segmentId).filter((x): x is string => !!x))];
   const segs = segIds.length ? await db.segment.findMany({ where: { id: { in: segIds } }, select: { id: true, name: true } }) : [];

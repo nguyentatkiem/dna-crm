@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { isOwner } from "@/lib/auth";
+import { allowed } from "@/lib/permissions";
 import { appApi, fail, ok } from "@/lib/http";
 import { applyLesson } from "@/lib/calls";
 
@@ -8,7 +8,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const a = await appApi();
   if ("error" in a) return a.error;
   const wid = a.ctx.workspace.id;
-  if (!(await isOwner(a.ctx.user.id, wid))) return fail("Chỉ chủ workspace được duyệt bài học", 403);
+  if (!(await allowed(a.ctx, "calls_coach"))) return fail("Bạn chưa có quyền duyệt bài học", 403);
   const { id } = await params;
   const { action } = (await req.json().catch(() => ({}))) as { action?: string };
   if (action === "apply") {

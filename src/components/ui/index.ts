@@ -9,3 +9,4 @@ export { Drawer } from "./Drawer";
 export { Sparkline } from "./Sparkline";
 export { setTheme, getTheme, toggleTheme, resolvedTheme, THEME_KEY, THEME_EVENT, type Theme } from "./theme";
 export { MiniBars } from "./MiniBars";
+export { toast, Toaster } from "./Toast";

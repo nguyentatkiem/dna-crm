@@ -1,7 +1,6 @@
 import { db } from "@/lib/db";
 import { appApi, fail, ok } from "@/lib/http";
 import { audit } from "@/lib/audit";
-import { can } from "@/lib/permissions";
 import { docScope, scoped } from "@/lib/sales/access";
 import { PaymentInput, firstError } from "@/lib/sales/schemas";
 import { completeIfReady, recalcPaid } from "@/lib/sales/service";
@@ -14,6 +13,7 @@ export async function POST(req: Request, { params }: Ctx) {
   if ("error" in a) return a.error;
   const { id } = await params;
   const s = await docScope(a.ctx);
+  if (!s.perm.payRecord) return fail("Bạn chưa có quyền ghi nhận thu tiền", 403);
   const order = await db.order.findFirst({ where: scoped(s.where, { id }) });
   if (!order) return fail("Không tìm thấy đơn hàng", 404);
   if (order.status === "cancelled") return fail("Đơn đã huỷ, không thu tiền được", 409);
@@ -37,7 +37,7 @@ export async function DELETE(req: Request, { params }: Ctx) {
   if ("error" in a) return a.error;
   const { id } = await params;
   const s = await docScope(a.ctx);
-  if (!can(s.role, "delete")) return fail("Chỉ chủ và quản lý được xoá phiếu thu", 403);
+  if (!s.perm.payDelete) return fail("Bạn chưa có quyền xoá phiếu thu", 403);
   const order = await db.order.findFirst({ where: scoped(s.where, { id }) });
   if (!order) return fail("Không tìm thấy đơn hàng", 404);
   const pid = new URL(req.url).searchParams.get("payment") ?? "";

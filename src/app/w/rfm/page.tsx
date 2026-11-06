@@ -1,6 +1,6 @@
 import { requireApp } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { can, getRole, recordScope } from "@/lib/permissions";
+import { allow, getAccess, recordScope } from "@/lib/permissions";
 import { summarizeRfm } from "@/lib/c360/rfm";
 import { rfmPref, rfmRows } from "@/lib/c360/rfm-data";
 import { Icon } from "@/components/Icon";
@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 export default async function RfmPage() {
   const ctx = await requireApp();
   const wid = ctx.workspace.id;
-  const role = await getRole(ctx.user.id, wid);
+  const acc = await getAccess(ctx.user.id, wid);
   const [{ rows, contacts, months }, pref, scope] = await Promise.all([rfmRows(wid), rfmPref(wid), recordScope(ctx)]);
   // Nhân viên bị giới hạn "chỉ thấy khách của mình" chỉ thấy khách trong phạm vi.
   const visible = new Set((await db.record.findMany({ where: { ...scope, objectKey: "contacts" }, select: { id: true } })).map((r) => r.id));
@@ -30,8 +30,8 @@ export default async function RfmPage() {
         customers={customers}
         totalContacts={visible.size}
         lastRun={pref.lastRun ? new Date(pref.lastRun).toISOString() : null}
-        canRecompute={can(role, "see_all")}
-        canBroadcast={can(role, "manage_marketing")}
+        canRecompute={allow(acc, "segment_manage")}
+        canBroadcast={allow(acc, "broadcast_send")}
       />
     </div>
   );

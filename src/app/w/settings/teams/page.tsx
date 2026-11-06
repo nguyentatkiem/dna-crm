@@ -2,14 +2,15 @@ import Link from "next/link";
 import { requireApp } from "@/lib/auth";
 import { Icon } from "@/components/Icon";
 import { knownPeople, listTeams } from "@/lib/perf/teams";
-import { perfRole, routingPref } from "@/lib/perf/server";
+import { routingPref } from "@/lib/perf/server";
+import { allowed } from "@/lib/permissions";
 import { TeamsClient } from "./TeamsClient";
 
 export const dynamic = "force-dynamic";
 
 export default async function TeamsPage() {
   const { user, workspace, config } = await requireApp();
-  if (!(await perfRole({ user, workspace })).manager) {
+  if (!(await allowed({ user, workspace }, "teams_manage"))) {
     return (
       <div className="canvas grid place-items-center px-4 py-20 text-center">
         <Icon name="lock" size={32} className="text-ink-2" />

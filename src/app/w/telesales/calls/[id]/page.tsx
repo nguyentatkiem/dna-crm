@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { isOwner, requireApp } from "@/lib/auth";
+import { requireApp } from "@/lib/auth";
+import { allowed, callScope } from "@/lib/permissions";
 import { db, parseJson } from "@/lib/db";
 import { getScorecard, outcomeOf, type CallScore } from "@/lib/calls";
 import { customerSentiment, scoreColor, segmentsOf, talkStats } from "@/lib/calls-shared";
@@ -14,9 +15,9 @@ const SENT: Record<string, string> = { tich_cuc: "Tích cực", trung_lap: "Trun
 export default async function CallPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { workspace, user, config } = await requireApp();
-  const call = await db.call.findFirst({ where: { id, workspaceId: workspace.id } });
+  const call = await db.call.findFirst({ where: { AND: [await callScope({ user, workspace }), { id }] } });
   if (!call) notFound();
-  const [rec, card, owner] = await Promise.all([call.recordId ? db.record.findUnique({ where: { id: call.recordId } }) : null, getScorecard(workspace.id, config), isOwner(user.id, workspace.id)]);
+  const [rec, card, owner] = await Promise.all([call.recordId ? db.record.findUnique({ where: { id: call.recordId } }) : null, getScorecard(workspace.id, config), allowed({ user, workspace }, "calls_review")]);
   const score = parseJson<CallScore | null>(call.scoreJson, null);
   const o = outcomeOf(call.outcome);
   const label = (k: string) => card.criteria.find((c) => c.key === k)?.label ?? k;

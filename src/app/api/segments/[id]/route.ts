@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { appApi, fail, ok } from "@/lib/http";
 import { audit } from "@/lib/audit";
 import { getObject } from "@/lib/config/schema";
-import { isManager } from "@/lib/care/server";
+import { allowed } from "@/lib/permissions";
 import { SegmentBody, members, scopedRows, segmentDTO } from "../shared";
 
 type P = { params: Promise<{ id: string }> };
@@ -25,7 +25,7 @@ export async function PATCH(req: Request, { params }: P) {
   if ("error" in a) return a.error;
   const s = await find(a.ctx.workspace.id, (await params).id);
   if (!s) return fail("Không tìm thấy nhóm khách", 404);
-  if (s.createdBy !== a.ctx.user.name && !(await isManager(a.ctx))) return fail("Chỉ người tạo hoặc quản lý sửa được nhóm này", 403);
+  if (s.createdBy !== a.ctx.user.name && !(await allowed(a.ctx, "segment_manage"))) return fail("Chỉ người tạo hoặc người có quyền “Quản lý nhóm khách” sửa được nhóm này", 403);
   const p = SegmentBody.safeParse(await req.json().catch(() => ({})));
   if (!p.success) return fail(p.error.issues[0]?.message ?? "Dữ liệu chưa hợp lệ");
   if (!getObject(a.ctx.config, p.data.objectKey)) return fail("Không có bảng này");
@@ -39,7 +39,7 @@ export async function DELETE(_req: Request, { params }: P) {
   if ("error" in a) return a.error;
   const s = await find(a.ctx.workspace.id, (await params).id);
   if (!s) return fail("Không tìm thấy nhóm khách", 404);
-  if (s.createdBy !== a.ctx.user.name && !(await isManager(a.ctx))) return fail("Chỉ người tạo hoặc quản lý xoá được nhóm này", 403);
+  if (s.createdBy !== a.ctx.user.name && !(await allowed(a.ctx, "segment_manage"))) return fail("Chỉ người tạo hoặc người có quyền “Quản lý nhóm khách” xoá được nhóm này", 403);
   // Chiến dịch gửi hàng loạt đang trỏ tới nhóm này thì không xoá, tránh gửi nhầm/không gửi.
   const used = await db.broadcast.count({ where: { workspaceId: a.ctx.workspace.id, segmentId: s.id, status: { in: ["draft", "scheduled", "sending"] } } }).catch(() => 0);
   if (used) return fail(`Nhóm đang được ${used} chiến dịch gửi hàng loạt dùng`, 409);

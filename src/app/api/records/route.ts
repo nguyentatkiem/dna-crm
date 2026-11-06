@@ -8,6 +8,7 @@ import { audit, recordSnapshot } from "@/lib/audit";
 import { notify, userIdByName } from "@/lib/notify";
 import { getObject } from "@/lib/config/schema";
 import { applyFieldAccess, getFieldRules, hiddenKeys } from "@/lib/field-access";
+import { viMessage } from "@/lib/format";
 
 export async function GET(req: Request) {
   const a = await appApi();
@@ -55,6 +56,6 @@ export async function POST(req: Request) {
     }
     return ok(applyFieldAccess(toDTO(rec), role, rules), 201);
   } catch (e) {
-    return fail(e instanceof Error ? e.message : "Không tạo được mục");
+    return fail(viMessage(e, "Không tạo được mục"));
   }
 }

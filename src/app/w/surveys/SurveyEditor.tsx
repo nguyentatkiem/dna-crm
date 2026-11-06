@@ -58,12 +58,16 @@ export function SurveyEditor({ id, initial }: { id?: string; initial: SurveyDraf
   }
 
   async function remove() {
-    if (!id || !confirm("Xoá khảo sát này cùng mọi câu trả lời?")) return;
+    if (!id || busy || !confirm("Xoá khảo sát này cùng mọi câu trả lời?")) return;
+    setBusy(true);
     const r = await fetch(`/api/surveys/${id}`, { method: "DELETE" });
     if (r.ok) {
       router.push("/w/surveys");
       router.refresh();
-    } else setErr((await r.json().catch(() => ({}))).error ?? "Không xoá được");
+    } else {
+      setBusy(false);
+      setErr((await r.json().catch(() => ({}))).error ?? "Không xoá được");
+    }
   }
 
   return (
@@ -168,7 +172,7 @@ export function SurveyEditor({ id, initial }: { id?: string; initial: SurveyDraf
             Huỷ
           </Link>
           {id && (
-            <button type="button" className="btn-ghost ml-auto text-danger" onClick={remove}>
+            <button type="button" className="btn-ghost ml-auto text-danger" onClick={remove} disabled={busy}>
               <Icon name="trash" size={15} /> Xoá
             </button>
           )}

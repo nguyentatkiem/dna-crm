@@ -19,6 +19,7 @@ import { SendSurveyButton } from "../survey/SendSurveyButton";
 import { RecordSales } from "../sales/RecordSales";
 import { MentionTextarea, WithMentions } from "./Mentions";
 import { WinProb } from "./TableView";
+import { toast } from "@/components/ui/Toast";
 
 type Activity = { id: string; kind: string; body: string; author: string; createdAt: string };
 type Task = { id: string; title: string; dueAt: string | null; done: boolean; source: string };
@@ -87,16 +88,20 @@ export function ItemPanel({ obj, team, record, onClose, onPatch, onDelete, canDe
   }
 
   async function toggleTask(t: Task) {
-    setTasks((ts) => ts.map((x) => (x.id === t.id ? { ...x, done: !x.done } : x)));
-    await fetch(`/api/tasks/${t.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ done: !t.done }) });
+    setTasks((ts) => ts.map((x) => (x.id === t.id ? { ...x, done: !t.done } : x)));
+    const r = await fetch(`/api/tasks/${t.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ done: !t.done }) }).catch(() => null);
+    if (!r?.ok) {
+      setTasks((ts) => ts.map((x) => (x.id === t.id ? { ...x, done: t.done } : x)));
+      toast((await r?.json().catch(() => ({})))?.error ?? "Không cập nhật được việc", "error");
+    }
   }
 
   const h = obj.key === "contacts" ? heat(record.score) : null;
 
   return (
     <>
-      <div className="fixed inset-0 z-40 bg-black/20" onClick={onClose} aria-hidden="true" />
-      <aside role="dialog" aria-label={record.title} className="fixed inset-y-0 right-0 z-50 flex w-full max-w-[640px] flex-col bg-surface shadow-panel">
+      <div className="anim-fade fixed inset-0 z-40 bg-black/20" onClick={onClose} aria-hidden="true" />
+      <aside role="dialog" aria-label={record.title} className="anim-slide-right fixed inset-y-0 right-0 z-50 flex w-full max-w-[640px] flex-col bg-surface shadow-panel">
         <div className="flex items-start gap-3 border-b border-line-soft px-4 pb-0 pt-5 sm:px-6">
           <div className="min-w-0 flex-1">
             <div className="-ml-2.5 h-10 font-title font-semibold [&_button]:text-[22px] [&_input]:text-[22px]">

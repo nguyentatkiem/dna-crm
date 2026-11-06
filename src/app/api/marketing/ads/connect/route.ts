@@ -10,7 +10,7 @@ const FIELDS = {
 
 /** Lưu khoá tài khoản quảng cáo. Ô để trống = giữ nguyên. */
 export async function PUT(req: Request) {
-  const a = await marketingApi(true);
+  const a = await marketingApi("ads_manage");
   if ("error" in a) return a.error;
   const { provider, values } = (await req.json().catch(() => ({}))) as { provider?: keyof typeof FIELDS; values?: Record<string, string> };
   if (!provider || !(provider in FIELDS)) return fail("Nền tảng không hợp lệ");

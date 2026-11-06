@@ -15,7 +15,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
   });
   return (
     <div className="canvas px-4 pb-16 pt-6 sm:px-8">
-      <OrdersList initial={ser(rows)} initialStatus={sp.status ?? ""} initialDebt={sp.debt === "open" || sp.debt === "overdue" ? sp.debt : ""} />
+      <OrdersList initial={ser(rows)} initialStatus={sp.status ?? ""} initialDebt={sp.debt === "open" || sp.debt === "overdue" ? sp.debt : ""} canCreate={scope.perm.create} canDebts={scope.perm.debtView} />
     </div>
   );
 }

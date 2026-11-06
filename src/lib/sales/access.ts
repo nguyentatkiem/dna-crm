@@ -1,37 +1,70 @@
 // Phạm vi xem chứng từ bán hàng (báo giá, đơn hàng, hợp đồng) theo vai trò.
 import { db } from "@/lib/db";
 import { notify } from "@/lib/notify";
-import { can, getRole, memberSeesOwnOnly, recordScope, type Role } from "@/lib/permissions";
+import { accessOf, allow, membersWith, recordScope, visibleOwners, type Access, type Role } from "@/lib/permissions";
 import type { WorkspaceConfig } from "@/lib/config/schema";
 import { customerOf } from "./customers";
 
 export type SalesCtx = { user: { id: string; name: string }; workspace: { id: string; settingsJson: string } };
-type DocWhere = { workspaceId: string; OR?: ({ createdBy: string } | { recordId: { in: string[] } } | { contactId: { in: string[] } })[] };
+type DocWhere = { workspaceId: string; OR?: ({ createdBy: string | { in: string[] } } | { recordId: { in: string[] } } | { contactId: { in: string[] } })[] };
+
+/** Quyền bán hàng đã tính sẵn cho trang/route. */
+export type SalesPerm = {
+  approve: boolean;
+  editOthers: boolean;
+  viewAll: boolean;
+  create: boolean;
+  orderEdit: boolean;
+  cancelPaid: boolean;
+  payRecord: boolean;
+  payDelete: boolean;
+  debtView: boolean;
+  contract: boolean;
+  del: boolean;
+  products: boolean;
+};
+
+export const salesPerm = (acc: Access): SalesPerm => ({
+  approve: allow(acc, "quote_approve"),
+  editOthers: allow(acc, "sales_edit_others"),
+  viewAll: allow(acc, "sales_view_all") || acc.scope === "all",
+  create: allow(acc, "sales_create"),
+  orderEdit: allow(acc, "order_edit"),
+  cancelPaid: allow(acc, "order_cancel_paid"),
+  payRecord: allow(acc, "payment_record"),
+  payDelete: allow(acc, "payment_delete"),
+  debtView: allow(acc, "debt_view"),
+  contract: allow(acc, "contract_manage"),
+  del: allow(acc, "sales_delete"),
+  products: allow(acc, "product_manage"),
+});
 
 /**
- * Chủ/quản lý thấy mọi chứng từ. Nhân viên: nếu chủ chưa bật "chỉ thấy khách của mình" thì cũng thấy hết
- * (giống bảng khách); nếu đã bật thì chỉ thấy chứng từ mình tạo hoặc gắn với khách/giao dịch trong phạm vi của mình.
+ * Phạm vi chứng từ (báo giá, đơn, hợp đồng): ai có "Xem chứng từ của mọi người" hoặc phạm vi Toàn bộ thì thấy hết;
+ * còn lại chỉ thấy chứng từ do mình / người cùng đội lập, hoặc gắn với khách/giao dịch trong phạm vi.
+ * `seeAll` (tên cũ) = được sửa chứng từ của người khác.
  */
-export async function docScope(ctx: SalesCtx): Promise<{ role: Role; seeAll: boolean; where: DocWhere }> {
-  const role = await getRole(ctx.user.id, ctx.workspace.id);
-  const seeAll = can(role, "see_all");
+export async function docScope(ctx: SalesCtx): Promise<{ role: Role; access: Access; perm: SalesPerm; seeAll: boolean; where: DocWhere }> {
+  const access = await accessOf(ctx);
+  const perm = salesPerm(access);
   const where: DocWhere = { workspaceId: ctx.workspace.id };
-  if (seeAll || !memberSeesOwnOnly(ctx.workspace)) return { role, seeAll, where };
+  const out = { role: access.base, access, perm, seeAll: perm.editOthers, where };
+  if (perm.viewAll) return out;
+  const names = visibleOwners(access) ?? [ctx.user.name];
   const ids = (await db.record.findMany({ where: await recordScope(ctx), select: { id: true } })).map((r) => r.id);
-  where.OR = [{ createdBy: ctx.user.name }, { recordId: { in: ids } }, { contactId: { in: ids } }];
-  return { role, seeAll, where };
+  where.OR = [{ createdBy: names.length === 1 ? names[0] : { in: names } }, { recordId: { in: ids } }, { contactId: { in: ids } }];
+  return out;
 }
 
 /** Gộp phạm vi với điều kiện riêng (Prisma where của Quote/Order/Contract đều có các trường này). */
 export const scoped = <T extends object>(s: DocWhere, extra: T) => ({ AND: [s, extra] });
 
-/** Chỉ người tạo hoặc chủ/quản lý được sửa chứng từ. */
-export const canEditDoc = (ctx: SalesCtx, seeAll: boolean, doc: { createdBy: string }) => seeAll || doc.createdBy === ctx.user.name;
+/** Người tạo hoặc người có quyền "Sửa chứng từ của người khác" được sửa chứng từ. */
+export const canEditDoc = (ctx: SalesCtx, editOthers: boolean, doc: { createdBy: string }) => editOthers || doc.createdBy === ctx.user.name;
 
-/** userId của chủ và quản lý, để báo khi có báo giá chờ duyệt. */
+/** userId của những người duyệt được báo giá, để báo khi có báo giá chờ duyệt. */
 export async function managerIds(workspaceId: string) {
-  const ms = await db.membership.findMany({ where: { workspaceId, role: { in: ["owner", "manager"] } }, select: { userId: true } });
-  return ms.map((m) => m.userId);
+  return membersWith(workspaceId, "quote_approve");
 }
 
 /** Chỉ giữ liên kết khách/giao dịch mà người dùng được phép thấy; còn lại bỏ trống. */

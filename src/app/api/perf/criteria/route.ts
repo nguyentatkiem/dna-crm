@@ -5,8 +5,9 @@ import { audit } from "@/lib/audit";
 import { METRICS } from "@/lib/kpi";
 import { perfPref, perfRole } from "@/lib/perf/server";
 import { PERF_DEFAULT, validateCriteria, type Criterion } from "@/lib/perf/shared";
+import { METRIC_DEFS, METRIC_KEYS } from "@/lib/perf/metrics";
 
-const SOURCES = ["manual", "csat", ...METRICS.map((m) => `kpi:${m}`)] as const;
+const SOURCES = ["manual", "csat", ...METRICS.map((m) => `kpi:${m}`), ...METRIC_KEYS.filter((k) => !METRIC_DEFS[k].snapshot).map((k) => `metric:${k}`)] as const;
 const Body = z.object({
   criteria: z
     .array(z.object({ id: z.string().regex(/^[a-z0-9_-]{1,30}$/i, "Mã tiêu chí chỉ gồm chữ, số, gạch"), label: z.string().max(80, "Tên tiêu chí tối đa 80 ký tự"), weight: z.number("Trọng số phải là số").min(0, "Trọng số không được âm").max(100, "Trọng số mỗi tiêu chí tối đa 100%"), source: z.enum(SOURCES, "Nguồn điểm không hợp lệ") }))

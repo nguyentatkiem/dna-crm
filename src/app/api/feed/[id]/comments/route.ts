@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { appApi, fail, ok } from "@/lib/http";
-import { getRole } from "@/lib/permissions";
+import { allow, getAccess } from "@/lib/permissions";
 import { notify, userIdByName } from "@/lib/notify";
 import { notifyMentions } from "@/lib/mentions";
 import { canDeletePost } from "@/lib/feed";
@@ -38,7 +38,7 @@ export async function DELETE(req: Request, { params }: Ctx) {
   const cid = new URL(req.url).searchParams.get("cid") ?? "";
   const c = await db.postComment.findFirst({ where: { id: cid, postId: id, post: { workspaceId: ctx.workspace.id } } });
   if (!c) return fail("Không tìm thấy bình luận", 404);
-  const manager = (await getRole(ctx.user.id, ctx.workspace.id)) !== "member";
+  const manager = allow(await getAccess(ctx.user.id, ctx.workspace.id), "feed_moderate");
   if (!canDeletePost(c.author, ctx.user.name, manager)) return fail("Bạn chỉ xoá được bình luận của mình", 403);
   await db.postComment.delete({ where: { id: cid } });
   return ok({ ok: true });

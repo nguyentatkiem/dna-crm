@@ -2,8 +2,11 @@
 
 // ======================= Tiêu chí đánh giá =======================
 
-/** Nguồn điểm: chấm tay, % hoàn thành một chỉ số KPI, hoặc điểm hài lòng (CSAT) trung bình của phiếu đã xử lý. */
-export type CriterionSource = "manual" | "csat" | `kpi:${string}`;
+/**
+ * Nguồn điểm: chấm tay, % hoàn thành một chỉ số KPI, điểm hài lòng (CSAT) trung bình của phiếu đã xử lý,
+ * hoặc một chỉ số hoạt động thực tế "metric:<key>" (xem metricReviewScore trong metrics.ts).
+ */
+export type CriterionSource = "manual" | "csat" | `kpi:${string}` | `metric:${string}`;
 export type Criterion = { id: string; label: string; weight: number; source: CriterionSource };
 export type PerfPref = { criteria: Criterion[] };
 
@@ -17,7 +20,7 @@ export const PERF_DEFAULT: PerfPref = {
   ],
 };
 
-export const SOURCE_LABEL = (s: string) => (s === "manual" ? "Chấm tay" : s === "csat" ? "Tự động: CSAT phiếu" : s.startsWith("kpi:") ? "Tự động: KPI" : s);
+export const SOURCE_LABEL = (s: string) => (s === "manual" ? "Chấm tay" : s === "csat" ? "Tự động: CSAT phiếu" : s.startsWith("kpi:") ? "Tự động: KPI" : s.startsWith("metric:") ? "Tự động: chỉ số hoạt động" : s);
 
 /** % hoàn thành KPI → điểm 0–100: trần 120% hoàn thành = 100 điểm. */
 export function kpiScore(pct: number) {

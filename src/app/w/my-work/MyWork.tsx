@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { dateVi } from "@/lib/format";
 import { Icon } from "@/components/Icon";
 import { Avatar } from "@/components/Avatar";
+import { toast } from "@/components/ui/Toast";
 
 type T = { id: string; title: string; done: boolean; source: string; assignee: string; dueAt: string | null; record: { id: string; title: string; objectKey: string } | null };
 
@@ -82,8 +83,13 @@ export function MyWork({ initial, me, team, who, canSeeAll, highlight }: { initi
   }, [highlight]);
 
   async function toggle(t: T) {
-    setTasks((ts) => ts.map((x) => (x.id === t.id ? { ...x, done: !x.done } : x)));
-    await fetch(`/api/tasks/${t.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ done: !t.done }) });
+    setTasks((ts) => ts.map((x) => (x.id === t.id ? { ...x, done: !t.done } : x)));
+    const r = await fetch(`/api/tasks/${t.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ done: !t.done }) }).catch(() => null);
+    // Lỗi thì trả lại như cũ và báo.
+    if (!r?.ok) {
+      setTasks((ts) => ts.map((x) => (x.id === t.id ? { ...x, done: t.done } : x)));
+      toast((await r?.json().catch(() => ({})))?.error ?? "Không cập nhật được việc", "error");
+    }
   }
 
   async function reassign(t: T, name: string) {

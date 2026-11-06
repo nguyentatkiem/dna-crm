@@ -3,7 +3,8 @@ import { appApi, fail, ok } from "@/lib/http";
 import { setPref } from "@/lib/prefs";
 import { audit } from "@/lib/audit";
 import { listTeams } from "@/lib/perf/teams";
-import { perfRole, routingPref } from "@/lib/perf/server";
+import { routingPref } from "@/lib/perf/server";
+import { allowed } from "@/lib/permissions";
 
 /** Cấu hình phân luồng phiếu hỗ trợ: phân loại, đội nhận theo phân loại, đội mặc định. */
 export async function GET() {
@@ -23,7 +24,7 @@ const Body = z.object({
 export async function PUT(req: Request) {
   const a = await appApi();
   if ("error" in a) return a.error;
-  if (!(await perfRole(a.ctx)).manager) return fail("Chỉ chủ và quản lý được sửa phân luồng phiếu", 403);
+  if (!(await allowed(a.ctx, "teams_manage"))) return fail("Bạn chưa có quyền sửa phân luồng phiếu", 403);
   const p = Body.safeParse(await req.json().catch(() => ({})));
   if (!p.success) return fail(p.error.issues[0]?.message ?? "Dữ liệu chưa hợp lệ");
   const ids = new Set((await listTeams(a.ctx.workspace.id)).map((t) => t.id));

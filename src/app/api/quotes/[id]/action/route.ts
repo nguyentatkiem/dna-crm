@@ -42,7 +42,7 @@ export async function POST(req: Request, { params }: Ctx) {
   if (action === "submit") {
     if (!mine) return fail("Chỉ người tạo được gửi duyệt", 403);
     if (q.status !== "draft") return fail("Chỉ báo giá nháp mới gửi duyệt được", 409);
-    if (s.seeAll) return ok(await approve());
+    if (s.perm.approve) return ok(await approve());
     const up = await db.quote.update({ where: { id }, data: { status: "pending", rejectReason: "" } });
     await audit(who, "quote.submit", "quote", id, `Gửi duyệt báo giá ${q.number}`);
     await notifyManagers(wid, id, `${me} gửi duyệt báo giá ${q.number} (${q.customerName})`);
@@ -50,13 +50,13 @@ export async function POST(req: Request, { params }: Ctx) {
   }
 
   if (action === "approve") {
-    if (!s.seeAll) return fail("Chỉ chủ và quản lý được duyệt báo giá", 403);
+    if (!s.perm.approve) return fail("Bạn chưa có quyền duyệt báo giá", 403);
     if (!["draft", "pending"].includes(q.status)) return fail("Báo giá này không ở trạng thái chờ duyệt", 409);
     return ok(await approve());
   }
 
   if (action === "reject") {
-    if (!s.seeAll) return fail("Chỉ chủ và quản lý được trả lại báo giá", 403);
+    if (!s.perm.approve) return fail("Bạn chưa có quyền duyệt / trả lại báo giá", 403);
     if (q.status !== "pending") return fail("Báo giá này không ở trạng thái chờ duyệt", 409);
     const reason = p.data.reason?.trim() ?? "";
     // Không duyệt thì trả về nháp kèm lý do để người tạo sửa; "rejected" để dành cho khách từ chối.
@@ -70,7 +70,7 @@ export async function POST(req: Request, { params }: Ctx) {
     if (!mine) return fail("Chỉ người tạo hoặc quản lý được gửi báo giá", 403);
     if (quoteExpired(q)) return fail("Báo giá đã hết hạn. Hãy sửa ngày hiệu lực trước khi gửi.", 409);
     // Nhân viên phải được duyệt trước khi gửi khách; quản lý gửi thẳng được từ nháp.
-    const sendable = q.status === "approved" || q.status === "sent" || (s.seeAll && q.status === "draft");
+    const sendable = q.status === "approved" || q.status === "sent" || (s.perm.approve && q.status === "draft");
     if (!sendable) return fail(q.status === "pending" ? "Báo giá đang chờ duyệt, chưa gửi được" : q.status === "draft" ? "Hãy gửi duyệt trước khi gửi khách" : "Báo giá đã chốt, không cần gửi lại", 409);
     const link = `${originOf(await headers(), new URL(req.url).origin)}/q/${q.publicToken}`;
     let up = q;

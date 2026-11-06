@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Icon } from "@/components/Icon";
+import { viMessage } from "@/lib/format";
 
 /** Khoá VAPID dạng base64url → Uint8Array cho pushManager.subscribe. */
 function keyBytes(b64: string) {
@@ -55,7 +56,7 @@ export function PushToggle({ className = "" }: { className?: string }) {
       if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error ?? "Không lưu được đăng ký");
       setState("on");
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "Không bật được thông báo");
+      setErr(viMessage(e, "Không bật được thông báo"));
       setState("off");
     }
   }
@@ -72,7 +73,7 @@ export function PushToggle({ className = "" }: { className?: string }) {
       }
       setState("off");
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "Không tắt được");
+      setErr(viMessage(e, "Không tắt được"));
       setState("on");
     }
   }

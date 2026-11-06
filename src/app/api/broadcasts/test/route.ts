@@ -8,7 +8,7 @@ const In = DraftIn.extend({ to: z.string().trim().min(1, "Hãy nhập địa ch�
 
 /** Gửi thử một tin tới địa chỉ người dùng tự nhập. Trả rõ lý do khi kênh chưa cấu hình. */
 export async function POST(req: Request) {
-  const a = await marketingApi(true);
+  const a = await marketingApi("broadcast_send");
   if ("error" in a) return a.error;
   const p = In.safeParse(await req.json().catch(() => ({})));
   if (!p.success) return fail(p.error.issues[0]?.message ?? "Dữ liệu không hợp lệ");

@@ -25,7 +25,7 @@ const Patch = z.object({
 });
 
 export async function PATCH(req: Request, { params }: P) {
-  const a = await marketingApi(true);
+  const a = await marketingApi("landing_manage");
   if ("error" in a) return a.error;
   const page = await db.landingPage.findFirst({ where: { id: (await params).id, workspaceId: a.ctx.workspace.id } });
   if (!page) return fail("Không tìm thấy trang", 404);
@@ -57,7 +57,7 @@ export async function PATCH(req: Request, { params }: P) {
 }
 
 export async function DELETE(_: Request, { params }: P) {
-  const a = await marketingApi(true);
+  const a = await marketingApi("landing_manage");
   if ("error" in a) return a.error;
   const page = await db.landingPage.findFirst({ where: { id: (await params).id, workspaceId: a.ctx.workspace.id } });
   if (!page) return fail("Không tìm thấy trang", 404);

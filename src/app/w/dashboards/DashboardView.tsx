@@ -398,8 +398,8 @@ function ConfigDrawer({ w, data, options, onClose, onChange }: { w: Widget; data
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-40 flex justify-end bg-black/20" onClick={onClose}>
-      <aside className="flex h-full w-full max-w-[380px] flex-col bg-surface shadow-panel" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Cấu hình widget">
+    <div className="anim-fade fixed inset-0 z-40 flex justify-end bg-black/20" onClick={onClose}>
+      <aside className="anim-slide-right flex h-full w-full max-w-[380px] flex-col bg-surface shadow-panel" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Cấu hình widget">
         <div className="flex items-center justify-between border-b border-line-soft px-4 py-3">
           <p className="font-semibold">Cấu hình widget</p>
           <button className="btn-ghost h-8 w-8 justify-center p-0" onClick={onClose} aria-label="Đóng">

@@ -1,7 +1,7 @@
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
 import { appApi, fail, ok } from "@/lib/http";
-import { asRole, ROLE_LABEL, ROLES, type Role } from "@/lib/permissions";
+import { workspaceRoles } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import { notify } from "@/lib/notify";
 
@@ -32,14 +32,18 @@ export async function PATCH(req: Request, { params }: Ctx) {
   const who = { workspaceId: g.wid, user: g.me };
 
   if (body.role !== undefined) {
-    if (!ROLES.includes(body.role as Role)) return fail("Vai trò không hợp lệ");
-    const role = body.role as Role;
-    const cur = asRole(g.target.role);
+    // Chỉ nhận khoá vai trò đang tồn tại (Chủ, Quản lý, Nhân viên hoặc vai trò tự tạo).
+    const defs = await workspaceRoles(g.wid);
+    const next = defs.find((d) => d.key === body.role);
+    if (!next) return fail("Vai trò không hợp lệ");
+    const role = next.key;
+    const cur = g.target.role;
+    const curName = defs.find((d) => d.key === cur)?.name ?? cur;
     if (role === cur) return ok({ updated: true, role });
     if (cur === "owner" && (await ownerCount(g.wid)) <= 1) return fail("Workspace cần ít nhất một chủ. Hãy đặt người khác làm chủ trước.");
     await db.membership.update({ where: { userId_workspaceId: { userId: id, workspaceId: g.wid } }, data: { role } });
-    await audit(who, "member.role", "member", id, `Đổi vai trò ${g.target.user.name}: ${ROLE_LABEL[cur]} → ${ROLE_LABEL[role]}`, { role: [ROLE_LABEL[cur], ROLE_LABEL[role]] });
-    if (id !== g.meId) await notify(g.wid, { userId: id, kind: "system", text: `${g.me.name} đổi vai trò của bạn thành ${ROLE_LABEL[role]}`, href: "/w/settings" });
+    await audit(who, "member.role", "member", id, `Đổi vai trò ${g.target.user.name}: ${curName} → ${next.name}`, { role: [curName, next.name] });
+    if (id !== g.meId) await notify(g.wid, { userId: id, kind: "system", text: `${g.me.name} đổi vai trò của bạn thành ${next.name}`, href: "/w/settings" });
     return ok({ updated: true, role });
   }
 
@@ -57,6 +61,6 @@ export async function DELETE(_req: Request, { params }: Ctx) {
   if (id === g.meId) return fail("Không thể xoá chính bạn");
   if (g.target.role === "owner" && (await ownerCount(g.wid)) <= 1) return fail("Không thể xoá chủ cuối cùng của workspace");
   await db.membership.delete({ where: { userId_workspaceId: { userId: id, workspaceId: g.wid } } });
-  await audit({ workspaceId: g.wid, user: g.me }, "member.remove", "member", id, `Xoá ${g.target.user.name} (${g.target.user.email}) khỏi workspace`, { role: [ROLE_LABEL[asRole(g.target.role)], ""] });
+  await audit({ workspaceId: g.wid, user: g.me }, "member.remove", "member", id, `Xoá ${g.target.user.name} (${g.target.user.email}) khỏi workspace`, { role: [g.target.role, ""] });
   return ok({ removed: true });
 }

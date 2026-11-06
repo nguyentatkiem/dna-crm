@@ -4,6 +4,7 @@ import { Fragment, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/Icon";
 import { Avatar } from "@/components/Avatar";
+import { PersonLink } from "@/components/perf/PersonLink";
 import { vnd } from "@/lib/format";
 import { Segmented } from "@/components/ui";
 import type { KpiRow, KpiStatus, Metric, PeriodView, TeamKpi } from "@/lib/kpi";
@@ -289,7 +290,7 @@ export function KpiBoard({ initial, me, canEdit }: { initial: Board; me: string;
                             <tr key={`${t.id}-${r.who}`} className={`border-b border-line-soft ${r.who === me ? "bg-primary-selected" : ""}`}>
                               <th scope="row" className="sticky left-0 z-10 bg-surface px-3 py-2.5 pl-9 text-left font-normal">
                                 <span className="flex items-center gap-2 whitespace-nowrap">
-                                  <Avatar name={r.who} size={22} /> {r.who}
+                                  <Avatar name={r.who} size={22} /> <PersonLink name={r.who} />
                                   {r.who === t.leader && <span className="badge">Trưởng nhóm</span>}
                                 </span>
                               </th>
@@ -353,7 +354,7 @@ export function KpiBoard({ initial, me, canEdit }: { initial: Board; me: string;
                       <th scope="row" className={`sticky left-0 z-10 px-3 py-3 text-left font-medium ${mine ? "bg-primary-selected" : "bg-surface"}`}>
                         <span className="flex items-center gap-2 whitespace-nowrap">
                           {r.who ? <Avatar name={r.who} size={24} /> : <Icon name="users" size={18} className="text-ink-2" />}
-                          {r.who || "Cả công ty"}
+                          {r.who ? <PersonLink name={r.who} /> : "Cả công ty"}
                           {mine && <span className="badge-info">Bạn</span>}
                         </span>
                       </th>
@@ -401,7 +402,9 @@ export function KpiBoard({ initial, me, canEdit }: { initial: Board; me: string;
                 </span>
                 <Avatar name={l.who} size={28} />
                 <div className="min-w-0 flex-1">
-                  <div className="truncate font-medium">{l.who}</div>
+                  <div className="truncate font-medium">
+                    <PersonLink name={l.who} />
+                  </div>
                   <div className="tnum text-[12px] text-ink-2">
                     {vnd(l.revenue)} · {l.won} thắng
                   </div>

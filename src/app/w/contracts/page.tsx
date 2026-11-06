@@ -1,5 +1,4 @@
 import { db } from "@/lib/db";
-import { can } from "@/lib/permissions";
 import { scoped } from "@/lib/sales/access";
 import { salesPage } from "@/lib/sales/page";
 import { ser } from "@/lib/sales/shared";
@@ -16,7 +15,7 @@ export default async function ContractsPage({ searchParams }: { searchParams: Pr
   const recs = ids.length ? await db.record.findMany({ where: { workspaceId: ctx.workspace.id, id: { in: ids } }, select: { id: true, title: true, objectKey: true } }) : [];
   return (
     <div className="canvas px-4 pb-16 pt-6 sm:px-8">
-      <ContractsClient initial={ser(rows)} orders={orders} recs={recs} openId={sp.open ?? ""} dealLabel={ctx.dealLabel} canDelete={can(ctx.scope.role, "delete")} seeAll={ctx.scope.seeAll} me={ctx.user.name} />
+      <ContractsClient initial={ser(rows)} orders={orders} recs={recs} openId={sp.open ?? ""} dealLabel={ctx.dealLabel} canDelete={ctx.scope.perm.del} seeAll={ctx.scope.perm.editOthers} me={ctx.user.name} />
     </div>
   );
 }

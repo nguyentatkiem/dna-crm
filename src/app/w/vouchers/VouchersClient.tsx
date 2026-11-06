@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { Icon } from "@/components/Icon";
 import { Badge, Drawer, EmptyState, Stat, Tabs } from "@/components/ui";
 import { IssueVoucherDrawer } from "@/components/voucher/IssueVoucherDrawer";
@@ -27,14 +27,19 @@ export function VouchersClient() {
   const [issue, setIssue] = useState<{ campaignId?: string } | null>(null);
   const [showTpl, setShowTpl] = useState(false);
 
+  const seq = useRef(0);
   const load = useCallback(async () => {
     const sp = new URLSearchParams();
     if (status) sp.set("status", status);
     if (campaign) sp.set("campaign", campaign);
     if (q.trim()) sp.set("q", q.trim());
-    const r = await fetch(`/api/vouchers?${sp}`);
-    if (!r.ok) return setItems([]);
+    const n = ++seq.current;
+    const r = await fetch(`/api/vouchers?${sp}`).catch(() => null);
+    // Bỏ kết quả về muộn của lần tìm/lọc cũ; lỗi mạng thì giữ danh sách đang hiện thay vì xoá trắng.
+    if (n !== seq.current) return;
+    if (!r?.ok) return setItems((x) => x ?? []);
     const j = await r.json();
+    if (n !== seq.current) return;
     setItems(j.items);
     setCamps(j.campaigns);
     setCanManage(j.canManage);
@@ -283,8 +288,10 @@ function CampaignDrawer({ id, initial, onClose, onSaved }: { id?: string; initia
     onSaved();
   }
   async function remove() {
-    if (!id || !confirm("Xoá chương trình này và các mã chưa dùng?")) return;
+    if (!id || busy || !confirm("Xoá chương trình này và các mã chưa dùng?")) return;
+    setBusy(true);
     const r = await fetch(`/api/vouchers/campaigns/${id}`, { method: "DELETE" });
+    setBusy(false);
     if (!r.ok) return setErr((await r.json().catch(() => ({}))).error ?? "Không xoá được");
     onSaved();
   }
@@ -345,7 +352,7 @@ function CampaignDrawer({ id, initial, onClose, onSaved }: { id?: string; initia
         )}
         <div className="flex gap-2 pt-1">
           {id && (
-            <button type="button" className="btn-ghost text-danger" onClick={remove}>
+            <button type="button" className="btn-ghost text-danger" onClick={remove} disabled={busy}>
               <Icon name="trash" size={14} /> Xoá
             </button>
           )}
@@ -365,14 +372,18 @@ function CampaignDrawer({ id, initial, onClose, onSaved }: { id?: string; initia
 function TemplateSettings({ onClose }: { onClose: () => void }) {
   const [t, setT] = useState<string | null>(null);
   const [msg, setMsg] = useState("");
+  const [saving, setSaving] = useState(false);
   useEffect(() => {
     fetch("/api/vouchers/settings").then((r) => r.json()).then((j) => setT(j.template ?? "")).catch(() => setT(""));
   }, []);
   if (t === null) return <div className="skeleton mt-4 h-28" />;
   async function save() {
-    const r = await fetch("/api/vouchers/settings", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ template: t }) });
-    const j = await r.json().catch(() => ({}));
-    setMsg(r.ok ? "Đã lưu" : j.error ?? "Không lưu được");
+    if (saving) return;
+    setSaving(true);
+    const r = await fetch("/api/vouchers/settings", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ template: t }) }).catch(() => null);
+    const j = await r?.json().catch(() => ({}));
+    setSaving(false);
+    setMsg(r?.ok ? "Đã lưu" : j?.error ?? "Không lưu được");
   }
   return (
     <section className="card mt-4 grid gap-2 p-4">
@@ -384,8 +395,8 @@ function TemplateSettings({ onClose }: { onClose: () => void }) {
         <button type="button" className="btn-ghost" onClick={onClose}>
           Đóng
         </button>
-        <button type="button" className="btn-primary" onClick={save}>
-          Lưu mẫu tin
+        <button type="button" className="btn-primary" onClick={save} disabled={saving}>
+          {saving ? "Đang lưu…" : "Lưu mẫu tin"}
         </button>
       </div>
     </section>

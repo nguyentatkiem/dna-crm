@@ -5,6 +5,7 @@ import { getPref, setPref } from "../prefs";
 import { audit } from "../audit";
 import { moveToTrash } from "../trash";
 import { notifyOnce } from "../notify";
+import { membersWith } from "../permissions";
 import type { WorkspaceConfig } from "../config/schema";
 import { loadCfg } from "../marketing/store";
 import { recomputeScores } from "./behavior";
@@ -179,7 +180,7 @@ export async function tickDuplicateScan(): Promise<void> {
     const known = new Set(p.notified);
     const fresh = groups.filter((g) => !known.has(g.key));
     if (!fresh.length) continue;
-    const owners = await db.membership.findMany({ where: { workspaceId, role: { in: ["owner", "manager"] } }, select: { userId: true } });
+    const owners = (await membersWith(workspaceId, "record_merge")).map((userId) => ({ userId }));
     const text = `Phát hiện ${fresh.length} nhóm hồ sơ khách có thể trùng (tổng ${groups.length} nhóm). Gộp để chân dung khách đầy đủ hơn.`;
     for (const o of owners) await notifyOnce(workspaceId, { userId: o.userId, kind: "duplicates", text, href: "/w/duplicates" });
     await setPref(workspaceId, "dupes", { ...p, notified: [...new Set([...p.notified, ...fresh.map((g) => g.key)])].slice(-2000) });

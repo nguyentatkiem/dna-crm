@@ -16,6 +16,8 @@ type Hit = {
   dot?: string;
   hint?: string;
   keywords?: string;
+  /** Trang sẽ mở: dùng để tải trước khi mục đang được chọn. */
+  href?: string;
   run: () => void;
 };
 type RecordHit = { id: string; title: string; objectKey: string; objectLabel: string; status: string; color: string; phone: string; amount: number; owner: string; href: string };
@@ -157,7 +159,7 @@ export function CommandPalette({ boards, term }: { boards: NavBoard[]; term: { c
   const pages: Hit[] = useMemo(
     () =>
       navSections(boards).flatMap((s) =>
-        s.items.map((it) => ({ id: `p-${it.href}`, group: "Trang", label: it.label, sub: s.title, icon: it.icon, keywords: it.href, run: () => go(it.href, it.label, it.icon) })),
+        s.items.map((it) => ({ id: `p-${it.href}`, group: "Trang", label: it.label, sub: s.title, icon: it.icon, keywords: it.href, href: it.href, run: () => go(it.href, it.label, it.icon) })),
       ),
     [boards, go],
   );
@@ -166,7 +168,7 @@ export function CommandPalette({ boards, term }: { boards: NavBoard[]; term: { c
     const t = fold(q.trim());
     const match = (h: Hit) => !t || fold(`${h.label} ${h.sub ?? ""} ${h.keywords ?? ""}`).includes(t);
     if (!t) {
-      const rec: Hit[] = recent.map((r) => ({ id: `r-${r.href}`, group: "Mở gần đây", label: r.label, icon: r.icon, run: () => go(r.href, r.label, r.icon) }));
+      const rec: Hit[] = recent.map((r) => ({ id: `r-${r.href}`, group: "Mở gần đây", label: r.label, icon: r.icon, href: r.href, run: () => go(r.href, r.label, r.icon) }));
       return [...rec, ...actions, ...pages.slice(0, 8)];
     }
     const rs: Hit[] = records.map((r) => ({
@@ -177,9 +179,11 @@ export function CommandPalette({ boards, term }: { boards: NavBoard[]; term: { c
       icon: r.objectKey === "contacts" ? "person" : r.objectKey === "deals" ? "deals" : r.objectKey === "appointments" ? "calendar" : "board",
       dot: r.color,
       hint: r.status,
+      href: r.href,
       run: () => go(r.href, r.title, "person"),
     }));
-    const ds: Hit[] = docs.map((d) => ({ id: `doc-${d.id}`, group: "Tài liệu", label: d.title, sub: d.snippet, icon: "doc", run: () => go(d.href, d.title, "doc") }));
+    const ds: Hit[] = docs.map((d) => ({ id: `doc-${d.id}`, group: "Tài liệu", label: d.title, sub: d.snippet, icon: "doc", href: d.href, run: () => go(d.href, d.title, "doc") }));
+
     return [...rs, ...ds, ...actions.filter(match), ...pages.filter(match)];
   }, [q, recent, actions, pages, records, docs, go]);
 
@@ -187,6 +191,13 @@ export function CommandPalette({ boards, term }: { boards: NavBoard[]; term: { c
   useEffect(() => {
     list.current?.querySelector<HTMLElement>(`[data-i="${active}"]`)?.scrollIntoView({ block: "nearest" });
   }, [active]);
+  // Tải trước trang của mục đang chọn (rẻ: chỉ khi bảng lệnh mở) để bấm Enter là chuyển gần như tức thì.
+  useEffect(() => {
+    const href = open ? hits[active]?.href : undefined;
+    if (!href) return;
+    const t = setTimeout(() => router.prefetch(href), 120);
+    return () => clearTimeout(t);
+  }, [open, active, hits, router]);
 
   function onKey(e: React.KeyboardEvent) {
     if (e.key === "ArrowDown") {

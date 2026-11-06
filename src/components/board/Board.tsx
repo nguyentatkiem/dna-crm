@@ -1,18 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { ObjectDef } from "@/lib/config/schema";
 import type { RecordDTO } from "@/lib/records";
 import { color } from "@/lib/colors";
 import { Icon } from "../Icon";
-import { ItemPanel } from "./ItemPanel";
-import { ImportDialog } from "./ImportDialog";
-import { CalendarView } from "./CalendarView";
 import { TableView, type ColAction, type RowExt } from "./TableView";
-import { KanbanView } from "./KanbanView";
-import { GanttView } from "./GanttView";
-import { ChartView } from "./ChartView";
 import { BoardActivity, RowMenu, ViewOptions, type RowAction } from "./BoardExtras";
 import { SaveSegmentButton } from "../care/SaveSegmentButton";
 import { BulkBar, ColumnsMenu, FilterMenu } from "./BoardMenus";
@@ -22,6 +16,19 @@ import { arrangeColumns, moveColumn, sameState, type BoardState, type ViewDTO } 
 import type { FormLayout } from "@/lib/form-layout";
 import { OPS, applyFilters, colKey, columnsOf, filterFields, groupableFields, groupsOf, readLS, sortRows, writeLS, ROW_HEIGHT, tintOf, type ColorRule, type Density, type ColSort, type Column, type Filter, type Group, type GroupBy, type Patch, type View } from "./model";
 import type { FieldValue } from "@/lib/records";
+import dynamic from "next/dynamic";
+import { Skeleton } from "../ui/Skeleton";
+
+// Thư viện biểu đồ chỉ tải khi mở kiểu xem Biểu đồ.
+// Các khung nhìn phụ, bảng chi tiết và hộp nhập chỉ tải khi dùng tới: trang bảng (mặc định Bảng) nhẹ hơn ~30KB.
+// Kanban/Lịch/Gantt vẫn render phía máy chủ (ssr mặc định) nên mở thẳng URL ?view= không nháy trống.
+const viewLoading = () => <Skeleton className="mt-4 h-[60vh] w-full" />;
+const KanbanView = dynamic(() => import("./KanbanView").then((m) => m.KanbanView), { loading: viewLoading });
+const CalendarView = dynamic(() => import("./CalendarView").then((m) => m.CalendarView), { loading: viewLoading });
+const GanttView = dynamic(() => import("./GanttView").then((m) => m.GanttView), { loading: viewLoading });
+const ItemPanel = dynamic(() => import("./ItemPanel").then((m) => m.ItemPanel), { ssr: false });
+const ImportDialog = dynamic(() => import("./ImportDialog").then((m) => m.ImportDialog), { ssr: false });
+const ChartView = dynamic(() => import("./ChartView").then((m) => m.ChartView), { ssr: false, loading: () => <Skeleton className="mt-4 h-72 w-full" /> });
 
 type Sort = "new" | "name" | "amount" | "score";
 const VIEWS: View[] = ["table", "kanban", "calendar", "gantt", "chart"];
@@ -40,6 +47,8 @@ export function Board({
   canDelete = true,
   canImport = true,
   canExport = true,
+  canBulk = true,
+  canAssign = true,
   readOnly = [],
   formLayout = null,
 }: {
@@ -53,6 +62,9 @@ export function Board({
   /** Ẩn nút Nhập / Xuất Excel theo quyền (nhân viên mặc định không có). */
   canImport?: boolean;
   canExport?: boolean;
+  /** Sửa hàng loạt (đổi trạng thái, giao người) và giao / đổi người phụ trách theo Phân quyền vai trò. */
+  canBulk?: boolean;
+  canAssign?: boolean;
   /** Trường chỉ xem với vai trò hiện tại (Phân quyền trường). Trường ẩn đã bị bỏ khỏi obj ở server. */
   readOnly?: string[];
   /** Bố cục form hồ sơ (Cài đặt → Trường & bố cục). */
@@ -265,8 +277,10 @@ export function Board({
   const cols = useMemo(() => orderedCols.filter((c) => !hidden.includes(c.id)), [orderedCols, hidden]);
   const readOnlySet = useMemo(() => new Set(readOnly), [readOnly]);
 
+  // Gõ tìm kiếm: ô nhập cập nhật ngay, lọc hàng nghìn dòng chạy ở mức ưu tiên thấp (không giật phím).
+  const dq = useDeferredValue(q);
   const shown = useMemo(() => {
-    const s = q.trim().toLowerCase();
+    const s = dq.trim().toLowerCase();
     const base = records.filter((r) => (!owner || r.ownerName === owner) && (!s || (r.title + " " + Object.values(r.data).join(" ")).toLowerCase().includes(s)));
     const list = applyFilters(base, filters, mode, fields, obj);
     const by: Record<Sort, (a: RecordDTO, b: RecordDTO) => number> = {
@@ -276,7 +290,7 @@ export function Board({
       score: (a, b) => b.score - a.score,
     };
     return colSort ? sortRows(list, colSort, obj) : [...list].sort(by[sort]);
-  }, [records, q, owner, sort, colSort, filters, mode, fields, obj]);
+  }, [records, dq, owner, sort, colSort, filters, mode, fields, obj]);
 
   const groups = useMemo(() => groupsOf(obj, team, records, groupBy, (o) => color(o.color).bg), [obj, team, records, groupBy]);
 
@@ -690,6 +704,8 @@ export function Board({
           team={team}
           count={selected.size}
           canDelete={canDelete}
+          canBulk={canBulk}
+          canAssign={canAssign}
           onStatus={(k) => bulkPatch({ status: k }, `Đã chuyển sang “${obj.statuses.find((s) => s.key === k)?.label}”`)}
           onOwner={(n) => bulkPatch({ ownerName: n }, n ? `Đã giao cho ${n}` : "Đã bỏ người phụ trách")}
           onDelete={bulkDelete}

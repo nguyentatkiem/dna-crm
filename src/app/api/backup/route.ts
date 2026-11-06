@@ -6,6 +6,7 @@ import { audit } from "@/lib/audit";
 import { getSettings, saveSettings } from "@/lib/settings";
 import { backupDir, createBackup, fmtSize, listBackups, pruneBackups, readBackup } from "@/lib/backup";
 import { ownerApi } from "./guard";
+import { viMessage } from "@/lib/format";
 
 const keepOf = (v?: string) => Math.max(1, Math.min(365, Math.round(Number(v)) || 14));
 
@@ -36,7 +37,7 @@ export async function POST(req: Request) {
     try {
       info = await readBackup(buf);
     } catch (e) {
-      return fail(e instanceof Error ? e.message : "File sao lưu không hợp lệ");
+      return fail(viMessage(e, "File sao lưu không hợp lệ"));
     }
     const dir = backupDir(ctx.workspace.id);
     await fs.mkdir(dir, { recursive: true });

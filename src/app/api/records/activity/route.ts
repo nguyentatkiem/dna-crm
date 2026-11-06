@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { appApi, fail, ok } from "@/lib/http";
 import { getObject } from "@/lib/config/schema";
-import { can, getRole, memberSeesOwnOnly, recordScope } from "@/lib/permissions";
+import { accessOf, recordScope } from "@/lib/permissions";
 
 /**
  * Nhật ký hoạt động của cả một bảng (tạo, sửa, xoá, nhập, xuất), mới nhất trước.
@@ -18,7 +18,7 @@ export async function GET(req: Request) {
   const before = sp.get("before");
 
   let ids: string[] | null = null;
-  if (memberSeesOwnOnly(ctx.workspace) && !can(await getRole(ctx.user.id, ctx.workspace.id), "see_all")) {
+  if ((await accessOf(ctx)).scope !== "all") {
     const rows = await db.record.findMany({ where: { AND: [await recordScope(ctx), { objectKey: obj.key }] }, select: { id: true } });
     ids = rows.map((r) => r.id);
   }

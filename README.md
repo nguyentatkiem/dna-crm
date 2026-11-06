@@ -180,14 +180,23 @@ Mỗi agent có công tắc bật/tắt và **mức tự chủ** (Chỉ gợi ý
 - **Bảng tin nội bộ**: bài viết, thông báo ghim, kênh, thả cảm xúc, bình luận, @nhắc tên. Chốt giao dịch hay hoàn tất đơn thì **tự đăng bài khoe**.
 - **Bảo mật dữ liệu**: che SĐT/email với nhân viên (0912•••678), giới hạn số dòng xuất Excel mỗi người mỗi ngày, báo chủ khi có người xuất nhiều.
 - **Cài app trên điện thoại** (PWA): mở bằng Chrome/Safari rồi "Cài app" / "Thêm vào MH chính"; chạy toàn màn hình, xem lại trang đã mở khi mất mạng. **Thông báo đẩy** khi điền khoá VAPID.
-- 3 vai trò **Chủ / Quản lý / Nhân viên**, bảng quyền rõ ràng. Mời bằng **link dùng một lần** (chọn vai trò), hết hạn sau 7 ngày.
-- Công tắc **"Nhân viên chỉ thấy khách của mình"**: áp dụng cho bảng, tìm kiếm, hộp thư, telesales, dashboard, trợ lý AI và xuất Excel.
+- **Vai trò & quyền** (Cài đặt → Vai trò & quyền): 3 vai trò có sẵn **Chủ / Quản lý / Nhân viên** và **vai trò tự tạo** (Kế toán, Trưởng nhóm sale, CSKH…). Mỗi vai trò tích từng quyền trong 56 quyền chia 7 mô-đun (Khách & bảng, Bán hàng, Chăm sóc, Marketing, Telesales, Hiệu suất, Hệ thống) và chọn **phạm vi dữ liệu**: chỉ khách của mình / của cả đội (theo Phòng ban) / toàn bộ. Có bảng so sánh các vai trò; mọi thay đổi ghi vào Nhật ký thao tác. Chủ luôn toàn quyền; chỉ chủ sửa vai trò, thành viên, sao lưu.
+- Phạm vi dữ liệu áp dụng cho bảng, tìm kiếm, hộp thư, telesales, báo giá, đơn, phiếu hỗ trợ, dashboard, trợ lý AI, hiệu suất và xuất Excel. Nút không có quyền thì ẩn, máy chủ cũng chặn.
+- Mời bằng **link dùng một lần** (chọn vai trò, kể cả vai trò tự tạo), hết hạn sau 7 ngày.
 - **Nhật ký thao tác**: ai tạo/sửa/xoá gì, lúc nào, xem giá trị cũ → mới; lọc, xuất CSV.
 - **Việc của tôi**: giao việc cho từng người, quản lý xem việc của mọi người.
 - **Thông báo**: được giao khách/việc, khách nhắn tin, việc sắp đến hạn và hẹn gọi lại (nhắc trước 30 phút), tự động hoá.
 - **Dự báo khả năng chốt**: học từ chính các giao dịch đã thắng/thua của bạn (hồi quy logistic khi có từ 20 giao dịch đã đóng, ít hơn thì dùng mô hình theo giai đoạn). Trang chủ có pipeline, doanh thu kỳ vọng theo tháng và top giao dịch.
 - **Phòng ban / đội**: KPI theo đội, xem theo tháng, quý, năm. Doanh thu tính cho người phụ trách giao dịch, nếu không có thì người phụ trách khách, rồi người tạo đơn.
-- **Đánh giá nhân viên** theo tiêu chí có trọng số (tự lấy từ KPI + quản lý chấm tay), xếp loại, chốt kỳ, xuất Excel. **Hoa hồng** theo bậc doanh thu, thưởng trưởng nhóm. Nhân viên chỉ thấy phần của mình.
+- **Đo lường hiệu suất nhân viên** (Hiệu suất nhân viên → Tổng quan): 27 chỉ số trong 4 nhóm, so với kỳ trước và trung vị của đội:
+  - Kết quả: doanh thu, giao dịch thắng, giá trị trung bình, tỉ lệ chốt, khách mới, đơn hàng, công nợ quá hạn.
+  - Hoạt động: cuộc gọi, phút gọi, tỉ lệ nghe máy, điểm chất lượng cuộc gọi, tin nhắn đã trả lời, ghi chú, báo giá, việc đúng hạn.
+  - Tốc độ: thời gian liên hệ khách mới (speed-to-lead), phản hồi đầu tiên ở Hộp thư, thời gian xử lý phiếu, phiếu đúng SLA, chu kỳ bán hàng, giao dịch tồn đọng.
+  - Chất lượng: CSAT, NPS, tỉ lệ khách quay lại, khiếu nại.
+  - Bảng xếp hạng có **Điểm hiệu suất** (chủ chỉnh trọng số), xu hướng 8 tuần, bản đồ nhiệt giờ làm việc, phễu từng người, cảnh báo người đang tụt, xuất Excel kèm định nghĩa chỉ số.
+  - **Hồ sơ hiệu suất cá nhân**: thẻ chỉ số kèm biểu đồ nhỏ, KPI tháng, điểm mạnh và điểm cần cải thiện tự động, giao dịch tồn đọng, cuộc gọi gần nhất, lịch sử đánh giá, **gợi ý huấn luyện bằng AI** (chỉ gửi số tổng hợp, không gửi thông tin khách).
+  - Sáng thứ Hai có **bản tin tuần** cho từng người, trưởng nhóm và chủ. Nhân viên chỉ thấy số của mình, trưởng nhóm thấy đội mình.
+- **Đánh giá nhân viên** theo tiêu chí có trọng số (tự lấy từ KPI, từ chỉ số hiệu suất thật + quản lý chấm tay), xếp loại, chốt kỳ, xuất Excel. **Hoa hồng** theo bậc doanh thu, thưởng trưởng nhóm. Nhân viên chỉ thấy phần của mình.
 - Từ ngày 10 hằng tháng, **báo nhân viên và trưởng nhóm** khi doanh thu chậm nhịp quá 20%.
 
 ### Chân dung khách hàng 360°
@@ -415,6 +424,8 @@ npm run setup
 # 4. Chạy
 npm run dev
 ```
+
+`npm run dev` dùng Turbopack (mở trang lần đầu nhanh hơn 2–5 lần). Nếu gặp lỗi lạ khi chạy thử, dùng `npm run dev:webpack` (trình biên dịch cũ).
 
 Mở **http://localhost:3210** trên trình duyệt:
 1. Tạo tài khoản đầu tiên. Tài khoản này là chủ workspace.

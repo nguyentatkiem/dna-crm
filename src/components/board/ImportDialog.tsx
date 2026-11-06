@@ -124,8 +124,8 @@ export function ImportDialog({ obj, onClose, onDone }: { obj: ObjectDef; onClose
 
   return (
     <>
-      <div className="fixed inset-0 z-40 bg-black/30" onClick={onClose} aria-hidden="true" />
-      <div role="dialog" aria-label="Nhập dữ liệu" className="fixed left-1/2 top-1/2 z-50 flex max-h-[calc(100vh-40px)] w-[min(760px,calc(100vw-24px))] -translate-x-1/2 -translate-y-1/2 flex-col rounded-xl bg-surface shadow-panel">
+      <div className="anim-fade fixed inset-0 z-40 bg-black/30" onClick={onClose} aria-hidden="true" />
+      <div role="dialog" aria-label="Nhập dữ liệu" className="anim-fade fixed left-1/2 top-1/2 z-50 flex max-h-[calc(100vh-40px)] w-[min(760px,calc(100vw-24px))] -translate-x-1/2 -translate-y-1/2 flex-col rounded-xl bg-surface shadow-panel">
         <header className="flex items-center justify-between gap-3 border-b border-line-soft px-5 py-4">
           <h2 className="min-w-0 truncate text-[18px] font-semibold">Nhập {obj.label.toLowerCase()} từ Excel / CSV</h2>
           <button type="button" className="btn-ghost h-8 w-8 flex-none justify-center p-0" onClick={onClose} aria-label="Đóng">

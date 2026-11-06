@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireApp } from "@/lib/auth";
-import { can, getRole } from "@/lib/permissions";
+import { allow, getAccess } from "@/lib/permissions";
 import { getSettings } from "@/lib/settings";
 import { dbProvider, listBackups } from "@/lib/backup";
 import { Icon } from "@/components/Icon";
@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 export default async function BackupPage() {
   const { user, workspace } = await requireApp();
-  const owner = can(await getRole(user.id, workspace.id), "manage_settings");
+  const owner = allow(await getAccess(user.id, workspace.id), "backup_manage");
   if (!owner) {
     return (
       <div className="canvas px-4 pb-16 pt-6 sm:px-8">

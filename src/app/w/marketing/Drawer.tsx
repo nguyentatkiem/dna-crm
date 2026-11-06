@@ -12,8 +12,8 @@ export function Drawer({ title, onClose, children, footer, wide }: { title: stri
   }, [onClose]);
   return (
     <>
-      <div className="fixed inset-0 z-40 bg-black/20" onClick={onClose} aria-hidden="true" />
-      <aside role="dialog" aria-label={title} className={`fixed inset-y-0 right-0 z-50 flex w-full flex-col bg-surface shadow-panel ${wide ? "max-w-[720px]" : "max-w-[540px]"}`}>
+      <div className="anim-fade fixed inset-0 z-40 bg-black/20" onClick={onClose} aria-hidden="true" />
+      <aside role="dialog" aria-label={title} className={`anim-slide-right fixed inset-y-0 right-0 z-50 flex w-full flex-col bg-surface shadow-panel ${wide ? "max-w-[720px]" : "max-w-[540px]"}`}>
         <header className="flex items-center gap-3 border-b border-line px-5 py-4">
           <h2 className="min-w-0 flex-1 truncate text-[20px] font-semibold">{title}</h2>
           <button type="button" className="btn-ghost h-8 w-8 justify-center p-0" onClick={onClose} aria-label="Đóng">

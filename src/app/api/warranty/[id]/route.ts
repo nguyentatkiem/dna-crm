@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { appApi, fail, ok } from "@/lib/http";
+import { allowed } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import { warrantyDTO } from "@/lib/care/warranty";
 
@@ -14,6 +15,7 @@ export async function PATCH(req: Request, { params }: P) {
   const a = await appApi();
   if ("error" in a) return a.error;
   const wid = a.ctx.workspace.id;
+  if (!(await allowed(a.ctx, "warranty_manage"))) return fail("Bạn chưa có quyền quản lý bảo hành", 403);
   const w = await db.warranty.findFirst({ where: { id: (await params).id, workspaceId: wid } });
   if (!w) return fail("Không tìm thấy phiếu bảo hành", 404);
   const p = Body.safeParse(await req.json().catch(() => ({})));

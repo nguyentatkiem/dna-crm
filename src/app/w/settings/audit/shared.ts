@@ -26,9 +26,12 @@ export const ACTION_LABEL: Record<string, string> = {
   "member.password": "Đặt lại mật khẩu",
   "team.add": "Thêm vào đội",
   "settings.permissions": "Đổi phân quyền",
+  "role.create": "Tạo vai trò",
+  "role.update": "Sửa vai trò",
+  "role.delete": "Xoá vai trò",
 };
 export const actionLabel = (a: string) => ACTION_LABEL[a] ?? a;
-export const ACTION_COLOR = (a: string) => (a.endsWith(".delete") || a.endsWith(".remove") ? "#df2f4a" : a.endsWith(".create") || a.endsWith(".invite") || a.endsWith(".add") ? "#00c875" : a.startsWith("member") || a.startsWith("settings") ? "#a25ddc" : "#579bfc");
+export const ACTION_COLOR = (a: string) => (a.endsWith(".delete") || a.endsWith(".remove") ? "#df2f4a" : a.endsWith(".create") || a.endsWith(".invite") || a.endsWith(".add") ? "#00c875" : a.startsWith("member") || a.startsWith("settings") || a.startsWith("role.") ? "#a25ddc" : "#579bfc");
 
 export type AuditFilter = { user?: string; action?: string; from?: string; to?: string; page?: string };
 export const PAGE_SIZE = 50;

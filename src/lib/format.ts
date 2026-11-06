@@ -24,3 +24,12 @@ export function ago(d: string | Date) {
 
 export const heat = (score: number) =>
   score >= 70 ? { key: "hot", label: "Nóng", color: "red" as const } : score >= 40 ? { key: "warm", label: "Ấm", color: "orange" as const } : { key: "cold", label: "Lạnh", color: "blue" as const };
+
+/**
+ * Thông báo lỗi cho người dùng: dùng message của lỗi khi đó là câu tiếng Việt do app tự đặt,
+ * còn lỗi kỹ thuật tiếng Anh (Prisma, "Failed to fetch", JsSIP...) thì thay bằng câu dự phòng.
+ */
+export function viMessage(e: unknown, fallback: string): string {
+  const m = e instanceof Error ? e.message : typeof e === "string" ? e : "";
+  return m && /[À-ỹđĐ]/.test(m) && m.length <= 300 && !/prisma|invocation/i.test(m) ? m : fallback;
+}

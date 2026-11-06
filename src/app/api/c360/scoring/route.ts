@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { appApi, fail, ok } from "@/lib/http";
-import { can, getRole } from "@/lib/permissions";
+import { allow, getAccess } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import { SCORE_EVENTS, SCORE_EVENT_LABEL, type ScoringRules } from "@/lib/c360/scoring";
 import { recomputeScores, saveScoringRules, scoringRules } from "@/lib/c360/behavior";
@@ -27,7 +27,7 @@ const Rules = z.object({
 export async function PUT(req: Request) {
   const a = await appApi();
   if ("error" in a) return a.error;
-  if (!can(await getRole(a.ctx.user.id, a.ctx.workspace.id), "manage_settings")) return fail("Chỉ chủ workspace được sửa luật chấm điểm", 403);
+  if (!allow(await getAccess(a.ctx.user.id, a.ctx.workspace.id), "settings_manage")) return fail("Bạn chưa có quyền sửa luật chấm điểm", 403);
   const p = Rules.safeParse(await req.json().catch(() => ({})));
   if (!p.success) return fail(p.error.issues[0]?.message ?? "Dữ liệu chưa hợp lệ");
   const saved = await saveScoringRules(a.ctx.workspace.id, p.data as ScoringRules);
@@ -39,7 +39,7 @@ export async function PUT(req: Request) {
 export async function POST() {
   const a = await appApi();
   if ("error" in a) return a.error;
-  if (!can(await getRole(a.ctx.user.id, a.ctx.workspace.id), "manage_settings")) return fail("Chỉ chủ workspace được tính lại điểm", 403);
+  if (!allow(await getAccess(a.ctx.user.id, a.ctx.workspace.id), "settings_manage")) return fail("Bạn chưa có quyền tính lại điểm", 403);
   const r = await recomputeScores(a.ctx.workspace.id, a.ctx.config);
   return ok(r);
 }

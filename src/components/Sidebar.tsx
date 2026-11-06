@@ -25,7 +25,7 @@ export function navSections(boards: NavBoard[], counts: { openTasks?: number; un
         { href: "/w/feed", label: "Bảng tin", icon: "feed" },
         { href: "/w/dashboards", label: "Dashboard", icon: "chart" },
         { href: "/w/kpi", label: "KPI", icon: "target" },
-        { href: "/w/perf", label: "Đánh giá & hoa hồng", icon: "award" },
+        { href: "/w/perf/overview", label: "Hiệu suất nhân viên", icon: "award" },
       ],
     },
     { title: "Bảng", items: boards.map((b) => ({ href: `/w/b/${b.key}`, label: b.label, icon: BOARD_ICON[b.key] ?? "board", count: b.count })) },

@@ -2,7 +2,6 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
-import { can } from "@/lib/permissions";
 import { canEditDoc, scoped } from "@/lib/sales/access";
 import { parseLines } from "@/lib/sales/lines";
 import { activeProducts, salesPage } from "@/lib/sales/page";
@@ -17,7 +16,7 @@ export default async function QuotePage({ params, searchParams }: { params: Prom
   const { edit } = await searchParams;
   const q = await db.quote.findFirst({ where: scoped(ctx.scope.where, { id }) });
   if (!q) notFound();
-  const mine = canEditDoc(ctx, ctx.scope.seeAll, q);
+  const mine = canEditDoc(ctx, ctx.scope.perm.editOthers, q);
   const editable = mine && q.status !== "accepted" && !q.orderId;
   const ids = [q.recordId, q.contactId].filter((x): x is string => !!x);
   const recs = ids.length ? await db.record.findMany({ where: { workspaceId: ctx.workspace.id, id: { in: ids } }, select: { id: true, title: true, objectKey: true } }) : [];
@@ -32,12 +31,12 @@ export default async function QuotePage({ params, searchParams }: { params: Prom
           ← {q.number}
         </Link>
         <h1 className="mt-1 text-[26px] font-semibold">Sửa báo giá {q.number}</h1>
-        {!ctx.scope.seeAll && q.status !== "draft" && <p className="mt-1 text-[13.5px] text-warning">Sửa báo giá đã duyệt/đã gửi sẽ đưa về nháp và cần duyệt lại.</p>}
+        {!ctx.scope.perm.approve && q.status !== "draft" && <p className="mt-1 text-[13.5px] text-warning">Sửa báo giá đã duyệt/đã gửi sẽ đưa về nháp và cần duyệt lại.</p>}
         <DocEditor
           kind="quote"
           id={id}
           products={await activeProducts(ctx.workspace.id)}
-          seeAll={ctx.scope.seeAll}
+          seeAll={ctx.scope.perm.approve}
           dealLabel={ctx.dealLabel}
           backHref={`/w/quotes/${id}`}
           initial={{
@@ -74,7 +73,7 @@ export default async function QuotePage({ params, searchParams }: { params: Prom
         contact={contact}
         order={order}
         link={`${originOf(await headers())}/q/${q.publicToken}`}
-        perm={{ seeAll: ctx.scope.seeAll, mine, editable, canDelete: can(ctx.scope.role, "delete") }}
+        perm={{ seeAll: ctx.scope.perm.approve, mine, editable, canDelete: ctx.scope.perm.del }}
         dealLabel={ctx.dealLabel}
       />
     </div>

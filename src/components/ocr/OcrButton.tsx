@@ -119,8 +119,8 @@ function OcrDialog({ objectKey, onClose, onDone }: { objectKey: string; onClose:
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-stretch justify-center bg-black/30 sm:items-center sm:p-6" onClick={onClose}>
-      <div role="dialog" aria-label="Quét danh thiếp hoặc CCCD" onClick={(e) => e.stopPropagation()} className="flex max-h-full w-full max-w-2xl flex-col overflow-hidden bg-surface shadow-panel sm:rounded-xl">
+    <div className="anim-fade fixed inset-0 z-50 flex items-stretch justify-center bg-black/30 sm:items-center sm:p-6" onClick={onClose}>
+      <div role="dialog" aria-label="Quét danh thiếp hoặc CCCD" onClick={(e) => e.stopPropagation()} className="anim-pop flex max-h-full w-full max-w-2xl flex-col overflow-hidden bg-surface shadow-panel sm:rounded-xl">
         <div className="flex items-center gap-2 border-b border-line-soft px-4 py-3">
           <Icon name="spark" size={18} className="text-[#a25ddc]" />
           <h2 className="flex-1 text-[15px] font-semibold">Quét danh thiếp / CCCD</h2>

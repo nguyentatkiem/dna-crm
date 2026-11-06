@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { appApi, fail, ok } from "@/lib/http";
 import { audit } from "@/lib/audit";
 import { findScopedRecord } from "@/lib/permissions";
-import { isManager, loyaltyPref } from "@/lib/care/server";
+import { careCan, loyaltyPref } from "@/lib/care/server";
 import { nextTier, summarize, tierFor } from "@/lib/care/shared";
 
 type P = { params: Promise<{ recordId: string }> };
@@ -27,7 +27,7 @@ export async function GET(_req: Request, { params }: P) {
   if ("error" in a) return a.error;
   const rec = await findScopedRecord(a.ctx, (await params).recordId);
   if (!rec) return fail("Không tìm thấy khách", 404);
-  return ok({ ...(await view(a.ctx.workspace.id, rec.id)), canAdjust: await isManager(a.ctx) });
+  return ok({ ...(await view(a.ctx.workspace.id, rec.id)), canAdjust: await careCan(a.ctx, "loyalty_adjust") });
 }
 
 const Body = z.union([
@@ -48,7 +48,7 @@ export async function POST(req: Request, { params }: P) {
   let points: number;
   let reason: string;
   if (p.data.kind === "adjust") {
-    if (!(await isManager(a.ctx))) return fail("Chỉ chủ hoặc quản lý được cộng/trừ điểm tay", 403);
+    if (!(await careCan(a.ctx, "loyalty_adjust"))) return fail("Bạn chưa có quyền cộng/trừ điểm tay", 403);
     points = p.data.points;
     reason = p.data.reason;
   } else {
@@ -68,5 +68,5 @@ export async function POST(req: Request, { params }: P) {
   if ("error" in res) return fail(res.error!, 400);
   await db.activity.create({ data: { recordId: rec.id, kind: "update", body: `${points > 0 ? "+" : ""}${points} điểm · ${reason}. Số dư: ${res.balance}`, author: a.ctx.user.name } });
   await audit({ workspaceId: wid, user: a.ctx.user }, p.data.kind === "adjust" ? "loyalty.adjust" : "loyalty.redeem", "contacts", rec.id, `${rec.title}: ${points > 0 ? "+" : ""}${points} điểm (${reason})`);
-  return ok({ ...(await view(wid, rec.id)), canAdjust: await isManager(a.ctx) }, 201);
+  return ok({ ...(await view(wid, rec.id)), canAdjust: await careCan(a.ctx, "loyalty_adjust") }, 201);
 }

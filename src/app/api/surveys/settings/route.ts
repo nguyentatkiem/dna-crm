@@ -19,7 +19,7 @@ const Body = z.object({ afterTicketSurveyId: z.string().max(60).catch(""), after
 export async function PUT(req: Request) {
   const a = await appApi();
   if ("error" in a) return a.error;
-  if (!(await canManageSurveys(a.ctx))) return fail("Chỉ chủ hoặc quản lý sửa được cài đặt", 403);
+  if (!(await canManageSurveys(a.ctx))) return fail("Bạn chưa có quyền quản lý khảo sát", 403);
   const p = Body.safeParse(await req.json().catch(() => ({})));
   if (!p.success) return fail("Dữ liệu chưa hợp lệ");
   const d = p.data;

@@ -5,8 +5,9 @@ import type { ObjectDef } from "@/lib/config/schema";
 import { color } from "@/lib/colors";
 import { Icon } from "../Icon";
 import { Avatar } from "../Avatar";
-import { usePopover } from "./cells";
-import { OPS, type Column, type Filter, type FilterField } from "./model";
+import { usePopover } from "./popover";
+import type { Column } from "./model";
+import { OPS, type Filter, type FilterField } from "./filters";
 
 /** Lọc nâng cao: nhiều điều kiện (trường + điều kiện + giá trị), khớp tất cả hoặc bất kỳ. */
 export function FilterMenu({ fields, filters, mode, onChange }: { fields: FilterField[]; filters: Filter[]; mode: "and" | "or"; onChange: (f: Filter[], mode: "and" | "or") => void }) {
@@ -150,13 +151,14 @@ export function ColumnsMenu({ cols, hidden, onChange }: { cols: Column[]; hidden
 }
 
 /** Thanh thao tác hàng loạt khi chọn nhiều dòng. */
-export function BulkBar({ obj, team, count, canDelete, onStatus, onOwner, onDelete, onClear }: { obj: ObjectDef; team: string[]; count: number; canDelete: boolean; onStatus: (k: string) => void; onOwner: (n: string) => void; onDelete: () => void; onClear: () => void }) {
+export function BulkBar({ obj, team, count, canDelete, canBulk = true, canAssign = true, onStatus, onOwner, onDelete, onClear }: { obj: ObjectDef; team: string[]; count: number; canDelete: boolean; canBulk?: boolean; canAssign?: boolean; onStatus: (k: string) => void; onOwner: (n: string) => void; onDelete: () => void; onClear: () => void }) {
   const st = usePopover();
   const ow = usePopover();
   const [confirm, setConfirm] = useState(false);
   return (
     <div role="toolbar" aria-label="Thao tác hàng loạt" className="fixed bottom-5 left-1/2 z-[55] flex max-w-[calc(100vw-24px)] -translate-x-1/2 flex-wrap items-center gap-1 rounded-xl border border-line-soft bg-surface p-1.5 shadow-panel">
       <span className="flex h-8 items-center gap-2 rounded-lg bg-primary px-3 text-[13.5px] font-medium text-white tnum">{count} đã chọn</span>
+      {canBulk && (
       <div ref={st.ref} className="relative">
         <button type="button" className="btn-ghost" onClick={() => st.setOpen(!st.open)}>
           <Icon name="check" size={15} /> Đổi {obj.statusLabel.toLowerCase()}
@@ -171,6 +173,8 @@ export function BulkBar({ obj, team, count, canDelete, onStatus, onOwner, onDele
           </div>
         )}
       </div>
+      )}
+      {canBulk && canAssign && (
       <div ref={ow.ref} className="relative">
         <button type="button" className="btn-ghost" onClick={() => ow.setOpen(!ow.open)}>
           <Icon name="person" size={15} /> Giao cho
@@ -185,6 +189,7 @@ export function BulkBar({ obj, team, count, canDelete, onStatus, onOwner, onDele
           </div>
         )}
       </div>
+      )}
       {canDelete &&
         (confirm ? (
           <span className="flex items-center gap-1 px-1 text-[13px]">

@@ -41,10 +41,15 @@ export function SequencesTab(p: Props) {
     return "Thêm khách bằng tay";
   };
 
+  // Bật/tắt hiện ngay (ghi đè tạm trên máy) trong lúc chờ máy chủ; lỗi thì trả lại.
+  const [flip, setFlip] = useState<Record<string, boolean>>({});
   async function toggle(s: Seq) {
-    const r = await fetch(`/api/marketing/sequences/${s.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ enabled: !s.enabled }) });
-    if (!r.ok) setMsg({ ok: false, text: (await r.json()).error });
+    if (s.id in flip) return;
+    setFlip((f) => ({ ...f, [s.id]: !s.enabled }));
+    const r = await fetch(`/api/marketing/sequences/${s.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ enabled: !s.enabled }) }).catch(() => null);
+    if (!r?.ok) setMsg({ ok: false, text: (await r?.json().catch(() => ({})))?.error ?? "Không đổi được trạng thái kịch bản" });
     router.refresh();
+    setFlip(({ [s.id]: _, ...rest }) => rest);
   }
   async function remove(s: Seq) {
     if (!confirm(`Xoá kịch bản “${s.name}”? Khách đang chạy sẽ dừng, nhật ký gửi vẫn giữ.`)) return;
@@ -102,13 +107,14 @@ export function SequencesTab(p: Props) {
                 <button
                   type="button"
                   role="switch"
-                  aria-checked={s.enabled}
-                  aria-label={s.enabled ? "Tắt kịch bản" : "Bật kịch bản"}
+                  aria-checked={flip[s.id] ?? s.enabled}
+                  aria-label={(flip[s.id] ?? s.enabled) ? "Tắt kịch bản" : "Bật kịch bản"}
+                  aria-busy={s.id in flip}
                   disabled={!p.manage}
                   onClick={() => toggle(s)}
-                  className={`mt-0.5 flex h-5 w-9 flex-none items-center rounded-full p-0.5 transition-colors ${s.enabled ? "bg-[#00c875]" : "bg-[var(--line)]"}`}
+                  className={`mt-0.5 flex h-5 w-9 flex-none items-center rounded-full p-0.5 transition-colors ${(flip[s.id] ?? s.enabled) ? "bg-[#00c875]" : "bg-[var(--line)]"}`}
                 >
-                  <span className={`h-4 w-4 rounded-full bg-white shadow transition-transform ${s.enabled ? "translate-x-4" : ""}`} />
+                  <span className={`h-4 w-4 rounded-full bg-white shadow transition-transform ${(flip[s.id] ?? s.enabled) ? "translate-x-4" : ""}`} />
                 </button>
                 <div className="min-w-0">
                   <h3 className="truncate text-[15.5px] font-semibold">{s.name}</h3>

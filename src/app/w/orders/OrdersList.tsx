@@ -10,7 +10,7 @@ import { ORDER_STATUS, ORDER_STATUSES, dmy, fold, money, overdue, remaining } fr
 type Row = { id: string; number: string; customerName: string; customerPhone: string; status: string; total: number; paid: number; dueAt: string | null; createdBy: string; createdAt: string; quoteId: string | null };
 type Debt = "" | "open" | "overdue";
 
-export function OrdersList({ initial, initialStatus, initialDebt }: { initial: Row[]; initialStatus: string; initialDebt: Debt }) {
+export function OrdersList({ initial, initialStatus, initialDebt, canCreate = true, canDebts = true }: { initial: Row[]; initialStatus: string; initialDebt: Debt; canCreate?: boolean; canDebts?: boolean }) {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState(initialStatus);
   const [debt, setDebt] = useState<Debt>(initialDebt);
@@ -29,12 +29,16 @@ export function OrdersList({ initial, initialStatus, initialDebt }: { initial: R
           <p className="mt-1 text-ink-2">Theo dõi giao hàng, thu tiền và công nợ.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link href="/w/orders/debts" className="btn-outline">
-            <Icon name="wallet" size={16} /> Công nợ
-          </Link>
-          <Link href="/w/orders/new" className="btn-primary">
-            <Icon name="plus" size={16} /> Tạo đơn
-          </Link>
+          {canDebts && (
+            <Link href="/w/orders/debts" className="btn-outline">
+              <Icon name="wallet" size={16} /> Công nợ
+            </Link>
+          )}
+          {canCreate && (
+            <Link href="/w/orders/new" className="btn-primary">
+              <Icon name="plus" size={16} /> Tạo đơn
+            </Link>
+          )}
         </div>
       </div>
 

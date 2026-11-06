@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import "./zod-vi";
 import { apiContext } from "./auth";
 
 export const ok = (data: unknown, init?: number) => NextResponse.json(data, { status: init ?? 200 });

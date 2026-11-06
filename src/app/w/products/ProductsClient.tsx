@@ -5,6 +5,7 @@ import type { Product } from "@prisma/client";
 import { Icon } from "@/components/Icon";
 import { Drawer, EmptyState } from "@/components/ui";
 import { fold, money, type Ser } from "@/lib/sales/shared";
+import { toast } from "@/components/ui/Toast";
 
 type Item = Ser<Product>;
 type Form = { code: string; name: string; unit: string; category: string; price: string; vat: string; warrantyMonths: string; description: string; active: boolean };
@@ -48,10 +49,14 @@ export function ProductsClient({ initial, canEdit, canDelete }: { initial: Item[
   }
 
   async function toggle(p: Item) {
-    const res = await fetch(`/api/products/${p.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ active: !p.active }) });
-    if (res.ok) {
+    setItems((xs) => xs.map((x) => (x.id === p.id ? { ...x, active: !p.active } : x)));
+    const res = await fetch(`/api/products/${p.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ active: !p.active }) }).catch(() => null);
+    if (res?.ok) {
       const j = await res.json();
       setItems((xs) => xs.map((x) => (x.id === j.id ? j : x)));
+    } else {
+      setItems((xs) => xs.map((x) => (x.id === p.id ? { ...x, active: p.active } : x)));
+      toast((await res?.json().catch(() => ({})))?.error ?? "Không đổi được trạng thái sản phẩm", "error");
     }
   }
 

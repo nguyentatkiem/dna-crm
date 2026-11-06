@@ -137,6 +137,7 @@ model Record {
 
   @@index([workspaceId, objectKey])
   @@index([workspaceId, deletedAt])
+  @@index([workspaceId, objectKey, updatedAt])
 }
 
 model Activity {
@@ -147,6 +148,8 @@ model Activity {
   author    String
   createdAt DateTime @default(now())
   record    Record   @relation(fields: [recordId], references: [id], onDelete: Cascade)
+
+  @@index([recordId, createdAt])
 }
 
 model Task {
@@ -162,6 +165,8 @@ model Task {
   // Mục gắn với việc này đang nằm trong thùng rác → ẩn việc cho tới khi khôi phục.
   inTrash     Boolean   @default(false)
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, dueAt])
 }
 
 model Automation {
@@ -304,6 +309,7 @@ model Conversation {
 
   @@unique([workspaceId, channel, externalId])
   @@index([workspaceId, lastAt])
+  @@index([workspaceId, recordId])
 }
 
 model Message {
@@ -535,6 +541,7 @@ model Quote {
 
   @@unique([workspaceId, number])
   @@index([workspaceId, status])
+  @@index([workspaceId, createdAt])
 }
 
 model Order {
@@ -566,6 +573,7 @@ model Order {
 
   @@unique([workspaceId, number])
   @@index([workspaceId, status])
+  @@index([workspaceId, createdAt])
 }
 
 model Payment {
@@ -582,6 +590,7 @@ model Payment {
   order       Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@index([orderId])
+  @@index([workspaceId, paidAt])
 }
 
 model Contract {
@@ -640,6 +649,7 @@ model Ticket {
 
   @@unique([workspaceId, number])
   @@index([workspaceId, status])
+  @@index([workspaceId, resolvedAt])
 }
 
 model TicketMessage {
@@ -812,16 +822,16 @@ model PushSub {
 // ---------- Bizfly đợt A: chân dung 360° ----------
 // Nhật ký ghép trùng: giữ bản ghi gộp (survivor) và ảnh chụp các bản bị gộp để tra cứu.
 model MergeLog {
-  id          String    @id @default(cuid())
-  workspaceId String
-  objectKey   String    @default("contacts")
-  survivorId  String
-  mergedIds   String // JSON string[]
-  snapshotJson String   @default("[]") // dữ liệu các bản bị gộp trước khi gộp
-  movedJson   String    @default("{}") // { orders: 2, tickets: 1, ... }
-  by          String    @default("")
-  createdAt   DateTime  @default(now())
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  id           String    @id @default(cuid())
+  workspaceId  String
+  objectKey    String    @default("contacts")
+  survivorId   String
+  mergedIds    String // JSON string[]
+  snapshotJson String    @default("[]") // dữ liệu các bản bị gộp trước khi gộp
+  movedJson    String    @default("{}") // { orders: 2, tickets: 1, ... }
+  by           String    @default("")
+  createdAt    DateTime  @default(now())
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId, createdAt])
 }
@@ -863,6 +873,7 @@ model SurveyResponse {
 
   @@index([workspaceId, surveyId])
   @@index([workspaceId, recordId])
+  @@index([workspaceId, submittedAt])
 }
 
 model VoucherCampaign {

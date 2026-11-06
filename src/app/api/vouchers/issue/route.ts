@@ -21,7 +21,7 @@ export async function POST(req: Request) {
   if (!c) return fail("Không tìm thấy chương trình", 404);
   if (!c.active) return fail("Chương trình đang tắt", 409);
   if (d.segmentId) {
-    if (!(await canManageVouchers(a.ctx))) return fail("Chỉ chủ hoặc quản lý phát được cho cả nhóm", 403);
+    if (!(await canManageVouchers(a.ctx))) return fail("Bạn chưa có quyền phát voucher cho cả nhóm", 403);
     if (!(await db.segment.findFirst({ where: { id: d.segmentId, workspaceId: wid }, select: { id: true } }))) return fail("Không tìm thấy nhóm khách", 404);
     const r = await issueToSegment(wid, { campaignId: c.id, segmentId: d.segmentId, send: d.send, reason: d.reason || "Phát theo nhóm", by: a.ctx.user.name });
     await audit({ workspaceId: wid, user: a.ctx.user }, "voucher.issue", "voucherCampaign", c.id, `Phát ${r.issued} voucher “${c.name}” cho nhóm khách`);

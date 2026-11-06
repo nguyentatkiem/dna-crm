@@ -17,7 +17,7 @@ const Body = z.object({ template: z.string().trim().min(1, "Mẫu tin không đ�
 export async function PUT(req: Request) {
   const a = await appApi();
   if ("error" in a) return a.error;
-  if (!(await canManageVouchers(a.ctx))) return fail("Chỉ chủ hoặc quản lý sửa được mẫu tin", 403);
+  if (!(await canManageVouchers(a.ctx))) return fail("Bạn chưa có quyền quản lý voucher", 403);
   const p = Body.safeParse(await req.json().catch(() => ({})));
   if (!p.success) return fail(p.error.issues[0]?.message ?? "Dữ liệu chưa hợp lệ");
   if (!p.data.template.includes("{code}")) return fail("Mẫu tin cần có {code}");

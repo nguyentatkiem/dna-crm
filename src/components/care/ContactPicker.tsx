@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Icon } from "@/components/Icon";
 
 export type PickedContact = { id: string; title: string; phone: string };
@@ -10,16 +10,28 @@ export function ContactPicker({ value, onChange, placeholder = "Tìm khách theo
   const [q, setQ] = useState("");
   const [hits, setHits] = useState<PickedContact[]>([]);
   const [open, setOpen] = useState(false);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (timer.current) clearTimeout(timer.current);
-    if (q.trim().length < 2) return setHits([]);
-    timer.current = setTimeout(async () => {
-      const r = await fetch(`/api/search?q=${encodeURIComponent(q.trim())}`).then((x) => (x.ok ? x.json() : { records: [] })).catch(() => ({ records: [] }));
+    if (q.trim().length < 2) {
+      setHits([]);
+      setLoading(false);
+      return;
+    }
+    // Chờ ngừng gõ ~250ms; huỷ yêu cầu cũ để kết quả về muộn không ghi đè. Giữ danh sách cũ trong lúc tìm.
+    const ctl = new AbortController();
+    setLoading(true);
+    const t = setTimeout(async () => {
+      const r = await fetch(`/api/search?q=${encodeURIComponent(q.trim())}`, { signal: ctl.signal }).then((x) => (x.ok ? x.json() : { records: [] })).catch(() => null);
+      if (!r || ctl.signal.aborted) return;
       setHits((r.records as { id: string; title: string; phone: string; objectKey: string }[]).filter((x) => x.objectKey === "contacts").slice(0, 8));
+      setLoading(false);
       setOpen(true);
-    }, 220);
+    }, 250);
+    return () => {
+      clearTimeout(t);
+      ctl.abort();
+    };
   }, [q]);
 
   if (value)
@@ -41,7 +53,7 @@ export function ContactPicker({ value, onChange, placeholder = "Tìm khách theo
       <input id={id} value={q} onChange={(e) => setQ(e.target.value)} onFocus={() => hits.length && setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 150)} placeholder={placeholder} className="input pl-8" autoComplete="off" />
       {open && q.trim().length >= 2 && (
         <ul className="absolute inset-x-0 top-full z-50 mt-1 max-h-64 overflow-y-auto rounded-lg border border-line-soft bg-surface py-1 shadow-panel" role="listbox">
-          {hits.length === 0 && <li className="px-3 py-2 text-[13px] text-ink-2">Không thấy khách nào</li>}
+          {hits.length === 0 && <li className="px-3 py-2 text-[13px] text-ink-2">{loading ? "Đang tìm…" : "Không thấy khách nào"}</li>}
           {hits.map((h) => (
             <li key={h.id}>
               <button type="button" role="option" aria-selected={false} className="flex w-full items-center gap-2 px-3 py-2 text-left text-[14px] hover:bg-hover" onMouseDown={(e) => e.preventDefault()} onClick={() => { onChange(h); setQ(""); setOpen(false); }}>

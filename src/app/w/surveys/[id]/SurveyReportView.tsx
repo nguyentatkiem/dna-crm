@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import dynamic from "next/dynamic";
 import { Icon } from "@/components/Icon";
 import { Badge, EmptyState, Stat } from "@/components/ui";
 import { SendSurveyButton } from "@/components/survey/SendSurveyButton";
@@ -10,6 +10,8 @@ import { ago } from "@/lib/format";
 import { NPS_COLOR, NPS_LABEL, SURVEY_CHANNEL_LABEL, SURVEY_KIND_LABEL, npsBucket, type NpsBucket, type SurveyChannel, type SurveyKind } from "@/lib/survey/shared";
 import type { SurveyDTO } from "@/lib/survey/api";
 import type { SurveyReport } from "@/lib/survey/service";
+
+const NpsTrendChart = dynamic(() => import("./NpsTrendChart").then((m) => m.NpsTrendChart), { ssr: false, loading: () => <div className="h-full animate-pulse rounded-lg bg-surface-2" /> });
 
 const BUCKETS: NpsBucket[] = ["promoter", "passive", "detractor"];
 
@@ -120,15 +122,7 @@ export function SurveyReportView({ id, focus }: { id: string; focus: string }) {
               <section className="card grid content-start gap-3 p-4">
                 <h2 className="section-title">NPS theo tuần</h2>
                 <div className="h-[200px] min-w-0">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={r.trend} margin={{ top: 8, right: 8, bottom: 0, left: -20 }}>
-                      <CartesianGrid vertical={false} stroke="var(--line-soft)" />
-                      <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: "var(--ink-2)", fontSize: 12 }} />
-                      <YAxis domain={[-100, 100]} ticks={[-100, -50, 0, 50, 100]} tickLine={false} axisLine={false} tick={{ fill: "var(--ink-2)", fontSize: 11 }} />
-                      <Tooltip contentStyle={{ background: "var(--surface)", border: "1px solid var(--line-soft)", borderRadius: 8, fontSize: 13, color: "var(--ink)" }} formatter={(v, _n, p) => [`${v} (${(p.payload as { count: number }).count} trả lời)`, "NPS"]} labelFormatter={(l) => `Tuần từ ${l}`} />
-                      <Line type="monotone" dataKey="nps" stroke="#0073ea" strokeWidth={2} dot={{ r: 3 }} connectNulls isAnimationActive={false} />
-                    </LineChart>
-                  </ResponsiveContainer>
+                  <NpsTrendChart trend={r.trend} />
                 </div>
               </section>
             )}

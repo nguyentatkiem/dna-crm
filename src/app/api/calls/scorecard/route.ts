@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { isOwner } from "@/lib/auth";
+import { allowed } from "@/lib/permissions";
 import { appApi, fail, ok } from "@/lib/http";
 import { getScorecard } from "@/lib/calls";
 
@@ -14,7 +14,7 @@ export async function PUT(req: Request) {
   const a = await appApi();
   if ("error" in a) return a.error;
   const wid = a.ctx.workspace.id;
-  if (!(await isOwner(a.ctx.user.id, wid))) return fail("Chỉ chủ workspace được sửa phiếu chấm", 403);
+  if (!(await allowed(a.ctx, "calls_coach"))) return fail("Bạn chưa có quyền sửa phiếu chấm", 403);
   const parsed = Body.safeParse(await req.json().catch(() => ({})));
   if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? "Dữ liệu chưa hợp lệ");
   const sum = parsed.data.criteria.reduce((s, c) => s + c.weight, 0);

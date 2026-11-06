@@ -5,7 +5,7 @@ import { parseSpendCsv, upsertSpend } from "@/lib/marketing/ads";
 
 /** Nhập CSV chi phí (cột: ngày, nền tảng, chiến dịch, chi phí, hiển thị, click, lead). */
 export async function POST(req: Request) {
-  const a = await marketingApi(true);
+  const a = await marketingApi("ads_manage");
   if ("error" in a) return a.error;
   const { csv } = (await req.json().catch(() => ({}))) as { csv?: string };
   if (!csv?.trim()) return fail("Chưa có nội dung CSV");

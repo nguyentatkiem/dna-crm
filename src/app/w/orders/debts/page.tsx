@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { scoped } from "@/lib/sales/access";
 import { salesPage } from "@/lib/sales/page";
@@ -10,6 +11,7 @@ import { DueBadge } from "@/components/sales/Status";
 /** Công nợ phải thu theo khách: khách có nợ quá hạn lên đầu, rồi theo số nợ giảm dần. */
 export default async function DebtsPage() {
   const { scope } = await salesPage();
+  if (!scope.perm.debtView) redirect("/w/orders");
   const orders = await db.order.findMany({ where: scoped(scope.where, { status: { not: "cancelled" } }), orderBy: { createdAt: "asc" }, take: 5000 });
   const open = orders.filter((o) => remaining(o) > 0);
   type G = { key: string; name: string; phone: string; contactId: string | null; debt: number; overdue: number; oldestDue: Date | null; orders: typeof open };

@@ -28,7 +28,7 @@ const Manual = z.object({
 
 /** Nhập tay chi phí một ngày của một chiến dịch. Cùng ngày + chiến dịch thì ghi đè. */
 export async function POST(req: Request) {
-  const a = await marketingApi(true);
+  const a = await marketingApi("ads_manage");
   if ("error" in a) return a.error;
   const p = Manual.safeParse(await req.json().catch(() => ({})));
   if (!p.success) return fail(p.error.issues[0]?.message ?? "Dữ liệu không hợp lệ");
@@ -40,7 +40,7 @@ export async function POST(req: Request) {
 
 /** Xoá chi phí: theo id, hoặc mọi dòng nhập tay/CSV của một chiến dịch (?campaign=). */
 export async function DELETE(req: Request) {
-  const a = await marketingApi(true);
+  const a = await marketingApi("ads_manage");
   if ("error" in a) return a.error;
   const sp = new URL(req.url).searchParams;
   const id = sp.get("id");

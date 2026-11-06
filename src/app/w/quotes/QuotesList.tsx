@@ -9,7 +9,7 @@ import { QUOTE_STATUS, QUOTE_STATUSES, dmy, fold, money, quoteStatusOf, type Quo
 
 type Row = { id: string; number: string; customerName: string; customerPhone: string; title: string; status: string; total: number; validUntil: string | null; createdBy: string; createdAt: string; viewedAt: string | null; orderId: string | null };
 
-export function QuotesList({ initial, initialStatus, seeAll }: { initial: Row[]; initialStatus: string; seeAll: boolean }) {
+export function QuotesList({ initial, initialStatus, seeAll, canCreate = true }: { initial: Row[]; initialStatus: string; seeAll: boolean; canCreate?: boolean }) {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState(initialStatus);
   const counts = useMemo(() => {
@@ -30,9 +30,11 @@ export function QuotesList({ initial, initialStatus, seeAll }: { initial: Row[];
           <h1 className="text-[26px] font-semibold">Báo giá</h1>
           <p className="mt-1 text-ink-2">{seeAll ? "Lập, duyệt và gửi báo giá cho khách." : "Báo giá của bạn. Gửi duyệt trước khi gửi khách."}</p>
         </div>
-        <Link href="/w/quotes/new" className="btn-primary">
-          <Icon name="plus" size={16} /> Tạo báo giá
-        </Link>
+        {canCreate && (
+          <Link href="/w/quotes/new" className="btn-primary">
+            <Icon name="plus" size={16} /> Tạo báo giá
+          </Link>
+        )}
       </div>
 
       <div className="mt-5 flex flex-wrap items-center gap-2">

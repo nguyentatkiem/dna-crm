@@ -15,7 +15,7 @@ type Rec = { id: string; title: string; objectKey: string } | null;
 
 const NEXT_LABEL: Record<OrderStatus, string> = { new: "Mở lại", confirmed: "Xác nhận", shipping: "Đang giao", done: "Hoàn tất", cancelled: "Huỷ đơn" };
 
-export function OrderDetail({ initial, items, deal, contact, quote, dealLabel, perm, voucher = null }: { voucher?: { discount: number } | null; initial: O; items: Line[]; deal: Rec; contact: Rec; quote: { id: string; number: string } | null; dealLabel: string; perm: { seeAll: boolean; canDelete: boolean } }) {
+export function OrderDetail({ initial, items, deal, contact, quote, dealLabel, perm, voucher = null }: { voucher?: { discount: number } | null; initial: O; items: Line[]; deal: Rec; contact: Rec; quote: { id: string; number: string } | null; dealLabel: string; perm: { seeAll: boolean; canDelete: boolean; edit?: boolean; payRecord?: boolean; payDelete?: boolean } }) {
   const router = useRouter();
   const [o, setO] = useState(initial);
   const [busy, setBusy] = useState(false);
@@ -53,7 +53,7 @@ export function OrderDetail({ initial, items, deal, contact, quote, dealLabel, p
     if (j) router.push("/w/orders");
   }
 
-  const next = ORDER_NEXT[o.status as OrderStatus] ?? [];
+  const next = perm.edit === false ? [] : (ORDER_NEXT[o.status as OrderStatus] ?? []);
 
   return (
     <div className="mt-1 grid gap-4">
@@ -77,7 +77,7 @@ export function OrderDetail({ initial, items, deal, contact, quote, dealLabel, p
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {o.status === "new" && (
+          {o.status === "new" && perm.edit !== false && (
             <Link href={`/w/orders/${o.id}?edit=1`} className="btn-outline">
               <Icon name="edit" size={15} /> Sửa
             </Link>
@@ -153,7 +153,7 @@ export function OrderDetail({ initial, items, deal, contact, quote, dealLabel, p
                       {dmy(p.paidAt)} · {p.createdBy}
                     </span>
                     {p.note && <span className="min-w-0 basis-full truncate text-[13px] text-ink-2 sm:basis-auto">{p.note}</span>}
-                    {perm.canDelete && (
+                    {(perm.payDelete ?? perm.canDelete) && (
                       <button type="button" className="btn-ghost ml-auto h-7 w-7 justify-center p-0 text-ink-2" aria-label="Xoá phiếu thu" disabled={busy} onClick={() => delPay(p.id)}>
                         <Icon name="x" size={14} />
                       </button>
@@ -166,7 +166,7 @@ export function OrderDetail({ initial, items, deal, contact, quote, dealLabel, p
         </div>
 
         <aside className="grid content-start gap-4">
-          {o.status !== "cancelled" && left > 0 && (
+          {o.status !== "cancelled" && left > 0 && perm.payRecord !== false && (
             <section className="card grid gap-3 p-4">
               <h2 className="section-title">Thu tiền</h2>
               <div className="grid grid-cols-2 gap-2">

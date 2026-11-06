@@ -4,7 +4,7 @@ import { appApi, fail, ok } from "@/lib/http";
 import { setPref } from "@/lib/prefs";
 import { audit } from "@/lib/audit";
 import { recordScope } from "@/lib/permissions";
-import { contactCard, isManager, loyaltyOf, loyaltyPref } from "@/lib/care/server";
+import { careCan, contactCard, loyaltyOf, loyaltyPref } from "@/lib/care/server";
 import { tierFor } from "@/lib/care/shared";
 
 /** Bảng xếp hạng điểm: mọi khách người dùng thấy được, kèm số dư, hạng, lần giao dịch cuối. */
@@ -21,7 +21,7 @@ export async function GET() {
       return { id: c.id, title: c.title, phone: card.phone, owner: c.ownerName, balance: s?.balance ?? 0, earned: s?.earned ?? 0, lastAt: s?.lastAt ?? null, tier: s?.tier ?? tierFor(0, pref.tiers) };
     })
     .sort((x, y) => y.balance - x.balance || y.earned - x.earned);
-  return ok({ pref, rows, canManage: await isManager(a.ctx) });
+  return ok({ pref, rows, canManage: await careCan(a.ctx, "care_settings") });
 }
 
 const Tier = z.object({ name: z.string().trim().min(1).max(40), minPoints: z.number().int().min(0), discountPct: z.number().min(0).max(100), color: z.string().max(20).default("#a0a3b1") });
@@ -36,7 +36,7 @@ const Body = z.object({
 export async function PUT(req: Request) {
   const a = await appApi();
   if ("error" in a) return a.error;
-  if (!(await isManager(a.ctx))) return fail("Chỉ chủ hoặc quản lý sửa được cấu hình tích điểm", 403);
+  if (!(await careCan(a.ctx, "care_settings"))) return fail("Bạn chưa có quyền sửa cấu hình tích điểm", 403);
   const p = Body.safeParse(await req.json().catch(() => ({})));
   if (!p.success) return fail(p.error.issues[0]?.message ?? "Cấu hình chưa hợp lệ");
   const v = { ...p.data, tiers: [...p.data.tiers].sort((x, y) => x.minPoints - y.minPoints) };

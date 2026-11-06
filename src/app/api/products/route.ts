@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { appApi, fail, ok } from "@/lib/http";
 import { audit } from "@/lib/audit";
-import { can, getRole } from "@/lib/permissions";
+import { allow, getAccess } from "@/lib/permissions";
 import { ProductInput, firstError } from "@/lib/sales/schemas";
 import { fold } from "@/lib/sales/shared";
 
@@ -25,7 +25,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const a = await appApi();
   if ("error" in a) return a.error;
-  if (!can(await getRole(a.ctx.user.id, a.ctx.workspace.id), "see_all")) return fail("Chỉ chủ và quản lý được thêm sản phẩm", 403);
+  if (!allow(await getAccess(a.ctx.user.id, a.ctx.workspace.id), "product_manage")) return fail("Bạn chưa có quyền quản lý sản phẩm", 403);
   const p = ProductInput.safeParse(await req.json().catch(() => ({})));
   if (!p.success) return fail(firstError(p.error));
   const d = p.data;

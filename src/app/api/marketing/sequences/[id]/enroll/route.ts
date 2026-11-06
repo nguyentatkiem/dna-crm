@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { recordScope } from "@/lib/permissions";
 import { marketingApi } from "@/lib/marketing/guard";
 import { enrollRecord, stopEnrollmentsForRecord } from "@/lib/marketing/sequences";
+import { viMessage } from "@/lib/format";
 
 type P = { params: Promise<{ id: string }> };
 
@@ -18,7 +19,7 @@ export async function POST(req: Request, { params }: P) {
   try {
     await enrollRecord(a.ctx.workspace.id, id, recordId);
   } catch (e) {
-    return fail(e instanceof Error ? e.message : "Không thêm được");
+    return fail(viMessage(e, "Không thêm được"));
   }
   return ok({ ok: true });
 }

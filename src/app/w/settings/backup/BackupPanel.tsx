@@ -190,8 +190,8 @@ export function BackupPanel({ initial, enabled: en0, keep: keep0, workspaceName,
 
       {restore && (
         <>
-          <div className="fixed inset-0 z-40 bg-black/30" onClick={() => !busy && setRestore(null)} aria-hidden="true" />
-          <div role="dialog" aria-label="Khôi phục bản sao lưu" className="fixed left-1/2 top-1/2 z-50 w-[min(480px,calc(100vw-24px))] -translate-x-1/2 -translate-y-1/2 rounded-xl bg-surface p-5 shadow-panel">
+          <div className="anim-fade fixed inset-0 z-40 bg-black/30" onClick={() => !busy && setRestore(null)} aria-hidden="true" />
+          <div role="dialog" aria-label="Khôi phục bản sao lưu" className="anim-fade fixed left-1/2 top-1/2 z-50 w-[min(480px,calc(100vw-24px))] -translate-x-1/2 -translate-y-1/2 rounded-xl bg-surface p-5 shadow-panel">
             <h2 className="text-[18px] font-semibold">Khôi phục bản {when(restore.createdAt)}?</h2>
             {step === 1 ? (
               <>

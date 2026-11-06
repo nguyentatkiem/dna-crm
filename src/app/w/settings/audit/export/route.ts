@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { apiContext } from "@/lib/auth";
-import { can, getRole } from "@/lib/permissions";
+import { allow, getAccess } from "@/lib/permissions";
 import { actionLabel, auditWhere } from "../shared";
 
 const cell = (v: unknown) => {
@@ -12,7 +12,7 @@ const cell = (v: unknown) => {
 export async function GET(req: Request) {
   const ctx = await apiContext();
   if (!ctx) return new Response("Bạn cần đăng nhập lại", { status: 401 });
-  if (!can(await getRole(ctx.user.id, ctx.workspace.id), "see_all")) return new Response("Bạn không có quyền xem nhật ký", { status: 403 });
+  if (!allow(await getAccess(ctx.user.id, ctx.workspace.id), "audit_view")) return new Response("Bạn không có quyền xem nhật ký", { status: 403 });
   const sp = Object.fromEntries(new URL(req.url).searchParams);
   const rows = await db.auditLog.findMany({ where: auditWhere(ctx.workspace.id, sp), orderBy: { createdAt: "desc" }, take: 20000 });
   const lines = [

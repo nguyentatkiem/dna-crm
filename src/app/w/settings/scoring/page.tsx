@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireApp } from "@/lib/auth";
-import { can, getRole } from "@/lib/permissions";
+import { allow, getAccess } from "@/lib/permissions";
 import { scoringRules } from "@/lib/c360/behavior";
 import { Icon } from "@/components/Icon";
 import { ScoringPanel } from "./ScoringPanel";
@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 export default async function ScoringPage() {
   const { user, workspace } = await requireApp();
-  const canEdit = can(await getRole(user.id, workspace.id), "manage_settings");
+  const canEdit = allow(await getAccess(user.id, workspace.id), "settings_manage");
   const rules = await scoringRules(workspace.id);
   return (
     <div className="canvas px-4 pb-16 pt-6 sm:px-8">

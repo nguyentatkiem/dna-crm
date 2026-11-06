@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { requireApp } from "@/lib/auth";
-import { can, getRole } from "@/lib/permissions";
+import { allow, getAccess } from "@/lib/permissions";
 import { COMPANY_DEFAULT, getPref, type Company } from "@/lib/prefs";
 import { Icon } from "@/components/Icon";
 import { CompanyForm } from "./CompanyForm";
 
 export default async function CompanyPage() {
   const { user, workspace, config } = await requireApp();
-  if (!can(await getRole(user.id, workspace.id), "see_all")) {
+  if (!allow(await getAccess(user.id, workspace.id), "company_edit")) {
     return (
       <div className="canvas grid place-items-center px-4 py-20 text-center">
         <Icon name="lock" size={32} className="text-ink-2" />

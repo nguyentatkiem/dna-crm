@@ -5,6 +5,8 @@ import { isMetric, kpiBoard, memberNames, monthRange, teamOf, METRIC_LABEL } fro
 import { allMembers, listTeams, ownerNames } from "./teams";
 import { perfPref } from "./server";
 import { csatScore, kpiScore, rankOf, weightedTotal, type Criterion, type Rank } from "./shared";
+import { fmtValue, isMetricKey, metricReviewScore, METRIC_DEFS, REVIEW_METRIC_PREFIX, type Values } from "./metrics";
+import { monthMetrics } from "./board";
 
 export type Scores = Record<string, number | null>;
 
@@ -54,6 +56,8 @@ export async function autoScores(workspaceId: string, cfg: WorkspaceConfig, peri
   const { from, to } = monthRange(period);
   const needCsat = criteria.some((c) => c.source === "csat");
   const csat = needCsat ? await db.ticket.groupBy({ by: ["assignee"], where: { workspaceId, resolvedAt: { gte: from, lt: to }, csat: { not: null } }, _avg: { csat: true }, _count: { csat: true } }) : [];
+  // Chỉ số hoạt động của mọi người trong tháng (một lượt nạp) — chỉ khi có tiêu chí nguồn "metric:".
+  const metricVals: Record<string, Values> = criteria.some((c) => c.source.startsWith(REVIEW_METRIC_PREFIX)) ? await monthMetrics(workspaceId, cfg, from, to) : {};
   const out: Record<string, { scores: Scores; notes: Record<string, string> }> = {};
   for (const who of people) {
     const row = board.rows.find((r) => r.who === who);
@@ -65,6 +69,18 @@ export async function autoScores(workspaceId: string, cfg: WorkspaceConfig, peri
         const avg = g?._avg.csat ?? null;
         scores[c.id] = avg ? csatScore(avg) : null;
         notes[c.id] = avg ? `${Math.round(avg * 10) / 10}★ từ ${g?._count.csat} phiếu` : "Chưa có đánh giá CSAT";
+      } else if (c.source.startsWith(REVIEW_METRIC_PREFIX)) {
+        const k = c.source.slice(REVIEW_METRIC_PREFIX.length);
+        if (!isMetricKey(k)) {
+          scores[c.id] = null;
+          notes[c.id] = "Chỉ số không còn hỗ trợ";
+          continue;
+        }
+        const v = metricVals[who]?.[k] ?? null;
+        const pop = Object.values(metricVals).map((x) => x[k]).filter((x): x is number => x != null);
+        scores[c.id] = metricReviewScore(k, v, pop);
+        const u = METRIC_DEFS[k].unit;
+        notes[c.id] = v == null ? `Chưa có dữ liệu ${METRIC_DEFS[k].label.toLowerCase()}` : `${METRIC_DEFS[k].label}: ${fmtValue(k, v)}${u === "pct" || u === "score" || u === "star" || u === "nps" ? "" : " (điểm theo vị trí so với mọi nhân viên)"}`;
       } else if (c.source.startsWith("kpi:")) {
         const m = c.source.slice(4);
         const cell = isMetric(m) && row ? row.cells[m] : null;

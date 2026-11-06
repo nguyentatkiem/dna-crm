@@ -129,8 +129,8 @@ function ViewDialog({ edit, onClose, onSubmit }: { edit: ViewDTO | null; onClose
     else onClose();
   }
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/30 p-4" onClick={onClose}>
-      <form role="dialog" aria-label={edit ? "Sửa dạng xem" : "Lưu dạng xem"} onSubmit={submit} onClick={(e) => e.stopPropagation()} className="grid w-full max-w-sm gap-3 rounded-xl bg-surface p-5 shadow-panel">
+    <div className="anim-fade fixed inset-0 z-50 grid place-items-center bg-black/30 p-4" onClick={onClose}>
+      <form role="dialog" aria-label={edit ? "Sửa dạng xem" : "Lưu dạng xem"} onSubmit={submit} onClick={(e) => e.stopPropagation()} className="anim-pop grid w-full max-w-sm gap-3 rounded-xl bg-surface p-5 shadow-panel">
         <h2 className="text-[16px] font-semibold">{edit ? "Sửa dạng xem" : "Lưu dạng xem"}</h2>
         {!edit && <p className="text-[13px] text-ink-2">Lưu kiểu xem, cột, thứ tự và độ rộng cột, bộ lọc, nhóm, sắp xếp, độ cao dòng, tô màu và ô tìm kiếm hiện tại.</p>}
         <label className="grid gap-1">

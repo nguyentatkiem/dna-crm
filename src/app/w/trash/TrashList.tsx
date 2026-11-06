@@ -10,7 +10,7 @@ import { Avatar } from "@/components/Avatar";
 type Item = { id: string; objectKey: string; title: string; status: string; ownerName: string; amount: number; deletedAt: string; deletedBy: string; createdAt: string };
 type Board = { key: string; label: string; item: string; amountLabel: string; statuses: Option[] };
 
-export function TrashList({ initial, boards, days, initialObject }: { initial: Item[]; boards: Board[]; days: number; initialObject: string }) {
+export function TrashList({ initial, boards, days, initialObject, canRestore = true, canPurge = true }: { initial: Item[]; boards: Board[]; days: number; initialObject: string; canRestore?: boolean; canPurge?: boolean }) {
   const [items, setItems] = useState(initial);
   const [object, setObject] = useState(initialObject);
   const [q, setQ] = useState("");
@@ -68,10 +68,12 @@ export function TrashList({ initial, boards, days, initialObject }: { initial: I
         <span className="ml-auto flex flex-wrap gap-2">
           {sel.size > 0 && (
             <>
-              <button type="button" className="btn-primary h-8" disabled={busy} onClick={() => run("restore", [...sel])}>
-                <Icon name="refresh" size={15} /> Khôi phục {sel.size} mục
-              </button>
-              {confirm === "purge" ? (
+              {canRestore && (
+                <button type="button" className="btn-primary h-8" disabled={busy} onClick={() => run("restore", [...sel])}>
+                  <Icon name="refresh" size={15} /> Khôi phục {sel.size} mục
+                </button>
+              )}
+              {!canPurge ? null : confirm === "purge" ? (
                 <span className="flex items-center gap-1 text-[13px]">
                   Xoá vĩnh viễn {sel.size} mục?
                   <button type="button" className="btn h-8 bg-[#df2f4a] text-white hover:brightness-95" disabled={busy} onClick={() => run("purge", [...sel])}>
@@ -88,7 +90,8 @@ export function TrashList({ initial, boards, days, initialObject }: { initial: I
               )}
             </>
           )}
-          {items.length > 0 &&
+          {canPurge &&
+            items.length > 0 &&
             sel.size === 0 &&
             (confirm === "empty" ? (
               <span className="flex items-center gap-1 text-[13px]">
@@ -170,9 +173,11 @@ export function TrashList({ initial, boards, days, initialObject }: { initial: I
                     </td>
                     <td className={`px-2 py-2.5 text-[13px] tnum ${d <= 3 ? "font-medium text-[#df2f4a]" : "text-ink-2"}`}>{d} ngày</td>
                     <td className="px-3 py-2.5 text-right">
-                      <button type="button" className="btn-outline h-7 text-[13px]" disabled={busy} onClick={() => run("restore", [i.id])}>
-                        Khôi phục
-                      </button>
+                      {canRestore && (
+                        <button type="button" className="btn-outline h-7 text-[13px]" disabled={busy} onClick={() => run("restore", [i.id])}>
+                          Khôi phục
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );

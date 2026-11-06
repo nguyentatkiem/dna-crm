@@ -370,8 +370,8 @@ function Builder({ initial, isNew, config, team, sequences, onCancel, onSave }: 
     `inline-flex max-w-full items-center gap-1 rounded-md border px-2 py-1 text-left text-[14px] font-medium transition-colors ${active ? "border-primary ring-2 ring-primary/30" : "border-transparent"} ${tone}`;
 
   return (
-    <div className="fixed inset-0 z-40 flex items-stretch justify-center bg-black/30 p-0 sm:items-center sm:p-6" onClick={onCancel}>
-      <div className="flex max-h-full w-full max-w-3xl flex-col overflow-hidden bg-surface shadow-panel sm:rounded-xl" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={isNew ? "Tạo luật" : "Sửa luật"}>
+    <div className="anim-fade fixed inset-0 z-40 flex items-stretch justify-center bg-black/30 p-0 sm:items-center sm:p-6" onClick={onCancel}>
+      <div className="anim-pop flex max-h-full w-full max-w-3xl flex-col overflow-hidden bg-surface shadow-panel sm:rounded-xl" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={isNew ? "Tạo luật" : "Sửa luật"}>
         <div className="flex items-center gap-2 border-b border-line-soft px-4 py-3">
           <Icon name="bolt" size={18} className="text-primary" />
           <input className="input h-8 min-w-0 flex-1 border-transparent px-1 text-[15px] font-semibold hover:border-line" value={name} onChange={(e) => setName(e.target.value)} placeholder="Tên luật (tuỳ chọn)" aria-label="Tên luật" />

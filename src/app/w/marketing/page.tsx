@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireApp } from "@/lib/auth";
 import { db, parseJson } from "@/lib/db";
 import { getObject } from "@/lib/config/schema";
-import { can, getRole, recordScope } from "@/lib/permissions";
+import { allow, getAccess, recordScope } from "@/lib/permissions";
 import { getSettings, maskSettings } from "@/lib/settings";
 import { buildAdReport } from "@/lib/marketing/report";
 import { parseSteps, resolveTemplate, sequenceStats } from "@/lib/marketing/sequences";
@@ -28,8 +28,8 @@ export default async function MarketingPage({ searchParams }: { searchParams: SP
   const tab = TABS.some(([k]) => k === sp.tab) ? sp.tab! : "ads";
   const { user, workspace, config } = await requireApp();
   const wid = workspace.id;
-  const role = await getRole(user.id, wid);
-  const manage = can(role, "manage_marketing");
+  const acc = await getAccess(user.id, wid);
+  const manage = allow(acc, "marketing_manage");
   const settings = getSettings(workspace);
   const scope = await recordScope({ user, workspace });
 
@@ -49,7 +49,7 @@ export default async function MarketingPage({ searchParams }: { searchParams: SP
           </Link>
         ))}
       </nav>
-      {tab === "ads" && <Ads wid={wid} days={[7, 30, 90].includes(Number(sp.days)) ? Number(sp.days) : 30} manage={manage} settings={settings} scope={scope} config={config} />}
+      {tab === "ads" && <Ads wid={wid} days={[7, 30, 90].includes(Number(sp.days)) ? Number(sp.days) : 30} manage={allow(acc, "ads_manage")} settings={settings} scope={scope} config={config} />}
       {tab === "sequences" && <Sequences wid={wid} manage={manage} scope={scope} config={config} />}
       {tab === "log" && <Log wid={wid} channel={sp.channel} status={sp.status} />}
     </div>

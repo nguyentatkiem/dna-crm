@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { appApi, fail, ok } from "@/lib/http";
 import { getObject } from "@/lib/config/schema";
-import { getRole } from "@/lib/permissions";
+import { allow, getAccess } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import { ViewInput } from "@/lib/views";
 import { viewDTO } from "./shared";
@@ -14,7 +14,7 @@ export async function GET(req: Request) {
   if (!getObject(a.ctx.config, object)) return fail("Không có bảng này", 404);
   const [rows, role] = await Promise.all([
     db.boardView.findMany({ where: { workspaceId: a.ctx.workspace.id, objectKey: object, OR: [{ ownerId: a.ctx.user.id }, { shared: true }] }, orderBy: [{ shared: "asc" }, { name: "asc" }] }),
-    getRole(a.ctx.user.id, a.ctx.workspace.id),
+    getAccess(a.ctx.user.id, a.ctx.workspace.id).then((x) => allow(x, "view_manage_shared")),
   ]);
   return ok(rows.map((v) => viewDTO(v, a.ctx.user.id, role)));
 }
@@ -34,5 +34,5 @@ export async function POST(req: Request) {
   if (isDefault) await db.boardView.updateMany({ where: { workspaceId: wid, objectKey, ownerId: a.ctx.user.id }, data: { isDefault: false } });
   const v = await db.boardView.create({ data: { workspaceId: wid, objectKey, name, ownerId: a.ctx.user.id, ownerName: a.ctx.user.name, shared, isDefault, stateJson: JSON.stringify(state) } });
   if (shared) await audit({ workspaceId: wid, user: a.ctx.user }, "view.create", "view", v.id, `Chia sẻ dạng xem “${name}” (${objectKey}) với cả đội`);
-  return ok(viewDTO(v, a.ctx.user.id, await getRole(a.ctx.user.id, wid)), 201);
+  return ok(viewDTO(v, a.ctx.user.id, allow(await getAccess(a.ctx.user.id, wid), "view_manage_shared")), 201);
 }

@@ -3,6 +3,7 @@ import type { Survey, SurveyResponse } from "@prisma/client";
 import { db, parseJson } from "../db";
 import { getPref } from "../prefs";
 import { notify, userIdByName } from "../notify";
+import { membersWith } from "../permissions";
 import { sendMessage, type Channel } from "../marketing/messaging";
 import { publicOrigin } from "../marketing/broadcast";
 import { loadCfg } from "../marketing/store";
@@ -79,7 +80,7 @@ export async function afterSubmit(survey: Survey, r: SurveyResponse) {
     const href = `/w/surveys/${survey.id}?response=${r.id}`;
     const owner = await userIdByName(wid, rec.ownerName);
     if (owner) await notify(wid, { userId: owner, kind: "survey", text, href });
-    else for (const m of await db.membership.findMany({ where: { workspaceId: wid, role: { in: ["owner", "manager"] } }, select: { userId: true } })) await notify(wid, { userId: m.userId, kind: "survey", text, href });
+    else for (const userId of await membersWith(wid, "survey_manage")) await notify(wid, { userId, kind: "survey", text, href });
   }
   if (bucket) {
     const cfg = await loadCfg(wid);

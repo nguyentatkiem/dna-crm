@@ -4,7 +4,7 @@ import { appApi, fail } from "@/lib/http";
 import { getObject, type ObjectDef } from "@/lib/config/schema";
 import { toCsv } from "@/lib/csv";
 import { slug } from "@/lib/config/templates";
-import { can, getRole, recordScope } from "@/lib/permissions";
+import { allow, getAccess, getRole, recordScope } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import { afterExport, checkExportQuota, getPrivacy, maskRecord } from "@/lib/privacy";
 import { buildXlsx, recordsSheet, XLSX_MIME, type Cell } from "@/lib/xlsx";
@@ -20,7 +20,7 @@ export async function GET(req: Request) {
   if ("error" in a) return a.error;
   const { ctx } = a;
   const role = await getRole(ctx.user.id, ctx.workspace.id);
-  if (!can(role, "export")) return fail("Bạn không có quyền xuất dữ liệu. Hãy nhờ chủ hoặc quản lý.", 403);
+  if (!allow(await getAccess(ctx.user.id, ctx.workspace.id), "record_export")) return fail("Bạn chưa có quyền xuất dữ liệu. Hãy nhờ chủ workspace cấp quyền.", 403);
   const prefs = await getPrivacy(ctx.workspace.id);
 
   const sp = new URL(req.url).searchParams;
@@ -70,7 +70,7 @@ export async function POST(req: Request) {
   if ("error" in a) return a.error;
   const { ctx } = a;
   const role = await getRole(ctx.user.id, ctx.workspace.id);
-  if (!can(role, "export")) return fail("Bạn không có quyền xuất dữ liệu. Hãy nhờ chủ hoặc quản lý.", 403);
+  if (!allow(await getAccess(ctx.user.id, ctx.workspace.id), "record_export")) return fail("Bạn chưa có quyền xuất dữ liệu. Hãy nhờ chủ workspace cấp quyền.", 403);
   const p = Pick.safeParse(await req.json().catch(() => ({})));
   if (!p.success) return fail("Thiếu danh sách mục cần xuất");
   const obj = getObject(ctx.config, p.data.object);

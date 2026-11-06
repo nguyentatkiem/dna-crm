@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireApp } from "@/lib/auth";
-import { can, getRole } from "@/lib/permissions";
+import { allow, getAccess } from "@/lib/permissions";
 import { getPref } from "@/lib/prefs";
 import { Icon } from "@/components/Icon";
 import type { FieldAccessPref } from "@/lib/field-access";
@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 export default async function FieldsPage({ searchParams }: { searchParams: Promise<{ tab?: string; object?: string }> }) {
   const { user, workspace, config } = await requireApp();
   const sp = await searchParams;
-  if (!can(await getRole(user.id, workspace.id), "manage_settings")) {
+  if (!allow(await getAccess(user.id, workspace.id), "settings_manage")) {
     return (
       <div className="canvas px-4 pb-16 pt-6 sm:px-8">
         <div className="card mx-auto mt-10 grid max-w-md place-items-center gap-3 p-8 text-center">

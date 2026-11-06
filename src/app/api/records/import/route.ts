@@ -2,10 +2,11 @@ import { z } from "zod";
 import { parseJson } from "@/lib/db";
 import { appApi, fail, ok } from "@/lib/http";
 import { getObject } from "@/lib/config/schema";
-import { can, getRole } from "@/lib/permissions";
+import { allow, getAccess, getRole } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import { getFieldRules, hiddenKeys, readonlyKeys } from "@/lib/field-access";
 import { importRows, mapRows, MAX_ROWS, readUpload } from "./lib";
+import { viMessage } from "@/lib/format";
 
 const Row = z.object({
   title: z.string(),
@@ -26,7 +27,7 @@ export async function POST(req: Request) {
   if ("error" in a) return a.error;
   const { ctx } = a;
   const role = await getRole(ctx.user.id, ctx.workspace.id);
-  if (!can(role, "import")) return fail("Bạn không có quyền nhập dữ liệu. Hãy nhờ chủ hoặc quản lý.", 403);
+  if (!allow(await getAccess(ctx.user.id, ctx.workspace.id), "record_import")) return fail("Bạn chưa có quyền nhập dữ liệu. Hãy nhờ chủ workspace cấp quyền.", 403);
 
   let objectKey = "";
   let rows: z.infer<typeof Row>[] = [];
@@ -45,7 +46,7 @@ export async function POST(req: Request) {
       if (table.length - 1 > MAX_ROWS) return fail(`File có ${table.length - 1} dòng, tối đa ${MAX_ROWS} dòng mỗi lần nhập.`);
       rows = mapRows(obj, table, map.data);
     } catch (e) {
-      return fail(e instanceof Error ? e.message : "Không đọc được file");
+      return fail(viMessage(e, "Không đọc được file"));
     }
     source = file.name;
   } else {

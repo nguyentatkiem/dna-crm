@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { isOwner } from "@/lib/auth";
+import { allowed } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import { appApi, fail, ok } from "@/lib/http";
 import { getSettings, saveSettings, type Integrations } from "@/lib/settings";
@@ -38,7 +38,7 @@ const Body = z.object({
 export async function PUT(req: Request) {
   const a = await appApi();
   if ("error" in a) return a.error;
-  if (!(await isOwner(a.ctx.user.id, a.ctx.workspace.id))) return fail("Chỉ chủ workspace được cấu hình tổng đài", 403);
+  if (!(await allowed(a.ctx, "integrations_manage"))) return fail("Bạn chưa có quyền cấu hình tổng đài", 403);
   const parsed = Body.safeParse(await req.json().catch(() => ({})));
   if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? "Thông tin chưa hợp lệ");
   const b = parsed.data;

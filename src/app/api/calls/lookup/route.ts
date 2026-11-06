@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { appApi, ok } from "@/lib/http";
-import { recordScope } from "@/lib/permissions";
+import { allowed, recordScope } from "@/lib/permissions";
 import { findContact, normPhone } from "@/lib/sources/ingest";
 
 /** Tìm khách theo số điện thoại (popup cuộc gọi đến). Tôn trọng quyền xem khách. */

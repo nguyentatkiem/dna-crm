@@ -2,14 +2,14 @@ import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import { requireApp } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { can, getRole } from "@/lib/permissions";
+import { allow, getAccess } from "@/lib/permissions";
 import { pageBlocks } from "@/lib/marketing/landing";
 import { Editor } from "./Editor";
 
 export default async function LandingEditPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { user, workspace } = await requireApp();
-  const manage = can(await getRole(user.id, workspace.id), "manage_marketing");
+  const manage = allow(await getAccess(user.id, workspace.id), "landing_manage");
   const p = await db.landingPage.findFirst({ where: { id, workspaceId: workspace.id } });
   if (!p) notFound();
   const h = await headers();

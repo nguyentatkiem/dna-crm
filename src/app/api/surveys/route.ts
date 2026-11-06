@@ -33,7 +33,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const a = await appApi();
   if ("error" in a) return a.error;
-  if (!(await canManageSurveys(a.ctx))) return fail("Chỉ chủ hoặc quản lý tạo được khảo sát", 403);
+  if (!(await canManageSurveys(a.ctx))) return fail("Bạn chưa có quyền quản lý khảo sát", 403);
   const p = SurveyBody.safeParse(await req.json().catch(() => ({})));
   if (!p.success) return fail(p.error.issues[0]?.message ?? "Dữ liệu chưa hợp lệ");
   const d = p.data;

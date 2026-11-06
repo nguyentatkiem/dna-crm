@@ -120,8 +120,8 @@ function Drawer({ p, url, masked, owner, onClose }: { p: P; url: string; masked:
 
   return (
     <>
-      <div className="fixed inset-0 z-40 bg-black/20" onClick={onClose} aria-hidden="true" />
-      <aside role="dialog" aria-label={p.label} className="fixed inset-y-0 right-0 z-50 flex w-full max-w-[520px] flex-col bg-surface shadow-panel">
+      <div className="anim-fade fixed inset-0 z-40 bg-black/20" onClick={onClose} aria-hidden="true" />
+      <aside role="dialog" aria-label={p.label} className="anim-slide-right fixed inset-y-0 right-0 z-50 flex w-full max-w-[520px] flex-col bg-surface shadow-panel">
         <header className="flex items-center gap-3 border-b border-line px-5 py-4">
           <h2 className="min-w-0 flex-1 truncate text-[20px] font-semibold">{p.label}</h2>
           <button type="button" className="btn-ghost h-8 w-8 p-0" onClick={onClose} aria-label="Đóng">

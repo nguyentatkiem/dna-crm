@@ -76,13 +76,17 @@ export function Editor({ initial, manage, origin, aiOn }: { initial: Page; manag
   }
 
   async function del() {
-    if (!confirm(`Xoá trang “${p.title}”? Link công khai sẽ ngừng hoạt động.`)) return;
-    const r = await fetch(`/api/landing/${p.id}`, { method: "DELETE" });
-    if (r.ok) {
+    if (busy || !confirm(`Xoá trang “${p.title}”? Link công khai sẽ ngừng hoạt động.`)) return;
+    setBusy(true);
+    const r = await fetch(`/api/landing/${p.id}`, { method: "DELETE" }).catch(() => null);
+    if (r?.ok) {
       setDirty(false);
       router.push("/w/landing");
       router.refresh();
+      return;
     }
+    setBusy(false);
+    setMsg({ ok: false, text: (await r?.json().catch(() => ({})))?.error ?? "Không xoá được trang" });
   }
 
   const slugErr = p.slug !== initial.slug ? slugError(p.slug) : null;
@@ -202,7 +206,7 @@ export function Editor({ initial, manage, origin, aiOn }: { initial: Page; manag
             </div>
           )}
           {manage && (
-            <button type="button" className="btn-ghost mt-4 w-fit text-danger" onClick={del}>
+            <button type="button" className="btn-ghost mt-4 w-fit text-danger" onClick={del} disabled={busy}>
               <Icon name="trash" size={16} /> Xoá trang
             </button>
           )}

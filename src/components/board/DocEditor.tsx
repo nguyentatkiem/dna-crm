@@ -6,6 +6,7 @@ import StarterKit from "@tiptap/starter-kit";
 import { Placeholder } from "@tiptap/extensions";
 import type { DocDTO } from "@/lib/docs";
 import { Icon } from "../Icon";
+import { viMessage } from "@/lib/format";
 
 type Loaded = DocDTO & { contentJson: Record<string, unknown> };
 type Save = "idle" | "dirty" | "saving" | "saved" | "error";
@@ -42,6 +43,7 @@ async function patchDoc(id: string, body: Record<string, unknown>, keepalive = f
 export function DocEditor({ id, onBack, onDeleted, onSaved, full }: { id: string; onBack?: () => void; onDeleted?: () => void; onSaved?: (d: DocDTO) => void; full?: boolean }) {
   const [doc, setDoc] = useState<Loaded | null>(null);
   const [err, setErr] = useState("");
+  const [deleting, setDeleting] = useState(false);
   const [title, setTitle] = useState("");
   const [state, setState] = useState<Save>("idle");
   const [savedAt, setSavedAt] = useState<Date | null>(null);
@@ -68,7 +70,7 @@ export function DocEditor({ id, onBack, onDeleted, onSaved, full }: { id: string
       } catch (e) {
         pending.current = { ...body, ...pending.current };
         setState("error");
-        setErr(e instanceof Error ? e.message : "Không lưu được");
+        setErr(viMessage(e, "Không lưu được"));
       }
     },
     [id],
@@ -115,7 +117,7 @@ export function DocEditor({ id, onBack, onDeleted, onSaved, full }: { id: string
         setBy(d.updatedBy);
         setState("saved");
       })
-      .catch((e) => alive && setErr(e instanceof Error ? e.message : "Không mở được tài liệu"));
+      .catch((e) => alive && setErr(viMessage(e, "Không mở được tài liệu")));
     return () => {
       alive = false;
     };
@@ -136,11 +138,16 @@ export function DocEditor({ id, onBack, onDeleted, onSaved, full }: { id: string
   }, [flush]);
 
   async function del() {
-    const r = await fetch(`/api/docs/${id}`, { method: "DELETE" });
-    if (r.ok) {
+    if (deleting) return;
+    setDeleting(true);
+    const r = await fetch(`/api/docs/${id}`, { method: "DELETE" }).catch(() => null);
+    if (r?.ok) {
       pending.current = {};
       onDeleted?.();
-    } else setErr((await r.json().catch(() => ({}))).error ?? "Không xoá được");
+    } else {
+      setDeleting(false);
+      setErr((await r?.json().catch(() => ({})))?.error ?? "Không xoá được");
+    }
   }
 
   if (err && !doc)
@@ -179,8 +186,8 @@ export function DocEditor({ id, onBack, onDeleted, onSaved, full }: { id: string
           (confirmDel ? (
             <span className="flex items-center gap-1 text-[13px]">
               Xoá tài liệu?
-              <button type="button" className="btn h-7 bg-[#df2f4a] text-white" onClick={del}>
-                Xoá
+              <button type="button" className="btn h-7 bg-[#df2f4a] text-white" onClick={del} disabled={deleting}>
+                {deleting ? "Đang xoá…" : "Xoá"}
               </button>
               <button type="button" className="btn-ghost h-7" onClick={() => setConfirmDel(false)}>
                 Huỷ

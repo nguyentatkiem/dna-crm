@@ -216,8 +216,8 @@ export function BoardActivity({ obj, onClose, onOpen, trashHref }: { obj: Object
 
   return (
     <>
-      <div className="fixed inset-0 z-40 bg-black/20" onClick={onClose} aria-hidden="true" />
-      <aside role="dialog" aria-label={`Nhật ký bảng ${obj.label}`} className="fixed inset-y-0 right-0 z-50 flex w-full max-w-[520px] flex-col bg-surface shadow-panel">
+      <div className="anim-fade fixed inset-0 z-40 bg-black/20" onClick={onClose} aria-hidden="true" />
+      <aside role="dialog" aria-label={`Nhật ký bảng ${obj.label}`} className="anim-slide-right fixed inset-y-0 right-0 z-50 flex w-full max-w-[520px] flex-col bg-surface shadow-panel">
         <header className="flex items-center gap-3 border-b border-line-soft px-5 py-4">
           <Icon name="history" size={20} className="text-ink-2" />
           <div className="min-w-0 flex-1">

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireApp } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { can, getRole } from "@/lib/permissions";
+import { allow, getAccess } from "@/lib/permissions";
 import { getSettings } from "@/lib/settings";
 import { channelReady } from "@/lib/marketing/messaging";
 import { B_CHANNELS, B_STATUS, type BChannel } from "@/lib/marketing/broadcast";
@@ -20,7 +20,7 @@ const time = (d: Date) => `${dateVi(d)} ${d.toLocaleTimeString("vi-VN", { hour: 
 export default async function BroadcastPage({ params, searchParams }: P) {
   const [{ id }, sp] = await Promise.all([params, searchParams]);
   const { user, workspace } = await requireApp();
-  const manage = can(await getRole(user.id, workspace.id), "manage_marketing");
+  const manage = allow(await getAccess(user.id, workspace.id), "broadcast_send");
   const b = await db.broadcast.findFirst({ where: { id, workspaceId: workspace.id } });
   if (!b) notFound();
   const editable = manage && (b.status === "draft" || b.status === "scheduled");

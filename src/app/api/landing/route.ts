@@ -17,7 +17,7 @@ const In = z.object({ title: z.string().trim().max(160).default(""), ai: z.boole
 
 /** Tạo trang: trống (hero + form), từ khối gửi lên, hoặc để AI dựng theo DNA ({ ai: true }). Luôn tạo ở dạng nháp. */
 export async function POST(req: Request) {
-  const a = await marketingApi(true);
+  const a = await marketingApi("landing_manage");
   if ("error" in a) return a.error;
   const p = In.safeParse(await req.json().catch(() => ({})));
   if (!p.success) return fail(p.error.issues[0]?.message ?? "Dữ liệu không hợp lệ");
