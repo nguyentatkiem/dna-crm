@@ -22,15 +22,38 @@ export function navSections(boards: NavBoard[], counts: { openTasks?: number; un
         { href: "/w", label: "Trang chủ", icon: "home" },
         { href: "/w/my-work", label: "Việc của tôi", icon: "work", count: counts.openTasks },
         { href: "/w/inbox", label: "Hộp thư", icon: "chat", badge: counts.unread },
+        { href: "/w/feed", label: "Bảng tin", icon: "feed" },
         { href: "/w/dashboards", label: "Dashboard", icon: "chart" },
+        { href: "/w/kpi", label: "KPI", icon: "target" },
       ],
     },
     { title: "Bảng", items: boards.map((b) => ({ href: `/w/b/${b.key}`, label: b.label, icon: BOARD_ICON[b.key] ?? "board", count: b.count })) },
     {
       title: "Bán hàng",
       items: [
+        { href: "/w/products", label: "Sản phẩm", icon: "box" },
+        { href: "/w/quotes", label: "Báo giá", icon: "receipt" },
+        { href: "/w/orders", label: "Đơn hàng", icon: "cart" },
+        { href: "/w/contracts", label: "Hợp đồng", icon: "contract" },
         { href: "/w/telesales", label: "Telesales", icon: "phone" },
+      ],
+    },
+    {
+      title: "Chăm sóc",
+      items: [
+        { href: "/w/tickets", label: "Phiếu hỗ trợ", icon: "ticket" },
+        { href: "/w/loyalty", label: "Khách thân thiết", icon: "award" },
+        { href: "/w/warranty", label: "Bảo hành", icon: "shield" },
+      ],
+    },
+    {
+      title: "Marketing",
+      items: [
         { href: "/w/sources", label: "Nguồn khách", icon: "inbox" },
+        { href: "/w/segments", label: "Nhóm khách", icon: "segment" },
+        { href: "/w/broadcasts", label: "Gửi hàng loạt", icon: "send" },
+        { href: "/w/landing", label: "Landing page", icon: "page" },
+        { href: "/w/funnel", label: "Phễu chuyển đổi", icon: "funnel" },
         { href: "/w/marketing", label: "Marketing & ROAS", icon: "megaphone" },
       ],
     },

@@ -57,10 +57,41 @@ const WS_TABLES: { key: string; via?: { parent: string; field: string } }[] = [
   { key: "doc" },
   { key: "auditLog" },
   { key: "notification" },
+  { key: "pref" },
+  { key: "counter" },
+  { key: "product" },
+  { key: "quote" },
+  { key: "order" },
+  { key: "payment" },
+  { key: "contract" },
+  { key: "ticket" },
+  { key: "ticketMessage", via: { parent: "ticket", field: "ticketId" } },
+  { key: "loyaltyTxn" },
+  { key: "warranty" },
+  { key: "segment" },
+  { key: "broadcast" },
+  { key: "unsubscribe" },
+  { key: "landingPage" },
+  { key: "kpiTarget" },
+  { key: "post" },
+  { key: "postComment", via: { parent: "post", field: "postId" } },
+  { key: "pushSub" },
 ];
 const SYSTEM_TABLES = ["user", "workspace", "membership", "invite"];
 /** Cột trỏ sang bảng khác: khi khôi phục sang workspace khác phải đổi id theo. */
-const REFS: Record<string, string> = { recordId: "record", conversationId: "conversation", sequenceId: "sequence" };
+const REFS: Record<string, string> = {
+  recordId: "record",
+  contactId: "record",
+  conversationId: "conversation",
+  sequenceId: "sequence",
+  productId: "product",
+  quoteId: "quote",
+  orderId: "order",
+  ticketId: "ticket",
+  segmentId: "segment",
+  broadcastId: "broadcast",
+  postId: "post",
+};
 
 const modelName = (key: string) => key[0].toUpperCase() + key.slice(1);
 const fieldsOf = (key: string) => Prisma.dmmf.datamodel.models.find((m) => m.name === modelName(key))?.fields.filter((f) => f.kind === "scalar" || f.kind === "enum") ?? [];

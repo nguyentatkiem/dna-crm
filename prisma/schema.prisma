@@ -19,35 +19,52 @@ model User {
 }
 
 model Workspace {
-  id          String            @id @default(cuid())
-  name        String
-  industry    String            @default("")
-  onboarded   Boolean           @default(false)
-  formKey     String            @unique @default(cuid())
-  hookKey     String?           @unique
-  settingsJson String           @default("{}")
-  createdAt   DateTime          @default(now())
-  memberships Membership[]
-  dnas        Dna[]
-  configs     WorkspaceConfig[]
-  records     Record[]
-  tasks       Task[]
-  automations Automation[]
-  agents      AgentSetting[]
-  logs        AgentLog[]
-  invites     Invite[]
-  leadEvents  LeadEvent[]
-  calls       Call[]
-  scorecards  Scorecard[]
-  lessons     Lesson[]
+  id            String            @id @default(cuid())
+  name          String
+  industry      String            @default("")
+  onboarded     Boolean           @default(false)
+  formKey       String            @unique @default(cuid())
+  hookKey       String?           @unique
+  settingsJson  String            @default("{}")
+  createdAt     DateTime          @default(now())
+  memberships   Membership[]
+  dnas          Dna[]
+  configs       WorkspaceConfig[]
+  records       Record[]
+  tasks         Task[]
+  automations   Automation[]
+  agents        AgentSetting[]
+  logs          AgentLog[]
+  invites       Invite[]
+  leadEvents    LeadEvent[]
+  calls         Call[]
+  scorecards    Scorecard[]
+  lessons       Lesson[]
   conversations Conversation[]
-  adSpends    AdSpend[]
-  sequences   Sequence[]
-  outMessages OutMessage[]
-  dashboards  Dashboard[]
-  docs        Doc[]
-  auditLogs   AuditLog[]
+  adSpends      AdSpend[]
+  sequences     Sequence[]
+  outMessages   OutMessage[]
+  dashboards    Dashboard[]
+  docs          Doc[]
+  auditLogs     AuditLog[]
   notifications Notification[]
+  prefs         Pref[]
+  products      Product[]
+  quotes        Quote[]
+  orders        Order[]
+  payments      Payment[]
+  contracts     Contract[]
+  tickets       Ticket[]
+  loyaltyTxns   LoyaltyTxn[]
+  warranties    Warranty[]
+  segments      Segment[]
+  broadcasts    Broadcast[]
+  unsubscribes  Unsubscribe[]
+  landingPages  LandingPage[]
+  kpiTargets    KpiTarget[]
+  posts         Post[]
+  pushSubs      PushSub[]
+  counters      Counter[]
 }
 
 model Membership {
@@ -140,21 +157,21 @@ model Task {
 }
 
 model Automation {
-  id            String    @id @default(cuid())
-  workspaceId   String
-  triggerType   String
-  triggerObject String
-  triggerValue  String    @default("")
-  actionType    String
-  actionValue   String
-  name          String    @default("")
+  id             String    @id @default(cuid())
+  workspaceId    String
+  triggerType    String
+  triggerObject  String
+  triggerValue   String    @default("")
+  actionType     String
+  actionValue    String
+  name           String    @default("")
   // Bản mở rộng: nhiều điều kiện và nhiều hành động. Rỗng thì dùng các cột trigger/action cũ.
-  conditionsJson String   @default("[]")
-  actionsJson   String    @default("[]")
-  enabled       Boolean   @default(true)
-  runs          Int       @default(0)
-  createdAt     DateTime  @default(now())
-  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  conditionsJson String    @default("[]")
+  actionsJson    String    @default("[]")
+  enabled        Boolean   @default(true)
+  runs           Int       @default(0)
+  createdAt      DateTime  @default(now())
+  workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
 
 model AgentSetting {
@@ -257,7 +274,6 @@ model Lesson {
   workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
 
-
 // Hộp thư hợp nhất: mỗi người nhắn Zalo OA / Facebook Messenger là một hội thoại.
 model Conversation {
   id          String    @id @default(cuid())
@@ -336,16 +352,16 @@ model Sequence {
 }
 
 model Enrollment {
-  id          String    @id @default(cuid())
+  id          String   @id @default(cuid())
   sequenceId  String
   workspaceId String
   recordId    String
-  step        Int       @default(0)
+  step        Int      @default(0)
   nextAt      DateTime
-  status      String    @default("active")
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  sequence    Sequence  @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  status      String   @default("active")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  sequence    Sequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
 
   @@unique([sequenceId, recordId])
   @@index([status, nextAt])
@@ -357,6 +373,7 @@ model OutMessage {
   workspaceId String
   recordId    String?
   sequenceId  String?
+  broadcastId String?
   channel     String
   to          String
   subject     String    @default("")
@@ -428,4 +445,355 @@ model Notification {
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId, userId, readAt])
+}
+
+// ======================= Nâng cấp theo đối chiếu Getfly (4 đợt) =======================
+
+// Cấu hình không bí mật của workspace, mỗi khoá một JSON: "company" (thông tin in báo giá),
+// "loyalty" (tích điểm, hạng), "privacy" (bảo mật dữ liệu), "ticket" (SLA)...
+model Pref {
+  workspaceId String
+  key         String
+  valueJson   String    @default("{}")
+  updatedAt   DateTime  @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@id([workspaceId, key])
+}
+
+// Bộ đếm số chứng từ tự tăng theo năm: key = "BG-2026", "DH-2026", "HD-2026", "TK-2026".
+model Counter {
+  workspaceId String
+  key         String
+  value       Int       @default(0)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@id([workspaceId, key])
+}
+
+// ---------- Đợt 1: bán hàng ----------
+model Product {
+  id             String    @id @default(cuid())
+  workspaceId    String
+  code           String    @default("")
+  name           String
+  unit           String    @default("cái")
+  category       String    @default("")
+  price          Float     @default(0)
+  vat            Float     @default(0) // %
+  warrantyMonths Int       @default(0)
+  description    String    @default("")
+  active         Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, active])
+}
+
+// Dòng hàng (itemsJson) của báo giá/đơn hàng: [{ productId, code, name, unit, qty, price, discountPct, vatPct }].
+model Quote {
+  id            String    @id @default(cuid())
+  workspaceId   String
+  number        String
+  recordId      String? // giao dịch
+  contactId     String? // khách
+  customerName  String    @default("")
+  customerPhone String    @default("")
+  customerEmail String    @default("")
+  title         String    @default("")
+  // draft | pending (chờ duyệt) | approved | sent | accepted | rejected | expired
+  status        String    @default("draft")
+  itemsJson     String    @default("[]")
+  discount      Float     @default(0) // chiết khấu cả đơn (tiền)
+  subtotal      Float     @default(0)
+  vatTotal      Float     @default(0)
+  total         Float     @default(0)
+  validUntil    DateTime?
+  note          String    @default("")
+  terms         String    @default("")
+  createdBy     String    @default("")
+  approvedBy    String    @default("")
+  approvedAt    DateTime?
+  publicToken   String    @unique @default(cuid())
+  viewedAt      DateTime?
+  acceptedAt    DateTime?
+  acceptedName  String    @default("")
+  rejectReason  String    @default("")
+  orderId       String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, number])
+  @@index([workspaceId, status])
+}
+
+model Order {
+  id            String    @id @default(cuid())
+  workspaceId   String
+  number        String
+  recordId      String?
+  contactId     String?
+  quoteId       String?
+  customerName  String    @default("")
+  customerPhone String    @default("")
+  // new | confirmed | shipping | done | cancelled
+  status        String    @default("new")
+  itemsJson     String    @default("[]")
+  discount      Float     @default(0)
+  subtotal      Float     @default(0)
+  vatTotal      Float     @default(0)
+  total         Float     @default(0)
+  paid          Float     @default(0)
+  dueAt         DateTime? // hạn thanh toán phần còn lại
+  note          String    @default("")
+  createdBy     String    @default("")
+  pointsAwarded Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  payments      Payment[]
+
+  @@unique([workspaceId, number])
+  @@index([workspaceId, status])
+}
+
+model Payment {
+  id          String    @id @default(cuid())
+  workspaceId String
+  orderId     String
+  amount      Float
+  method      String    @default("transfer") // cash | transfer | card | other
+  paidAt      DateTime  @default(now())
+  note        String    @default("")
+  createdBy   String    @default("")
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  order       Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+}
+
+model Contract {
+  id           String    @id @default(cuid())
+  workspaceId  String
+  number       String
+  recordId     String?
+  contactId    String?
+  orderId      String?
+  title        String
+  customerName String    @default("")
+  value        Float     @default(0)
+  // draft | active | expired | cancelled
+  status       String    @default("draft")
+  signedAt     DateTime?
+  startAt      DateTime?
+  endAt        DateTime?
+  remindDays   Int       @default(30)
+  remindedAt   DateTime?
+  fileUrl      String    @default("")
+  note         String    @default("")
+  createdBy    String    @default("")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, number])
+  @@index([workspaceId, endAt])
+}
+
+// ---------- Đợt 2: chăm sóc sau bán ----------
+model Ticket {
+  id          String          @id @default(cuid())
+  workspaceId String
+  number      String
+  recordId    String? // khách
+  subject     String
+  body        String          @default("")
+  channel     String          @default("manual") // manual | inbox | call | form | email
+  priority    String          @default("normal") // low | normal | high | urgent
+  status      String          @default("open") // open | pending | resolved | closed
+  assignee    String          @default("")
+  dueAt       DateTime?
+  escalatedAt DateTime?
+  resolvedAt  DateTime?
+  csat        Int?
+  csatComment String          @default("")
+  csatToken   String          @unique @default(cuid())
+  createdBy   String          @default("")
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  workspace   Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  messages    TicketMessage[]
+
+  @@unique([workspaceId, number])
+  @@index([workspaceId, status])
+}
+
+model TicketMessage {
+  id        String   @id @default(cuid())
+  ticketId  String
+  author    String
+  body      String
+  internal  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
+}
+
+// Sổ điểm thưởng: cộng/trừ điểm của một khách (recordId ở bảng contacts).
+model LoyaltyTxn {
+  id          String    @id @default(cuid())
+  workspaceId String
+  recordId    String
+  points      Int
+  reason      String    @default("")
+  orderId     String?
+  createdBy   String    @default("")
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, recordId])
+}
+
+model Warranty {
+  id           String    @id @default(cuid())
+  workspaceId  String
+  recordId     String?
+  productId    String?
+  orderId      String?
+  productName  String
+  serial       String    @default("")
+  customerName String    @default("")
+  phone        String    @default("")
+  startAt      DateTime
+  endAt        DateTime
+  status       String    @default("active") // active | claimed | expired | void
+  note         String    @default("")
+  remindedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, phone])
+  @@index([workspaceId, endAt])
+}
+
+// Nhóm khách động = bộ lọc đã lưu (filtersJson cùng định dạng Lọc nâng cao của bảng).
+model Segment {
+  id          String    @id @default(cuid())
+  workspaceId String
+  objectKey   String    @default("contacts")
+  name        String
+  filtersJson String    @default("[]")
+  mode        String    @default("and")
+  createdBy   String    @default("")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+// ---------- Đợt 3: marketing ----------
+model Broadcast {
+  id          String    @id @default(cuid())
+  workspaceId String
+  name        String
+  channel     String // email | zns | sms | zalo
+  segmentId   String?
+  subject     String    @default("")
+  body        String    @default("")
+  templateId  String    @default("") // ZNS
+  scheduledAt DateTime?
+  status      String    @default("draft") // draft | scheduled | sending | done | cancelled
+  total       Int       @default(0)
+  sent        Int       @default(0)
+  failed      Int       @default(0)
+  skipped     Int       @default(0)
+  opened      Int       @default(0)
+  clicked     Int       @default(0)
+  createdBy   String    @default("")
+  startedAt   DateTime?
+  finishedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+// Địa chỉ đã huỷ nhận tin (email, số điện thoại) theo kênh.
+model Unsubscribe {
+  workspaceId String
+  channel     String
+  address     String
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@id([workspaceId, channel, address])
+}
+
+model LandingPage {
+  id          String    @id @default(cuid())
+  workspaceId String
+  slug        String    @unique
+  title       String
+  blocksJson  String    @default("[]")
+  theme       String    @default("blue")
+  published   Boolean   @default(false)
+  views       Int       @default(0)
+  conversions Int       @default(0)
+  createdBy   String    @default("")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+// ---------- Đợt 4: quản trị ----------
+// Chỉ tiêu theo tháng: period "2026-11"; who = tên người, "" = cả công ty.
+model KpiTarget {
+  id          String    @id @default(cuid())
+  workspaceId String
+  period      String
+  who         String    @default("")
+  metric      String // revenue | won_deals | new_contacts | calls | win_rate | tickets_resolved
+  target      Float
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, period, who, metric])
+}
+
+model Post {
+  id            String        @id @default(cuid())
+  workspaceId   String
+  author        String
+  body          String
+  kind          String        @default("post") // post | announcement | win
+  channel       String        @default("chung")
+  pinned        Boolean       @default(false)
+  reactionsJson String        @default("{}") // { "👍": ["Lan", "Minh"] }
+  createdAt     DateTime      @default(now())
+  workspace     Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  comments      PostComment[]
+
+  @@index([workspaceId, createdAt])
+}
+
+model PostComment {
+  id        String   @id @default(cuid())
+  postId    String
+  author    String
+  body      String
+  createdAt DateTime @default(now())
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+}
+
+// Đăng ký nhận thông báo đẩy (Web Push) của từng trình duyệt.
+model PushSub {
+  id          String    @id @default(cuid())
+  workspaceId String
+  userId      String
+  endpoint    String    @unique
+  p256dh      String
+  auth        String
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
