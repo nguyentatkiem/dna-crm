@@ -2,6 +2,7 @@ import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import type { Integrations } from "../settings";
 import type { Channel, Lead } from "./ingest";
 import type { Attachment, InboxComment, InboxEvent, InboxPostEvent, InboxReferral } from "../inbox";
+import { instagramEvents } from "../channels/instagram";
 
 type Json = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 type Ctx = { raw: string; body: Json; headers: Headers; settings: Integrations; url: URL };
@@ -202,6 +203,8 @@ export const PROVIDERS: Provider[] = [
       return out;
     },
     messages({ body }) {
+      // Cùng ứng dụng Meta: webhook Instagram (object "instagram") trỏ chung URL này cũng được nhận.
+      if (str(body.object) === "instagram") return instagramEvents(body);
       const out: InboxEvent[] = [];
       for (const entry of body.entry ?? []) {
         // Bình luận / bài viết trên trang (trường "feed").

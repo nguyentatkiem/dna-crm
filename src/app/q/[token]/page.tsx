@@ -4,9 +4,10 @@ import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { notify, userIdByName } from "@/lib/notify";
 import { COMPANY_DEFAULT, getPref, type Company } from "@/lib/prefs";
-import { parseLines } from "@/lib/sales/lines";
 import { PUBLIC_QUOTE_STATUSES, dmy, quoteExpired } from "@/lib/sales/shared";
-import { QuoteSheet } from "@/components/sales/QuoteSheet";
+import { quoteData } from "@/lib/print/doc";
+import { PrintDoc, TEMPLATE_PRINT_CSS } from "@/lib/print/render";
+import { templateFor } from "@/lib/print/server";
 import { PrintButton } from "@/components/sales/PrintButton";
 import { PRINT_CSS } from "@/components/sales/print";
 import { PublicQuoteActions } from "./PublicQuoteActions";
@@ -18,7 +19,7 @@ export default async function PublicQuotePage({ params }: { params: Promise<{ to
   const { token } = await params;
   const q = await db.quote.findUnique({ where: { publicToken: token } });
   if (!q || !PUBLIC_QUOTE_STATUSES.includes(q.status)) notFound();
-  const [ws, company] = await Promise.all([db.workspace.findUnique({ where: { id: q.workspaceId } }), getPref<Company>(q.workspaceId, "company", COMPANY_DEFAULT)]);
+  const [ws, company, tpl] = await Promise.all([db.workspace.findUnique({ where: { id: q.workspaceId } }), getPref<Company>(q.workspaceId, "company", COMPANY_DEFAULT), templateFor(q.workspaceId, "quote")]);
 
   // Lần mở đầu tiên của khách: ghi viewedAt và báo người lập. Nhân viên trong workspace tự mở thì không tính.
   const s = await getSession();
@@ -31,9 +32,10 @@ export default async function PublicQuotePage({ params }: { params: Promise<{ to
   const name = company.name || ws?.name || "";
   return (
     <main className="min-h-screen bg-bg px-3 py-6 sm:px-6 sm:py-10">
-      <style>{PRINT_CSS}</style>
+      <style>{PRINT_CSS + TEMPLATE_PRINT_CSS}</style>
       <div className="print-area mx-auto max-w-[860px] rounded-xl bg-surface p-5 shadow-card sm:p-10">
-        <QuoteSheet q={q} items={parseLines(q.itemsJson)} company={{ ...company, name }} print signatures={false} />
+        {/* Mẫu in mặc định của báo giá; trang khách xem không có ô ký (khách bấm Chấp nhận bên dưới). */}
+        <PrintDoc layout={tpl.layout} data={quoteData(q)} company={{ ...company, name }} hide={["signatures"]} />
       </div>
       <div className="no-print mx-auto mt-4 grid max-w-[860px] gap-3">
         {q.status === "accepted" ? (

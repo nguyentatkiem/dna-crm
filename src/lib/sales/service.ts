@@ -11,6 +11,10 @@ import { getObject, type WorkspaceConfig } from "@/lib/config/schema";
 import { runAutomations } from "@/lib/records";
 import { fireRecordUpdate } from "@/lib/automation";
 import { awardPointsForOrder, createWarrantiesForOrder } from "@/lib/care/hooks";
+import { syncOrderStock } from "@/lib/stock/server";
+import { LinesSchema, totals, type Line } from "./lines";
+import type { OrderStatus } from "./shared";
+import { stampDocLines } from "./tier-pricing";
 
 type Actor = { id: string; name: string } | null;
 
@@ -132,4 +136,98 @@ export function originOf(h: Headers, fallback = "") {
   if (!host) return fallback;
   const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") || host.startsWith("127.") ? "http" : "https");
   return `${proto}://${host}`;
+}
+
+// ---------------- Tạo đơn dùng chung (API, nhập đơn sàn, job) ----------------
+
+export type OrderCreateInput = {
+  workspaceId: string;
+  customerName: string;
+  customerPhone?: string;
+  contactId?: string | null;
+  recordId?: string | null;
+  quoteId?: string | null;
+  /** Dòng hàng; được kiểm tra lại bằng LinesSchema. */
+  items: Line[];
+  /** Chiết khấu cả đơn (tiền), đã gồm phần của mã giảm giá nếu có. */
+  discount?: number;
+  voucherCode?: string;
+  note?: string;
+  dueAt?: Date | null;
+  /** Mặc định "new". Tạo thẳng ở trạng thái giữ hàng (confirmed/shipping/done) thì trừ kho ngay. */
+  status?: OrderStatus;
+  salesChannel?: string;
+  /** Mã đơn bên ngoài (Shopee/TikTok...). Cùng salesChannel + externalId thì không tạo lần hai. */
+  externalId?: string;
+  shipName?: string;
+  shipPhone?: string;
+  shipAddress?: string;
+  shipProvince?: string;
+  shipDistrict?: string;
+  shipWard?: string;
+  payCode?: string;
+  /** Tên người lập; mặc định = người gọi (hoặc "Hệ thống"). */
+  createdBy?: string;
+};
+
+/**
+ * Tạo đơn hàng không qua HTTP. KHÔNG kiểm quyền — người gọi tự kiểm (route API kiểm sales_create;
+ * job nhập đơn sàn gọi với "system"). Việc làm thêm: đánh số DH-năm-xxxx, tính tiền bằng totals(),
+ * đóng dấu giá theo hạng (listPrice/priceRuleId), ghi nhật ký, trừ kho nếu tạo ở trạng thái giữ hàng.
+ * Liên kết khách/giao dịch được lấy nguyên văn (route API đã lọc qua resolveLinks).
+ * Lỗi dữ liệu → ném Error với thông báo tiếng Việt.
+ */
+export async function createOrder(by: { user: { id: string; name: string } } | "system", input: OrderCreateInput): Promise<{ order: Order; created: boolean }> {
+  const wid = input.workspaceId;
+  const actor: Actor = by === "system" ? null : by.user;
+  if (input.salesChannel && input.externalId) {
+    const dup = await db.order.findFirst({ where: { workspaceId: wid, salesChannel: input.salesChannel, externalId: input.externalId } });
+    if (dup) return { order: dup, created: false };
+  }
+  const p = LinesSchema.min(1, "Cần ít nhất một dòng hàng").safeParse(input.items);
+  if (!p.success) throw new Error(p.error.issues[0]?.message ?? "Dòng hàng không hợp lệ");
+  const name = input.customerName.trim().slice(0, 200);
+  if (!name) throw new Error("Cần tên khách");
+  const items = await stampDocLines(wid, input.contactId, p.data as Line[]);
+  const number = await nextNumber(wid, "DH");
+  const order = await db.order.create({
+    data: {
+      workspaceId: wid,
+      number,
+      contactId: input.contactId ?? null,
+      recordId: input.recordId ?? null,
+      quoteId: input.quoteId ?? null,
+      customerName: name,
+      customerPhone: (input.customerPhone ?? "").slice(0, 40),
+      itemsJson: JSON.stringify(items),
+      ...totals(items, input.discount ?? 0),
+      voucherCode: input.voucherCode ?? "",
+      dueAt: input.dueAt ?? null,
+      note: (input.note ?? "").slice(0, 3000),
+      status: input.status ?? "new",
+      salesChannel: input.salesChannel ?? "",
+      externalId: input.externalId ?? "",
+      shipName: input.shipName ?? "",
+      shipPhone: input.shipPhone ?? "",
+      shipAddress: input.shipAddress ?? "",
+      shipProvince: input.shipProvince ?? "",
+      shipDistrict: input.shipDistrict ?? "",
+      shipWard: input.shipWard ?? "",
+      payCode: input.payCode ?? "",
+      createdBy: input.createdBy ?? actor?.name ?? "Hệ thống",
+    },
+  });
+  await audit({ workspaceId: wid, user: actor }, "order.create", "order", order.id, `Tạo đơn ${number} cho ${order.customerName} (${order.total.toLocaleString("vi-VN")} ₫)${input.salesChannel ? ` · ${input.salesChannel}` : ""}`);
+  if (order.status !== "new") await afterOrderStatus(wid, order.id, actor);
+  return { order, created: true };
+}
+
+/**
+ * Gọi sau MỌI lần đổi trạng thái đơn (route PATCH, webhook vận chuyển, nhập đơn sàn...) và sau khi xoá đơn.
+ * Đồng bộ kho (idempotent: Đã xác nhận/Đang giao/Hoàn tất = trừ một lần; Mới/Huỷ/xoá = hoàn lại)
+ * rồi tích điểm/bảo hành nếu đơn hoàn tất và thu đủ.
+ */
+export async function afterOrderStatus(workspaceId: string, orderId: string, actor: Actor = null) {
+  await syncOrderStock(workspaceId, orderId, actor).catch((e) => console.error("[stock] syncOrderStock", e instanceof Error ? e.message : e));
+  await completeIfReady(orderId);
 }

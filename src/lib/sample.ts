@@ -17,6 +17,11 @@ import { seedPerf } from "./perf/seed";
 import { seedPerfActivity } from "./perf/seed-activity";
 import { seedFanpage } from "./fb/seed";
 import { seedInboxStats } from "./chat/seed-stats";
+import { seedKb } from "./kb/seed";
+import { seedStock } from "./stock/seed";
+import { seedChannels } from "./channels/seed";
+import { seedTeamChat } from "./teamchat/seed";
+import { seedPayments } from "./pay/seed";
 
 const NAMES = ["Nguyễn Thị Lan", "Trần Minh Khoa", "Lê Thu Hà", "Phạm Quốc Bảo", "Hoàng Ngọc Mai", "Vũ Đức Anh", "Đặng Thảo Vy", "Bùi Gia Huy", "Đỗ Phương Linh", "Ngô Thanh Tùng", "Dương Mỹ Duyên", "Lý Hoàng Nam", "Trịnh Khánh Ngân", "Phan Tuấn Kiệt"];
 const COMPANIES = ["Cty TNHH Minh Phát", "CP Đại Tín", "Tân Hưng Logistics", "Hoàng Gia Foods", "An Khang Pharma", "Việt Á Steel"];
@@ -125,6 +130,11 @@ export async function seedSample(workspaceId: string, cfg: WorkspaceConfig) {
     ["perfActivity", seedPerfActivity],
     ["fanpage", seedFanpage],
     ["inboxStats", seedInboxStats],
+    ["kb", seedKb],
+    ["stock", seedStock],
+    ["channels", seedChannels],
+    ["teamchat", seedTeamChat],
+    ["payments", seedPayments],
   ] as const) {
     await fn(workspaceId).catch((e) => console.error(`[sample ${name}]`, e instanceof Error ? e.message : e));
   }

@@ -1,4 +1,4 @@
-import type { Conversation, Prisma, Workspace } from "@prisma/client";
+import type { Conversation, Message, Prisma, Workspace } from "@prisma/client";
 import { z } from "zod";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { db, parseJson } from "./db";
@@ -12,7 +12,10 @@ import { ingestLead, loadConfig, normPhone, type Lead } from "./sources/ingest";
 import { fireEvent } from "./automation";
 import { stopEnrollmentsForRecord } from "./marketing/sequences";
 import { getZaloProfile, sendZaloText } from "./zalo";
-import { getMessengerProfile, MessengerError, sendMessengerText } from "./messenger";
+import { getInstagramProfile, getMessengerProfile, MessengerError, sendInstagramText, sendMessengerText } from "./messenger";
+import { maybeAutoReply } from "./kb/bot";
+import { findAccount } from "./channels/accounts";
+import { sendWaText, WA_WINDOW_CLOSED, WaError, waWindow } from "./channels/whatsapp";
 import { detectContact, type Detected } from "./chat/detect";
 import { assignOnIngest } from "./chat/assign";
 import { analyzeIncoming } from "./chat/sentiment";
@@ -21,10 +24,16 @@ import { findDuplicatesFor } from "./c360/dupes";
 import { commentAction } from "./fb/comments";
 import { appendSignature, effectiveSettings, fillTemplate, findPage, inboxCrmPref, pageSettings, pageTokenFor, postSettings } from "./fb/pages";
 
-// Hộp thư hợp nhất: gom tin Zalo OA và Facebook Messenger về một chỗ, gắn với hồ sơ khách.
+// Hộp thư hợp nhất: gom tin Zalo OA, Facebook Messenger, Instagram, WhatsApp (và chat sàn) về một chỗ, gắn với hồ sơ khách.
 
-export type InboxChannel = "zalo" | "messenger";
-export const CHANNEL_LABEL: Record<InboxChannel, string> = { zalo: "Zalo", messenger: "Messenger" };
+export type InboxChannel = "zalo" | "messenger" | "instagram" | "whatsapp" | "shopee" | "tiktok";
+export const CHANNEL_LABEL: Record<InboxChannel, string> = { zalo: "Zalo", messenger: "Messenger", instagram: "Instagram", whatsapp: "WhatsApp", shopee: "Shopee", tiktok: "TikTok Shop" };
+export const INBOX_CHANNELS = Object.keys(CHANNEL_LABEL) as InboxChannel[];
+const labelOf = (c: string) => CHANNEL_LABEL[c as InboxChannel] ?? c;
+/** Kênh có trang Meta (FbPage): Messenger và Instagram. */
+const isMetaPage = (c: string) => c === "messenger" || c === "instagram";
+/** Nhãn nền tảng của bình luận: Facebook / Instagram. */
+const commentLabel = (c: string) => (c === "instagram" ? "Instagram" : "Facebook");
 
 export type Attachment = { type: string; url?: string; name?: string; lat?: number; lng?: number };
 
@@ -88,11 +97,13 @@ type IngestResult = { conversationId: string; status: "created" | "duplicate" | 
 
 async function profileOf(ws: Workspace, ev: InboxEvent) {
   if (ev.channel === "zalo") return getZaloProfile(ws.id, ev.externalId);
+  if (!isMetaPage(ev.channel)) return null; // WhatsApp gửi kèm tên hồ sơ (ev.name); sàn không có hồ sơ.
   const { token } = await pageTokenFor(ws.id, ev.pageId);
+  if (ev.channel === "instagram") return getInstagramProfile(token, ev.externalId);
   return getMessengerProfile(token || getSettings(ws).facebook?.pageToken, ev.externalId);
 }
 
-const GENERIC_NAME = /^Khách (Zalo|Messenger|bình luận)$/;
+const GENERIC_NAME = /^Khách (Zalo|Messenger|Instagram|WhatsApp|Shopee|TikTok Shop|bình luận)$/;
 const mergePhones = (cur: string, add: string[]) => [...new Set([...cur.split(",").filter(Boolean), ...add])].slice(0, 10).join(",");
 
 /**
@@ -118,8 +129,9 @@ export async function ingestEvents(ws: Workspace, events: InboxEvent[], payload:
       out.push({ conversationId: conv.id, status: "duplicate", recordId: conv.recordId });
       continue;
     }
-    const page = ev.channel === "messenger" ? await findPage(ws.id, ev.pageId) : null;
-    if (page && !page.active) {
+    const page = isMetaPage(ev.channel) ? await findPage(ws.id, ev.pageId) : null;
+    const account = ev.channel === "whatsapp" ? await findAccount(ws.id, "whatsapp", ev.pageId ?? "") : null;
+    if ((page && !page.active) || (account && !account.active)) {
       out.push({ conversationId: conv?.id ?? "", status: "ignored" });
       continue;
     }
@@ -131,7 +143,7 @@ export async function ingestEvents(ws: Workspace, events: InboxEvent[], payload:
 
     if (!conv || (!conv.name && inbound)) {
       const prof = inbound ? await profileOf(ws, ev) : null;
-      const fallback = ev.channel === "zalo" ? "Khách Zalo" : "Khách Messenger";
+      const fallback = `Khách ${labelOf(ev.channel)}`;
       if (!conv) {
         // upsert phòng hai webhook đến cùng lúc cho cùng một khách.
         conv = await db.conversation.upsert({
@@ -176,10 +188,43 @@ export async function ingestEvents(ws: Workspace, events: InboxEvent[], payload:
       },
     });
 
-    if (inbound) conv = await afterInbound(ws, conv, ev, payload, { notifyFirst: prevUnread === 0, label: CHANNEL_LABEL[ev.channel] });
+    if (inbound) {
+      conv = await afterInbound(ws, conv, ev, payload, { notifyFirst: prevUnread === 0, label: CHANNEL_LABEL[ev.channel] });
+      if (human) runBot(ws.id, conv, ev.text);
+    }
     out.push({ conversationId: conv.id, status: "created", recordId: conv.recordId });
   }
   return out;
+}
+
+/**
+ * Bot trả lời tự động (hợp đồng nhóm AI: maybeAutoReply trong src/lib/kb/bot.ts, tự kiểm tra cài đặt — kể cả có trả lời
+ * bình luận hay không). Chạy nền để webhook trả 200 nhanh; lỗi không bao giờ chặn nhận tin.
+ */
+function runBot(workspaceId: string, conv: Conversation, text: string) {
+  if (!text.trim()) return;
+  void (async () => {
+    try {
+      await maybeAutoReply(workspaceId, conv, text);
+    } catch (e) {
+      console.error("[inbox bot]", e instanceof Error ? e.message : e);
+    }
+  })();
+}
+
+const STATUS_RANK: Record<string, number> = { sent: 1, delivered: 2, read: 3 };
+
+/**
+ * Trạng thái gửi từ nền tảng (WhatsApp statuses: sent / delivered / read / failed) → Message.status.
+ * Không lùi trạng thái khi webhook đến lệch thứ tự (read rồi mới delivered).
+ */
+export async function applyMessageStatus(workspaceId: string, channel: InboxChannel, msgId: string, status: "sent" | "delivered" | "read" | "failed", error = "") {
+  if (!msgId) return false;
+  const m = await db.message.findFirst({ where: { externalId: msgId, direction: "out", conversation: { workspaceId, channel } }, select: { id: true, status: true } });
+  if (!m) return false;
+  if (status !== "failed" && (STATUS_RANK[m.status] ?? 0) >= STATUS_RANK[status]) return false;
+  await db.message.update({ where: { id: m.id }, data: { status, ...(status === "failed" ? { error: error || "Nền tảng báo gửi thất bại" } : {}) } });
+  return true;
 }
 
 /**
@@ -191,13 +236,16 @@ async function afterInbound(ws: Workspace, conv: Conversation, ev: InboxEvent, p
   const known = new Set(conv.phones.split(",").filter(Boolean));
   const newPhones = det.phones.filter((p) => !known.has(p));
   if (newPhones.length) conv = await db.conversation.update({ where: { id: conv.id }, data: { phones: mergePhones(conv.phones, newPhones) } });
+  // WhatsApp: mã khách (wa_id) chính là SĐT → ghi vào hội thoại (không báo "khách để lại SĐT").
+  const waPhone = ev.channel === "whatsapp" ? normPhone(ev.lead?.phone ?? ev.externalId) : "";
+  if (waPhone && !conv.phones.split(",").includes(waPhone)) conv = await db.conversation.update({ where: { id: conv.id }, data: { phones: mergePhones(conv.phones, [waPhone]) } });
 
   // Khách vừa được tạo/gắn từ chính tin này: không dừng ngay chuỗi chăm sóc vừa bắt đầu.
   let linkedNow = false;
   // Sự kiện hệ thống có lead (quan tâm Zalo OA) vẫn tạo khách như trước.
   if (!ev.system || ev.lead) {
     const pref = await inboxCrmPref(ws.id);
-    const via = ev.kind === "comment" ? "bình luận Facebook" : `chat ${opts.label}`;
+    const via = ev.kind === "comment" ? `bình luận ${commentLabel(ev.channel)}` : `chat ${opts.label}`;
     if (!conv.recordId && pref.autoCreateContact) {
       const recordId = await linkOrCreateContact(ws, conv, ev, det, payload);
       if (recordId) {
@@ -248,7 +296,7 @@ async function linkOrCreateContact(ws: Workspace, conv: Conversation, ev: InboxE
   if (phone) {
     const dup = (await findDuplicatesFor(ws.id, { phone, email: det.emails[0], name }).catch(() => []))[0];
     if (dup) {
-      await db.activity.create({ data: { recordId: dup.id, kind: "system", body: `Khách quay lại qua ${ev.kind === "comment" ? "bình luận Facebook" : CHANNEL_LABEL[ev.channel]} (${dup.reason.toLowerCase()}).`, author: CHANNEL_LABEL[ev.channel] } }).catch(() => {});
+      await db.activity.create({ data: { recordId: dup.id, kind: "system", body: `Khách quay lại qua ${ev.kind === "comment" ? `bình luận ${commentLabel(ev.channel)}` : CHANNEL_LABEL[ev.channel]} (${dup.reason.toLowerCase()}).`, author: CHANNEL_LABEL[ev.channel] } }).catch(() => {});
       return dup.id;
     }
   }
@@ -256,11 +304,12 @@ async function linkOrCreateContact(ws: Workspace, conv: Conversation, ev: InboxE
   if (!lead && phone) {
     const isComment = ev.kind === "comment";
     const ref = ev.referral;
+    const ig = ev.channel === "instagram";
     lead = {
-      provider: "facebook",
-      providerLabel: isComment ? "Bình luận Facebook" : "Facebook Messenger",
+      provider: ig ? "instagram" : ev.channel === "messenger" ? "facebook" : ev.channel,
+      providerLabel: isComment ? `Bình luận ${commentLabel(ev.channel)}` : ev.channel === "messenger" ? "Facebook Messenger" : CHANNEL_LABEL[ev.channel],
       channel: ref?.source === "ad" ? "ads" : "organic",
-      name: name || (isComment ? "Khách bình luận" : "Khách nhắn Messenger"),
+      name: name || (isComment ? "Khách bình luận" : `Khách nhắn ${CHANNEL_LABEL[ev.channel]}`),
       phone,
       email: det.emails[0],
       externalId: isComment ? `cmt:${ev.comment?.commentId}` : `msg:${ev.msgId ?? conv.id}`,
@@ -412,19 +461,21 @@ async function ingestComment(ws: Workspace, ev: InboxEvent, payload: unknown): P
   const det = detectContact(ev.text);
   await db.fbPost.update({ where: { id: post.id }, data: { commentsCount: { increment: 1 }, ...(det.phones.length ? { phonesCount: { increment: 1 } } : {}) } });
 
-  conv = await afterInbound(ws, conv, ev, payload, { notifyFirst: prevUnread === 0, label: "Facebook", silent: eff.autoMarkRead });
+  conv = await afterInbound(ws, conv, ev, payload, { notifyFirst: prevUnread === 0, label: commentLabel(ev.channel), silent: eff.autoMarkRead });
 
   // Hành động tự động của trang / bài viết. Không có token hoặc lỗi Facebook: bỏ qua, chỉ báo log một lần.
   const hasPhone = det.phones.length > 0;
   const auto = { actor: "Tự động", auto: true, messageId: msg.id };
   if (eff.autoHideAll || (eff.autoHidePhone && hasPhone)) await commentAction(conv, "hide", auto);
-  if (eff.autoLike) await commentAction(conv, "like", auto);
+  // Instagram không cho trang thích bình luận qua API.
+  if (eff.autoLike && ev.channel !== "instagram") await commentAction(conv, "like", auto);
   const vars = { name: conv.name, page: page?.name };
   if (isNew && eff.replyComment && (!eff.replyOnlyPhone || hasPhone)) await commentAction(conv, "reply", { ...auto, text: fillTemplate(eff.replyComment, vars) });
   if (!conv.privateReplied && eff.replyInbox && (!eff.replyOnlyPhone || hasPhone)) {
     const fresh = await db.conversation.findUnique({ where: { id: conv.id } });
     if (fresh) await commentAction(fresh, "private_reply", { ...auto, text: fillTemplate(eff.replyInbox, vars) });
   }
+  runBot(ws.id, conv, ev.text);
   return { conversationId: conv.id, status: "created", recordId: conv.recordId };
 }
 
@@ -503,7 +554,7 @@ export type Filter = "all" | "unread" | "mine" | "done";
 export async function listConversations(ctx: Ctx, opts: { filter?: string; channel?: string; q?: string }) {
   const scope = await conversationScope(ctx);
   const and: Prisma.ConversationWhereInput[] = [scope];
-  if (opts.channel === "zalo" || opts.channel === "messenger") and.push({ channel: opts.channel });
+  if (INBOX_CHANNELS.includes(opts.channel as InboxChannel)) and.push({ channel: opts.channel });
   const q = opts.q?.trim();
   if (q) and.push({ OR: [{ name: { contains: q } }, { lastText: { contains: q } }, { messages: { some: { text: { contains: q } } } }] });
   const f = opts.filter as Filter;
@@ -569,10 +620,57 @@ export async function conversationDetail(conv: Conversation, cfg: WorkspaceConfi
 
 /* ───────────────────────────── Gửi tin ───────────────────────────── */
 
+type Delivery = { externalId: string; error: string; windowClosed: boolean; text: string };
+
+/**
+ * Gửi một tin văn bản qua đúng kênh của hội thoại inbox (không phải bình luận). Không ghi DB.
+ * Messenger / Instagram: tự thêm chữ ký của trang. WhatsApp: ngoài cửa sổ 24 giờ thì báo windowClosed (cần mẫu tin).
+ */
+async function deliver(workspaceId: string, conv: Conversation, text: string, opts: { humanAgent?: boolean } = {}): Promise<Delivery> {
+  if (isMetaPage(conv.channel)) {
+    const page = conv.pageId ? await findPage(workspaceId, conv.pageId) : null;
+    let sig = pageSettings(page).signature.trim();
+    if (!sig) sig = (await inboxCrmPref(workspaceId)).signature.trim().slice(0, 150);
+    text = appendSignature(text, sig);
+  }
+  const r: Delivery = { externalId: "", error: "", windowClosed: false, text };
+  try {
+    const pageId = conv.pageId || undefined;
+    switch (conv.channel) {
+      case "zalo":
+        r.externalId = await sendZaloText(workspaceId, conv.externalId, text);
+        break;
+      case "messenger":
+        r.externalId = await sendMessengerText(workspaceId, conv.externalId, text, { ...opts, pageId });
+        break;
+      case "instagram":
+        r.externalId = await sendInstagramText(workspaceId, conv.externalId, text, { ...opts, pageId });
+        break;
+      case "whatsapp": {
+        const acc = await findAccount(workspaceId, "whatsapp", conv.pageId);
+        if (!acc) throw new WaError("Số WhatsApp của hội thoại này chưa kết nối (Hộp thư → Kênh → WhatsApp).");
+        if (!acc.active) throw new WaError("Số WhatsApp này đang tắt.");
+        if (!waWindow(conv).open) throw new WaError(`${WA_WINDOW_CLOSED}: khách chưa nhắn trong 24 giờ qua.`, 131047, true);
+        r.externalId = await sendWaText(acc, conv.externalId, text);
+        break;
+      }
+      case "shopee":
+      case "tiktok":
+        throw new Error(`Chưa hỗ trợ trả lời chat ${labelOf(conv.channel)} từ CRM — trả lời trong Seller Center của sàn.`);
+      default:
+        throw new Error(`Kênh ${conv.channel} chưa hỗ trợ gửi tin`);
+    }
+  } catch (e) {
+    r.error = e instanceof Error ? e.message : String(e);
+    r.windowClosed = (e instanceof MessengerError || e instanceof WaError) && e.windowClosed;
+  }
+  return r;
+}
+
 /**
  * Gửi tin trả lời qua đúng kênh, lưu Message (sent/failed) và ghi hoạt động vào hồ sơ khách.
  * Hội thoại bình luận: trả lời công khai dưới bình luận gần nhất của khách.
- * Messenger: tự thêm chữ ký của trang (withSignature, không thêm lần hai nếu đã có).
+ * Messenger / Instagram: tự thêm chữ ký của trang (không thêm lần hai nếu đã có).
  */
 export async function sendReply(ctx: Ctx, conv: Conversation, text: string, opts: { humanAgent?: boolean } = {}) {
   if (conv.kind === "comment") {
@@ -580,29 +678,16 @@ export async function sendReply(ctx: Ctx, conv: Conversation, text: string, opts
     const id = r.message?.id;
     if (r.ok) {
       if (!conv.assignee) await db.conversation.update({ where: { id: conv.id }, data: { assignee: ctx.user.name } });
-      if (conv.recordId) await db.activity.create({ data: { recordId: conv.recordId, kind: "update", body: `Đã trả lời bình luận Facebook: ${text}`, author: ctx.user.name } }).catch(() => {});
+      if (conv.recordId) await db.activity.create({ data: { recordId: conv.recordId, kind: "update", body: `Đã trả lời bình luận ${commentLabel(conv.channel)}: ${text}`, author: ctx.user.name } }).catch(() => {});
     }
     const error = r.ok ? "" : r.error;
     // commentAction đã lưu tin (sent hoặc failed); thiếu (vd. không tìm thấy bình luận) thì lưu tin lỗi để nhân viên thấy.
     const msg = (id && (await db.message.findUnique({ where: { id } }))) || (await db.message.create({ data: { conversationId: conv.id, direction: "out", kind: "comment", text, author: ctx.user.name, status: "failed", error } }));
     return { message: msg, error, windowClosed: false };
   }
-  let externalId = "";
-  let error = "";
-  let windowClosed = false;
-  if (conv.channel === "messenger") {
-    const page = conv.pageId ? await findPage(ctx.workspace.id, conv.pageId) : null;
-    let sig = pageSettings(page).signature.trim();
-    if (!sig) sig = (await inboxCrmPref(ctx.workspace.id)).signature.trim().slice(0, 150);
-    text = appendSignature(text, sig);
-  }
-  try {
-    externalId =
-      conv.channel === "zalo" ? await sendZaloText(ctx.workspace.id, conv.externalId, text) : await sendMessengerText(ctx.workspace.id, conv.externalId, text, { ...opts, pageId: conv.pageId || undefined });
-  } catch (e) {
-    error = e instanceof Error ? e.message : String(e);
-    windowClosed = e instanceof MessengerError && e.windowClosed;
-  }
+  const d = await deliver(ctx.workspace.id, conv, text, opts);
+  text = d.text;
+  const { externalId, error, windowClosed } = d;
   const msg = await db.message.create({
     data: { conversationId: conv.id, direction: "out", text, externalId, author: ctx.user.name, status: error ? "failed" : "sent", error },
   });
@@ -612,9 +697,43 @@ export async function sendReply(ctx: Ctx, conv: Conversation, text: string, opts
       data: { lastText: `Bạn: ${preview(text)}`, lastAt: msg.createdAt, lastOutAt: msg.createdAt, ...(!conv.firstReplyAt && conv.lastInAt ? { firstReplyAt: msg.createdAt } : {}), unread: 0, assignee: conv.assignee || ctx.user.name },
     });
     if (conv.recordId)
-      await db.activity.create({ data: { recordId: conv.recordId, kind: "update", body: `Đã nhắn ${CHANNEL_LABEL[conv.channel as InboxChannel] ?? conv.channel}: ${text}`, author: ctx.user.name } }).catch(() => {});
+      await db.activity.create({ data: { recordId: conv.recordId, kind: "update", body: `Đã nhắn ${labelOf(conv.channel)}: ${text}`, author: ctx.user.name } }).catch(() => {});
   }
   return { message: msg, error, windowClosed };
+}
+
+/**
+ * Gửi tin do hệ thống (bot AI, tự động) — không cần người dùng đăng nhập. Gửi qua đúng kênh
+ * (Messenger / Instagram / Zalo / WhatsApp; hội thoại bình luận thì trả lời công khai dưới bình luận gần nhất),
+ * lưu Message với author (vd. "Trợ lý AI"). Không tính là "phản hồi đầu tiên", không đổi người phụ trách, không xoá
+ * số chưa đọc (nhân viên vẫn thấy hội thoại cần xem). Không bao giờ ném lỗi: lỗi trả trong error, tin lưu "failed".
+ */
+export async function sendSystemReply(workspaceId: string, conv: Conversation, text: string, author: string): Promise<{ ok: boolean; message: Message | null; error: string; windowClosed: boolean }> {
+  try {
+    const body = text.trim();
+    if (!body) return { ok: false, message: null, error: "Tin trống", windowClosed: false };
+    if (conv.workspaceId !== workspaceId) return { ok: false, message: null, error: "Hội thoại không thuộc workspace", windowClosed: false };
+    if (conv.kind === "comment") {
+      const r = await commentAction(conv, "reply", { text: body, actor: author, auto: true });
+      const message = r.message?.id ? await db.message.findUnique({ where: { id: r.message.id } }) : null;
+      return { ok: r.ok, message, error: r.ok ? "" : r.error, windowClosed: false };
+    }
+    const d = await deliver(workspaceId, conv, body);
+    const message = await db.message.create({ data: { conversationId: conv.id, direction: "out", text: d.text, externalId: d.externalId, author, status: d.error ? "failed" : "sent", error: d.error } });
+    if (!d.error) {
+      const fresh = await db.conversation.findUnique({ where: { id: conv.id }, select: { lastAt: true } });
+      await db.conversation.update({
+        where: { id: conv.id },
+        data: { lastText: `Bạn: ${preview(d.text)}`, lastAt: !fresh || message.createdAt > fresh.lastAt ? message.createdAt : fresh.lastAt, lastOutAt: message.createdAt },
+      });
+      if (conv.recordId) await db.activity.create({ data: { recordId: conv.recordId, kind: "update", body: `${author} nhắn ${labelOf(conv.channel)}: ${d.text}`, author } }).catch(() => {});
+    }
+    return { ok: !d.error, message, error: d.error, windowClosed: d.windowClosed };
+  } catch (e) {
+    const error = e instanceof Error ? e.message : String(e);
+    console.error("[inbox system reply]", error);
+    return { ok: false, message: null, error, windowClosed: false };
+  }
 }
 
 /** Ghi chú nội bộ: chỉ đội ngũ thấy, không gửi cho khách. */
@@ -701,7 +820,7 @@ export async function draftReply(conv: Conversation, cfg: WorkspaceConfig) {
       model: MODEL,
       max_tokens: 2000,
       output_config: { effort: "low", format: zodOutputFormat(DraftOut) },
-      system: `Bạn là nhân viên chăm sóc khách hàng của ${cfg.businessName} (ngành ${industry}), trả lời tin nhắn ${CHANNEL_LABEL[conv.channel as InboxChannel] ?? ""}. Viết tiếng Việt lễ phép, thân thiện, xưng "em", gọi khách "anh/chị" kèm tên nếu biết; 1–3 câu ngắn như nhắn tin thật; không bịa giá hay địa chỉ cụ thể nếu không có trong dữ liệu (dùng chỗ trống dạng [điền giá]); luôn kết thúc bằng một câu hỏi hoặc lời mời hành động tiếp theo (xin SĐT, chốt lịch...).`,
+      system: `Bạn là nhân viên chăm sóc khách hàng của ${cfg.businessName} (ngành ${industry}), trả lời tin nhắn ${labelOf(conv.channel)}. Viết tiếng Việt lễ phép, thân thiện, xưng "em", gọi khách "anh/chị" kèm tên nếu biết; 1–3 câu ngắn như nhắn tin thật; không bịa giá hay địa chỉ cụ thể nếu không có trong dữ liệu (dùng chỗ trống dạng [điền giá]); luôn kết thúc bằng một câu hỏi hoặc lời mời hành động tiếp theo (xin SĐT, chốt lịch...).`,
       messages: [
         {
           role: "user",

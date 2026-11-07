@@ -10,6 +10,7 @@ import { Avatar } from "./Avatar";
 import { ago } from "@/lib/format";
 import { getTheme, setTheme, THEME_EVENT, type Theme } from "./ui/theme";
 import { HelpButton } from "./tutorial/HelpButton";
+import { TeamChatButton } from "./teamchat/TeamChatButton";
 
 type Note = { id: string; source: "notification" | "task" | "agent"; kind: string; text: string; at: string; href: string; read: boolean };
 
@@ -28,6 +29,11 @@ const KIND: Record<string, { icon: string; color: string; label: string }> = {
   overdue: { icon: "clock", color: "#df2f4a", label: "Quá hạn" },
   today: { icon: "clock", color: "#fdab3d", label: "Hạn hôm nay" },
   agent: { icon: "bot", color: "#a25ddc", label: "AI Agent" },
+  teamchat: { icon: "chat", color: "#00a9ff", label: "Chat nội bộ" },
+  mention: { icon: "chat", color: "#a25ddc", label: "Nhắc tên" },
+  system_error: { icon: "shield", color: "#df2f4a", label: "Lỗi hệ thống" },
+  security: { icon: "lock", color: "#df2f4a", label: "Bảo mật" },
+  inbox_negative: { icon: "chat", color: "#df2f4a", label: "Khách đang bực" },
 };
 const kindOf = (k: string) => KIND[k] ?? KIND.system;
 
@@ -160,6 +166,7 @@ export function Topbar({ workspace, user, searchHref = "/w/b/contacts" }: { work
 
       <HelpButton />
 
+      <TeamChatButton />
       <div ref={bellRef} className="relative flex-none">
         <button
           type="button"

@@ -8,6 +8,7 @@ import type { InboxItem, InboxRecord } from "@/lib/inbox-types";
 import { totals, type Line } from "@/lib/sales/lines";
 import { fold, renderQuickReply, varsFor } from "@/lib/quick-replies";
 import { api } from "./shared";
+import { AfterOrderCreated } from "@/components/pay/AfterOrderCreated";
 
 type Product = { id: string; code: string; name: string; unit: string; category: string; price: number; vat: number };
 type Voucher = { code: string; discount: number; label: string };
@@ -35,6 +36,8 @@ export function OrderDrawer({ open, onClose, conv, record, me, businessName, add
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const submitted = useRef(false);
+  // Đơn vừa tạo: hiện gợi ý "Gửi mã QR cho khách" / "Tạo vận đơn ngay" thay cho form.
+  const [created, setCreated] = useState<{ id: string; number: string; total: number } | null>(null);
 
   // Điền sẵn khi mở (chỉ lúc mở, không ghi đè khi lần làm mới 10 giây chạy giữa chừng).
   const init = useRef({ conv, record, initialAddress });
@@ -44,6 +47,7 @@ export function OrderDrawer({ open, onClose, conv, record, me, businessName, add
     const { conv: c, record: r, initialAddress: addr } = init.current;
     submitted.current = false;
     setErr("");
+    setCreated(null);
     setName(r?.title ?? (/^Khách\b/.test(c.name) ? "" : c.name));
     setPhone(r?.phone || c.phones[0] || "");
     setAddress(r?.address || addr || "");
@@ -113,7 +117,7 @@ export function OrderDrawer({ open, onClose, conv, record, me, businessName, add
     setErr("");
     submitted.current = true;
     try {
-      const r = await api<{ order: { number: string; total: number }; confirm: { ok: boolean; error?: string } | null }>(`/api/inbox/${conv.id}/order`, {
+      const r = await api<{ order: { id: string; number: string; total: number }; confirm: { ok: boolean; error?: string } | null }>(`/api/inbox/${conv.id}/order`, {
         method: "POST",
         json: { customerName: name, customerPhone: phone, address, note, items: lines, discount, voucherCode: voucher?.code ?? "", confirmText: sendConfirm ? preview : "" },
       });
@@ -124,7 +128,7 @@ export function OrderDrawer({ open, onClose, conv, record, me, businessName, add
       setVoucher(null);
       setNote("");
       onCreated();
-      onClose();
+      setCreated(r.order);
     } catch (e) {
       submitted.current = false;
       setErr(viMessage(e, "Không tạo được đơn"));
@@ -141,6 +145,13 @@ export function OrderDrawer({ open, onClose, conv, record, me, businessName, add
       subtitle={`Từ hội thoại với ${conv.name}`}
       width={560}
       footer={
+        created ? (
+          <div className="flex justify-end">
+            <button type="button" className="btn-outline" onClick={onClose}>
+              Đóng
+            </button>
+          </div>
+        ) : (
         <div className="flex items-center gap-2">
           <div className="min-w-0 flex-1 text-[13px]">
             Tổng: <b className="tnum text-[15px]">{money(sum.total)}</b>
@@ -152,8 +163,13 @@ export function OrderDrawer({ open, onClose, conv, record, me, businessName, add
             <Icon name="cart" size={15} /> {busy ? "Đang tạo…" : "Tạo đơn"}
           </button>
         </div>
+        )
       }
     >
+      {created ? (
+        <AfterOrderCreated order={created} convId={conv.id} canSend={conv.kind !== "comment"} />
+      ) : (
+      <>
       {!canCreate && <p className="mx-5 mt-4 rounded bg-warning-soft px-3 py-2 text-[13px] text-warning">Bạn chưa có quyền tạo đơn hàng. Nhờ quản lý cấp quyền “Tạo chứng từ bán hàng”.</p>}
       <div className="grid gap-3 px-5 py-4">
         <div>
@@ -313,6 +329,8 @@ export function OrderDrawer({ open, onClose, conv, record, me, businessName, add
           </p>
         )}
       </div>
+      </>
+      )}
     </Drawer>
   );
 }

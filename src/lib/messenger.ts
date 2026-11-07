@@ -69,3 +69,33 @@ export async function getMessengerProfile(token: string | undefined, psid: strin
     return null;
   }
 }
+
+/* ───────────── Instagram Direct ───────────── */
+
+/**
+ * Gửi tin Instagram Direct qua Messenger Platform for Instagram: cùng Send API POST /me/messages với Page Access Token
+ * của fanpage liên kết, recipient = IGSID. Cửa sổ 24 giờ và tag HUMAN_AGENT (7 ngày) như Messenger.
+ * pageId = Instagram user id (FbPage platform "instagram") để lấy đúng token.
+ */
+export async function sendInstagramText(workspaceId: string, igsid: string, text: string, opts: { humanAgent?: boolean; pageId?: string } = {}): Promise<string> {
+  try {
+    return await sendMessengerText(workspaceId, igsid, text, opts);
+  } catch (e) {
+    if (e instanceof MessengerError) throw new MessengerError(e.message.replace(/Messenger/g, "Instagram").replace(/Facebook/g, "Instagram"), e.windowClosed);
+    throw e;
+  }
+}
+
+/** Tên và ảnh của người nhắn Instagram (IGSID): GET /{igsid}?fields=name,username,profile_pic. */
+export async function getInstagramProfile(token: string | undefined, igsid: string): Promise<{ name: string; avatar: string } | null> {
+  if (!token || isDryRun(token)) return null;
+  try {
+    const res = await fetch(`${GRAPH}/${encodeURIComponent(igsid)}?fields=name,username,profile_pic&access_token=${encodeURIComponent(token)}`, { signal: AbortSignal.timeout(4000) });
+    const j = (await res.json().catch(() => ({}))) as { name?: string; username?: string; profile_pic?: string; error?: unknown };
+    if (j.error || !res.ok) return null;
+    const name = j.name || (j.username ? `@${j.username}` : "");
+    return name ? { name, avatar: j.profile_pic ?? "" } : null;
+  } catch {
+    return null;
+  }
+}

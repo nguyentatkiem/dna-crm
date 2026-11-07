@@ -1,3 +1,4 @@
+import { revokeAllSessions } from "@/lib/security/sessions";
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
 import { appApi, fail, ok } from "@/lib/http";
@@ -49,7 +50,9 @@ export async function PATCH(req: Request, { params }: Ctx) {
 
   const { password } = body;
   if (!password || password.length < 8) return fail("Mật khẩu mới cần ít nhất 8 ký tự");
-  await db.user.update({ where: { id }, data: { passwordHash: await bcrypt.hash(password, 10) } });
+  await db.user.update({ where: { id }, data: { passwordHash: await bcrypt.hash(password, 10), failedLogins: 0, lockedUntil: null } });
+  // Đặt lại mật khẩu thì đăng xuất mọi phiên cũ của người đó.
+  await revokeAllSessions(id);
   await audit(who, "member.password", "member", id, `Đặt lại mật khẩu cho ${g.target.user.name}`);
   return ok({ updated: true });
 }

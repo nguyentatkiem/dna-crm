@@ -75,6 +75,11 @@ export function Members() {
       setPw("");
     }
   }
+  /** Đăng xuất thành viên khỏi mọi thiết bị (và mở khoá tạm nếu đang bị khoá). */
+  async function signOutAll(m: M) {
+    const { ok, j } = await call(`/api/security/members/${m.id}`, "DELETE");
+    setMsg(ok ? `Đã đăng xuất ${m.name} khỏi ${j.revoked} phiên.` : j.error);
+  }
   async function remove(id: string) {
     const { ok, j } = await call(`/api/members/${id}`, "DELETE");
     setRemoveFor(null);
@@ -218,6 +223,7 @@ export function Members() {
               ) : (
                 <span className="flex gap-1">
                   <button type="button" className="btn-ghost h-8 text-[13px]" onClick={() => setResetFor(m.id)}>Đặt lại mật khẩu</button>
+                  {m.id !== d.me && <button type="button" className="btn-ghost h-8 text-[13px]" onClick={() => signOutAll(m)} disabled={busy} title="Đăng xuất người này khỏi mọi thiết bị">Đăng xuất mọi nơi</button>}
                   {m.id !== d.me && <button type="button" className="btn-ghost h-8 text-[13px] text-[#df2f4a]" onClick={() => setRemoveFor(m.id)}>Xoá</button>}
                 </span>
               ))}

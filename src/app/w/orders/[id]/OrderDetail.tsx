@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import type { Order, Payment } from "@prisma/client";
 import { Icon } from "@/components/Icon";
 import { LinesView, TotalsBox } from "@/components/sales/LinesView";
@@ -15,7 +15,7 @@ type Rec = { id: string; title: string; objectKey: string } | null;
 
 const NEXT_LABEL: Record<OrderStatus, string> = { new: "Mở lại", confirmed: "Xác nhận", shipping: "Đang giao", done: "Hoàn tất", cancelled: "Huỷ đơn" };
 
-export function OrderDetail({ initial, items, deal, contact, quote, dealLabel, perm, voucher = null }: { voucher?: { discount: number } | null; initial: O; items: Line[]; deal: Rec; contact: Rec; quote: { id: string; number: string } | null; dealLabel: string; perm: { seeAll: boolean; canDelete: boolean; edit?: boolean; payRecord?: boolean; payDelete?: boolean } }) {
+export function OrderDetail({ initial, items, deal, contact, quote, dealLabel, perm, voucher = null, main, side }: { main?: ReactNode; side?: ReactNode; voucher?: { discount: number } | null; initial: O; items: Line[]; deal: Rec; contact: Rec; quote: { id: string; number: string } | null; dealLabel: string; perm: { seeAll: boolean; canDelete: boolean; edit?: boolean; payRecord?: boolean; payDelete?: boolean } }) {
   const router = useRouter();
   const [o, setO] = useState(initial);
   const [busy, setBusy] = useState(false);
@@ -77,6 +77,9 @@ export function OrderDetail({ initial, items, deal, contact, quote, dealLabel, p
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Link href={`/w/orders/${o.id}/print`} className="btn-outline" target="_blank">
+            <Icon name="doc" size={15} /> In
+          </Link>
           {o.status === "new" && perm.edit !== false && (
             <Link href={`/w/orders/${o.id}?edit=1`} className="btn-outline">
               <Icon name="edit" size={15} /> Sửa
@@ -163,6 +166,7 @@ export function OrderDetail({ initial, items, deal, contact, quote, dealLabel, p
               </ul>
             )}
           </section>
+          {main}
         </div>
 
         <aside className="grid content-start gap-4">
@@ -236,6 +240,7 @@ export function OrderDetail({ initial, items, deal, contact, quote, dealLabel, p
             </div>
             {o.status === "done" && left === 0 && <p className="badge-success w-fit">Đã hoàn tất và thu đủ</p>}
           </section>
+          {side}
         </aside>
       </div>
     </div>

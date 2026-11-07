@@ -8,11 +8,14 @@ import { ser, ymd } from "@/lib/sales/shared";
 import { DocEditor } from "@/components/sales/DocEditor";
 import { valueText } from "@/lib/voucher/shared";
 import { OrderDetail } from "./OrderDetail";
+import { OrderPayPanel } from "@/components/pay/OrderPayPanel";
+import { EInvoicePanel } from "@/components/einvoice/EInvoicePanel";
+import { ShipPanel } from "@/components/ship/ShipPanel";
 
-export default async function OrderPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ edit?: string }> }) {
+export default async function OrderPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ edit?: string; ship?: string }> }) {
   const ctx = await salesPage();
   const { id } = await params;
-  const { edit } = await searchParams;
+  const { edit, ship } = await searchParams;
   const o = await db.order.findFirst({ where: scoped(ctx.scope.where, { id }), include: { payments: { orderBy: { paidAt: "desc" } } } });
   if (!o) notFound();
   const ids = [o.recordId, o.contactId].filter((x): x is string => !!x);
@@ -51,7 +54,15 @@ export default async function OrderPage({ params, searchParams }: { params: Prom
       <Link href="/w/orders" className="text-[13px] text-ink-2 hover:underline">
         ← Đơn hàng
       </Link>
-      <OrderDetail voucher={v ? { discount: v.discount } : null} initial={ser(o)} items={items} deal={deal} contact={contact} quote={quote} dealLabel={ctx.dealLabel} perm={{ seeAll: ctx.scope.seeAll, canDelete: ctx.scope.perm.del, edit: ctx.scope.perm.orderEdit, payRecord: ctx.scope.perm.payRecord, payDelete: ctx.scope.perm.payDelete }} />
+      <OrderDetail voucher={v ? { discount: v.discount } : null} initial={ser(o)} items={items} deal={deal} contact={contact} quote={quote} dealLabel={ctx.dealLabel} perm={{ seeAll: ctx.scope.seeAll, canDelete: ctx.scope.perm.del, edit: ctx.scope.perm.orderEdit, payRecord: ctx.scope.perm.payRecord, payDelete: ctx.scope.perm.payDelete }}
+        main={
+          <div className="grid gap-4 2xl:grid-cols-2">
+            <ShipPanel orderId={o.id} closed={o.status === "cancelled" || o.status === "done"} autoOpen={ship === "1"} />
+            <EInvoicePanel orderId={o.id} cancelled={o.status === "cancelled"} />
+          </div>
+        }
+        side={<OrderPayPanel orderId={o.id} cancelled={o.status === "cancelled"} />}
+      />
     </div>
   );
 }

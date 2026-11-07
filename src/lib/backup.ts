@@ -34,7 +34,7 @@ const WS_ID_RE = /^[a-zA-Z0-9_-]{1,64}$/;
  * Các bảng thuộc một workspace, theo thứ tự chèn (bảng cha trước).
  * via: bảng không có cột workspaceId, lọc theo bảng cha.
  */
-const WS_TABLES: { key: string; via?: { parent: string; field: string } }[] = [
+const WS_TABLES: { key: string; via?: { parent: string; field: string; rel?: string } }[] = [
   { key: "dna" },
   { key: "workspaceConfig" },
   { key: "record" },
@@ -87,6 +87,17 @@ const WS_TABLES: { key: string; via?: { parent: string; field: string } }[] = [
   { key: "fbPage" },
   { key: "fbPost" },
   { key: "quickReply" },
+  { key: "bankTxn" },
+  { key: "eInvoice" },
+  { key: "shipment" },
+  { key: "kbDoc" },
+  { key: "stockMove" },
+  { key: "priceRule" },
+  { key: "printTemplate" },
+  { key: "chatThread" },
+  { key: "chatMessage", via: { parent: "chatThread", field: "threadId", rel: "thread" } },
+  { key: "report" },
+  { key: "channelAccount" },
 ];
 const SYSTEM_TABLES = ["user", "workspace", "membership", "invite"];
 /** Cột trỏ sang bảng khác: khi khôi phục sang workspace khác phải đổi id theo. */
@@ -107,6 +118,8 @@ const REFS: Record<string, string> = {
   campaignId: "voucherCampaign",
   usedOrderId: "order",
   teamId: "team",
+  threadId: "chatThread",
+  paymentId: "payment",
 };
 
 const modelName = (key: string) => key[0].toUpperCase() + key.slice(1);
@@ -270,6 +283,12 @@ export async function autoBackup(): Promise<void> {
       const b = await createBackup(ws.id);
       const removed = await pruneBackups(ws.id, keepOf(s?.keep));
       await audit(ws.id, "backup", b.name, `Sao lưu tự động ${b.name} (${fmtSize(b.size)})${removed ? `, xoá ${removed} bản cũ` : ""}`);
+      // Đẩy ra kho ngoài (S3/R2/B2) nếu đã bật ở Cài đặt → Sao lưu. Không bật thì bỏ qua; lỗi được ghi lại để trang Kiểm tra kết nối báo.
+      const { getRemote, remoteConfigured, pushRemote } = await import("./backup-remote");
+      if (remoteConfigured(await getRemote(ws.id))) {
+        const r = await pushRemote(ws.id, b.path, b.name);
+        if (!r.ok) await audit(ws.id, "backup.remote_fail", b.name, `Không đẩy được ${b.name} ra kho ngoài: ${r.error}`);
+      }
     } catch (e) {
       console.error(`[backup] workspace ${ws.name}:`, e instanceof Error ? e.message : e);
     }
@@ -377,7 +396,7 @@ export async function restoreBackup(file: string | Buffer, workspaceId: string, 
     async (tx) => {
       // Xoá bảng con trước (Activity, Message theo bảng cha).
       for (const t of [...WS_TABLES].reverse()) {
-        const where = t.via ? { [t.via.parent]: { workspaceId } } : { workspaceId };
+        const where = t.via ? { [t.via.rel ?? t.via.parent]: { workspaceId } } : { workspaceId };
         await table(tx, t.key).deleteMany({ where });
       }
       if (srcWs) {

@@ -6,6 +6,7 @@ import { Icon } from "@/components/Icon";
 import { Badge, EmptyState, Tabs, toast } from "@/components/ui";
 import type { PageDTO } from "@/lib/fb/admin";
 import type { PageSettings } from "@/lib/fb/pages";
+import { ChannelsTab, useChannels } from "./ChannelsTab";
 
 type Page = PageDTO & { inboxCount: number; commentCount: number; postCount: number };
 type Mme = { id: string; pageId: string; ref: string; label: string; clicks: number; url: string; shortUrl: string; conversations: number; contacts: number; createdAt: string };
@@ -33,9 +34,12 @@ const TOGGLES: { key: keyof Omit<PageSettings, "signature">; label: string; hint
   { key: "autoMarkReadComments", label: "Tự đánh dấu đã đọc bình luận", hint: "Bình luận không tính là chưa đọc, không báo thông báo (vẫn lưu và tạo khách nếu có SĐT)." },
 ];
 
+const TAB_KEYS = ["pages", "instagram", "whatsapp", "shopee", "tiktok", "mme", "crm"];
+
 export function PagesClient({ canConnect, canSettings, canInbox }: { canConnect: boolean; canSettings: boolean; canInbox: boolean }) {
-  const [tab, setTab] = useState("pages");
+  const [tab, setTabState] = useState("pages");
   const [pages, setPages] = useState<Page[] | null>(null);
+  const channels = useChannels();
   const load = useCallback(async () => {
     const j = await call<{ items: Page[] }>("/api/inbox/pages");
     setPages(j?.items ?? []);
@@ -43,6 +47,22 @@ export function PagesClient({ canConnect, canSettings, canInbox }: { canConnect:
   useEffect(() => {
     load();
   }, [load]);
+  // ?tab=shopee (quay về sau uỷ quyền) · ?connected=1 · ?error=…
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search);
+    const t = sp.get("tab");
+    if (t && TAB_KEYS.includes(t)) setTabState(t);
+    if (sp.get("connected")) toast("Đã uỷ quyền shop và đồng bộ đơn");
+    if (sp.get("error")) toast(sp.get("error") ?? "", "error");
+    if (sp.get("connected") || sp.get("error")) window.history.replaceState(null, "", `${window.location.pathname}${t ? `?tab=${t}` : ""}`);
+  }, []);
+  const setTab = (t: string) => {
+    setTabState(t);
+    window.history.replaceState(null, "", `${window.location.pathname}?tab=${t}`);
+  };
+  const fb = pages?.filter((p) => p.platform !== "instagram") ?? null;
+  const ig = pages?.filter((p) => p.platform === "instagram") ?? null;
+  const count = (pl: string) => channels.data?.items.filter((a) => a.platform === pl).length;
 
   return (
     <>
@@ -51,13 +71,19 @@ export function PagesClient({ canConnect, canSettings, canInbox }: { canConnect:
         value={tab}
         onChange={setTab}
         items={[
-          { key: "pages", label: "Trang đã kết nối", count: pages?.length },
+          { key: "pages", label: "Facebook", count: fb?.length },
+          { key: "instagram", label: "Instagram", count: ig?.length },
+          { key: "whatsapp", label: "WhatsApp", count: count("whatsapp") },
+          { key: "shopee", label: "Shopee", count: count("shopee") },
+          { key: "tiktok", label: "TikTok Shop", count: count("tiktok") },
           { key: "mme", label: "Link m.me theo nguồn" },
           { key: "crm", label: "CRM từ chat" },
         ]}
       />
-      {tab === "pages" && <PagesTab pages={pages} reload={load} setPages={setPages} canConnect={canConnect} canSettings={canSettings} />}
-      {tab === "mme" && <MmeTab pages={pages ?? []} canEdit={canInbox} />}
+      {tab === "pages" && <PagesTab platform="facebook" pages={fb} reload={load} setPages={setPages} canConnect={canConnect} canSettings={canSettings} />}
+      {tab === "instagram" && <PagesTab platform="instagram" pages={ig} reload={load} setPages={setPages} canConnect={canConnect} canSettings={canSettings} hookUrl={channels.data?.hooks.instagram} />}
+      {(tab === "whatsapp" || tab === "shopee" || tab === "tiktok") && <ChannelsTab platform={tab} data={channels.data} reload={channels.load} />}
+      {tab === "mme" && <MmeTab pages={fb ?? []} canEdit={canInbox} />}
       {tab === "crm" && <CrmTab />}
     </>
   );
@@ -65,7 +91,24 @@ export function PagesClient({ canConnect, canSettings, canInbox }: { canConnect:
 
 /* ───────────── Trang ───────────── */
 
-function PagesTab({ pages, reload, setPages, canConnect, canSettings }: { pages: Page[] | null; reload: () => void; setPages: (fn: (p: Page[] | null) => Page[] | null) => void; canConnect: boolean; canSettings: boolean }) {
+function PagesTab({
+  platform,
+  pages,
+  reload,
+  setPages,
+  canConnect,
+  canSettings,
+  hookUrl,
+}: {
+  platform: "facebook" | "instagram";
+  pages: Page[] | null;
+  reload: () => void;
+  setPages: (fn: (p: Page[] | null) => Page[] | null) => void;
+  canConnect: boolean;
+  canSettings: boolean;
+  hookUrl?: string;
+}) {
+  const ig = platform === "instagram";
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState({ pageId: "", token: "", name: "" });
   const [busy, setBusy] = useState(false);
@@ -73,7 +116,7 @@ function PagesTab({ pages, reload, setPages, canConnect, canSettings }: { pages:
   async function add(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
-    const j = await call<{ item: PageDTO; warning: string }>("/api/inbox/pages", json("POST", { pageId: form.pageId.trim(), token: form.token.trim(), name: form.name.trim() || undefined }));
+    const j = await call<{ item: PageDTO; warning: string }>("/api/inbox/pages", json("POST", { pageId: form.pageId.trim(), token: form.token.trim(), name: form.name.trim() || undefined, platform }));
     setBusy(false);
     if (!j) return;
     toast(j.warning || `Đã kết nối ${j.item.name}`);
@@ -102,35 +145,50 @@ function PagesTab({ pages, reload, setPages, canConnect, canSettings }: { pages:
         <div className="card p-4">
           {!adding ? (
             <div className="flex flex-wrap items-center gap-3">
-              <span className="grid h-10 w-10 flex-none place-items-center rounded-lg bg-[#1877f2] text-[18px] font-bold text-white" aria-hidden>
-                f
+              <span className={`grid h-10 w-10 flex-none place-items-center rounded-lg font-bold text-white ${ig ? "bg-[#d62976] text-[14px]" : "bg-[#1877f2] text-[18px]"}`} aria-hidden>
+                {ig ? "ig" : "f"}
               </span>
               <div className="min-w-0 flex-1">
-                <p className="font-semibold">Kết nối fanpage</p>
-                <p className="text-[13px] text-ink-2">
-                  Cần Page ID và Page Access Token (quyền pages_messaging, pages_manage_engagement, pages_read_user_content). Đăng ký webhook trường <b>messages</b>, <b>messaging_referrals</b>, <b>feed</b> ở{" "}
-                  <Link href="/w/sources" className="text-primary hover:underline">
-                    Nguồn khách → Facebook
-                  </Link>
-                  .
-                </p>
+                <p className="font-semibold">{ig ? "Kết nối Instagram" : "Kết nối fanpage"}</p>
+                {ig ? (
+                  <p className="text-[13px] text-ink-2">
+                    Tài khoản Instagram chuyên nghiệp phải liên kết với một fanpage. Cần <b>Instagram user ID</b> (Graph API: GET /&#123;page-id&#125;?fields=instagram_business_account) và Page Access Token của fanpage đó (quyền instagram_basic, instagram_manage_messages, instagram_manage_comments). Ở Meta App → Webhooks → Instagram: đăng ký <b>messages</b>, <b>comments</b>, <b>live_comments</b> với URL bên dưới; Verify token và App Secret dùng chung ở{" "}
+                    <Link href="/w/sources" className="text-primary hover:underline">
+                      Nguồn khách → Facebook
+                    </Link>
+                    .
+                  </p>
+                ) : (
+                  <p className="text-[13px] text-ink-2">
+                    Cần Page ID và Page Access Token (quyền pages_messaging, pages_manage_engagement, pages_read_user_content). Đăng ký webhook trường <b>messages</b>, <b>messaging_referrals</b>, <b>feed</b> ở{" "}
+                    <Link href="/w/sources" className="text-primary hover:underline">
+                      Nguồn khách → Facebook
+                    </Link>
+                    .
+                  </p>
+                )}
+                {ig && hookUrl && (
+                  <p className="mt-1 text-[12.5px] text-ink-2">
+                    URL webhook: <span className="select-all break-all font-mono">{hookUrl}</span>
+                  </p>
+                )}
               </div>
               <button type="button" className="btn-primary" onClick={() => setAdding(true)}>
-                <Icon name="plus" size={15} /> Thêm trang
+                <Icon name="plus" size={15} /> {ig ? "Thêm Instagram" : "Thêm trang"}
               </button>
             </div>
           ) : (
             <form onSubmit={add} className="grid gap-3 sm:grid-cols-2">
               <label className="grid gap-1">
-                <span className="label">Page ID</span>
-                <input className="input tnum" inputMode="numeric" required value={form.pageId} onChange={(e) => setForm({ ...form, pageId: e.target.value })} placeholder="Ví dụ 104512345678901" />
+                <span className="label">{ig ? "Instagram user ID" : "Page ID"}</span>
+                <input className="input tnum" inputMode="numeric" required value={form.pageId} onChange={(e) => setForm({ ...form, pageId: e.target.value })} placeholder={ig ? "Ví dụ 17841400000000000" : "Ví dụ 104512345678901"} />
               </label>
               <label className="grid gap-1">
                 <span className="label">Tên hiển thị (không bắt buộc)</span>
                 <input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Lấy từ Facebook nếu để trống" />
               </label>
               <label className="grid gap-1 sm:col-span-2">
-                <span className="label">Page Access Token</span>
+                <span className="label">{ig ? "Page Access Token của fanpage liên kết" : "Page Access Token"}</span>
                 <input className="input font-mono" type="password" autoComplete="off" required value={form.token} onChange={(e) => setForm({ ...form, token: e.target.value })} placeholder="EAA…" />
                 <span className="text-[12px] text-ink-2">Token chỉ lưu trên máy chủ, không hiện lại trên trình duyệt. CRM kiểm tra token với Facebook trước khi lưu; mất mạng thì vẫn lưu kèm cảnh báo.</span>
               </label>
@@ -151,7 +209,7 @@ function PagesTab({ pages, reload, setPages, canConnect, canSettings }: { pages:
         <div className="skeleton h-40" />
       ) : !pages.length ? (
         <div className="card">
-          <EmptyState icon="page" title="Chưa kết nối trang nào" desc={canConnect ? "Thêm fanpage để nhận tin nhắn và bình luận vào Hộp thư." : "Nhờ chủ workspace kết nối fanpage."} />
+          <EmptyState icon="page" title={ig ? "Chưa kết nối Instagram" : "Chưa kết nối trang nào"} desc={canConnect ? (ig ? "Thêm tài khoản Instagram để tin Direct và bình luận về Hộp thư." : "Thêm fanpage để nhận tin nhắn và bình luận vào Hộp thư.") : "Nhờ chủ workspace kết nối."} />
         </div>
       ) : (
         pages.map((p) => <PageCard key={p.id} p={p} canConnect={canConnect} canSettings={canSettings} patch={patch} remove={remove} />)
@@ -206,9 +264,9 @@ function PageCard({ p, canConnect, canSettings, patch, remove }: { p: Page; canC
           </div>
         )}
       </div>
-      {p.demo && <p className="rounded bg-warning-soft px-3 py-2 text-[12.5px] text-warning">Trang dùng token mẫu: ẩn, thích, trả lời, nhắn riêng được giả lập, không gửi lên Facebook.</p>}
+      {p.demo && <p className="rounded bg-warning-soft px-3 py-2 text-[12.5px] text-warning">{p.platform === "instagram" ? "Tài khoản dùng token mẫu: ẩn, trả lời, nhắn riêng được giả lập, không gửi lên Instagram." : "Trang dùng token mẫu: ẩn, thích, trả lời, nhắn riêng được giả lập, không gửi lên Facebook."}</p>}
       <div className="grid gap-2 sm:grid-cols-2">
-        {TOGGLES.map((t) => (
+        {TOGGLES.filter((t) => p.platform !== "instagram" || t.key !== "autoLike").map((t) => (
           <label key={t.key} className="flex items-start gap-2 rounded-lg bg-[var(--row-hover)] p-2.5">
             <input type="checkbox" disabled={!canSettings} checked={p.settings[t.key]} onChange={() => patch(p, { settings: { [t.key]: !p.settings[t.key] } })} className="mt-0.5 h-4 w-4 flex-none accent-[var(--primary)]" />
             <span>
@@ -235,7 +293,7 @@ function PageCard({ p, canConnect, canSettings, patch, remove }: { p: Page; canC
             </button>
           )}
         </div>
-        <span className="text-[12px] text-ink-2">{sig.length}/150 · Thêm vào cuối tin Messenger và tin nhắn riêng từ bình luận (không thêm vào trả lời bình luận công khai).</span>
+        <span className="text-[12px] text-ink-2">{sig.length}/150 · Thêm vào cuối tin {p.platform === "instagram" ? "Instagram Direct" : "Messenger"} và tin nhắn riêng từ bình luận (không thêm vào trả lời bình luận công khai).</span>
       </div>
     </div>
   );

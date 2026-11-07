@@ -1,3 +1,4 @@
+import { logError } from "./errors";
 import { tickSequences } from "./marketing/sequences";
 import { syncAdSpend } from "./marketing/ads";
 import { tickReminders } from "./notify";
@@ -14,6 +15,11 @@ import { tickVouchers } from "./voucher/service";
 import { tickPerfAlerts } from "./perf/alerts";
 import { tickPerfDigest } from "./perf/digest";
 import { tickInboxReassign, tickQuality, tickSentiment } from "./chat/jobs";
+import { tickKbProducts } from "./kb/jobs";
+import { tickLowStock } from "./stock/server";
+import { tickShopOrders } from "./channels/orders";
+import { tickReports } from "./reports/service";
+import { tickDemoShipments } from "./ship/service";
 
 type Job = { name: string; everyMin: number; run: () => Promise<void> };
 
@@ -38,6 +44,11 @@ export const JOBS: Job[] = [
   { name: "Phân tích RFM", everyMin: 60, run: () => tickRfm().then(() => undefined) },
   { name: "Quét hồ sơ trùng", everyMin: 10080, run: () => tickDuplicateScan().then(() => undefined) },
   { name: "Voucher hết hạn", everyMin: 360, run: () => tickVouchers().then(() => undefined) },
+  { name: "Vận đơn demo", everyMin: 1, run: () => tickDemoShipments().then(() => undefined) },
+  { name: "Gửi báo cáo theo lịch", everyMin: 15, run: () => tickReports().then(() => undefined) },
+  { name: "Đồng bộ đơn sàn", everyMin: 10, run: () => tickShopOrders().then(() => undefined) },
+  { name: "Cảnh báo sắp hết hàng", everyMin: 1440, run: () => tickLowStock().then(() => undefined) },
+  { name: "Đồng bộ sản phẩm vào kho kiến thức", everyMin: 60, run: () => tickKbProducts().then(() => undefined) },
   { name: "Chia lại hội thoại", everyMin: 5, run: () => tickInboxReassign().then(() => undefined) },
   { name: "Cảm xúc khách trong chat", everyMin: 5, run: () => tickSentiment().then(() => undefined) },
   { name: "Chất lượng chăm sóc chat", everyMin: 15, run: () => tickQuality().then(() => undefined) },
@@ -55,7 +66,7 @@ export async function runDueJobs(now = Date.now()) {
     st.last[j.name] = now;
     st.running.add(j.name);
     j.run()
-      .catch((e) => console.error(`[job ${j.name}]`, e instanceof Error ? e.message : e))
+      .catch((e) => logError(e, { path: `job ${j.name}` }))
       .finally(() => st.running.delete(j.name));
   }
 }

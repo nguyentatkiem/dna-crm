@@ -30,6 +30,11 @@ export const ProductInput = z.object({
   warrantyMonths: z.coerce.number().int().min(0).max(600).catch(0),
   description: str(2000),
   active: z.boolean().optional(),
+  // Tồn kho & vận chuyển
+  sku: str(80),
+  weightGram: z.coerce.number().int().min(0).max(1e7).catch(0),
+  trackStock: z.boolean().optional(),
+  lowStock: z.coerce.number().min(0).max(1e9).catch(0),
 });
 
 const docBase = {

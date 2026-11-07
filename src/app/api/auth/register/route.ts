@@ -4,6 +4,7 @@ import { db, parseJson } from "@/lib/db";
 import { SESSION_COOKIE, cookieOptions, signSession } from "@/lib/auth";
 import type { WorkspaceConfig } from "@/lib/config/schema";
 import { fail, ok } from "@/lib/http";
+import { createSession } from "@/lib/security/sessions";
 
 const Body = z.object({
   name: z.string().trim().min(1, "Hãy nhập họ tên"),
@@ -45,6 +46,7 @@ export async function POST(req: Request) {
   });
 
   const res = ok({ redirect: onboarded ? "/w" : "/onboarding" });
-  res.cookies.set(SESSION_COOKIE, await signSession({ uid: user.id, wid: workspaceId }), cookieOptions);
+  const sid = await createSession(user.id, req.headers);
+  res.cookies.set(SESSION_COOKIE, await signSession({ uid: user.id, wid: workspaceId, sid }), cookieOptions);
   return res;
 }

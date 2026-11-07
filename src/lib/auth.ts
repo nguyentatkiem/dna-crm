@@ -1,5 +1,6 @@
+import { cache } from "react";
 import { SignJWT, jwtVerify } from "jose";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { db, parseJson } from "./db";
 import { WorkspaceConfig } from "./config/schema";
@@ -11,9 +12,10 @@ const secret = () => {
   return new TextEncoder().encode(s);
 };
 
-export type Session = { uid: string; wid: string };
+/** sid = UserSession.id (phiên đăng nhập trong DB, thu hồi được). iat = lúc ký (giây). */
+export type Session = { uid: string; wid: string; sid?: string; iat?: number };
 
-export async function signSession(s: Session) {
+export async function signSession(s: { uid: string; wid: string; sid: string }) {
   return new SignJWT(s).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("30d").sign(secret());
 }
 
@@ -21,11 +23,29 @@ export async function verifySession(token: string | undefined): Promise<Session 
   if (!token) return null;
   try {
     const { payload } = await jwtVerify(token, secret());
-    return { uid: String(payload.uid), wid: String(payload.wid) };
+    return { uid: String(payload.uid), wid: String(payload.wid), sid: payload.sid ? String(payload.sid) : undefined, iat: payload.iat };
   } catch {
     return null;
   }
 }
+
+/**
+ * Tương thích ngược: phiên ký trước khi có bảng UserSession (không có sid) vẫn dùng được thêm 24 giờ
+ * sau mốc LEGACY_CUTOFF, rồi phải đăng nhập lại. Phiên không sid ký SAU mốc này luôn bị từ chối.
+ */
+export const LEGACY_CUTOFF = Date.parse("2026-11-08T00:00:00Z") / 1000;
+const LEGACY_GRACE = 24 * 3600;
+export const legacyOk = (iat: number | undefined, nowSec = Date.now() / 1000) => !!iat && iat < LEGACY_CUTOFF && nowSec < LEGACY_CUTOFF + LEGACY_GRACE;
+
+const TOUCH_MS = 5 * 60_000;
+
+/** Phiên còn hiệu lực (chưa thu hồi, đúng người). Nhớ trong một lần render; cập nhật lastSeenAt tối đa 5 phút/lần. */
+const sessionAlive = cache(async (sid: string, uid: string) => {
+  const row = await db.userSession.findUnique({ where: { id: sid }, select: { userId: true, revokedAt: true, lastSeenAt: true } });
+  if (!row || row.userId !== uid || row.revokedAt) return false;
+  if (Date.now() - row.lastSeenAt.getTime() > TOUCH_MS) await db.userSession.update({ where: { id: sid }, data: { lastSeenAt: new Date() } }).catch(() => undefined);
+  return true;
+});
 
 export async function getSession() {
   const store = await cookies();
@@ -44,6 +64,7 @@ export const cookieOptions = {
 export async function getContext() {
   const s = await getSession();
   if (!s) return null;
+  if (s.sid ? !(await sessionAlive(s.sid, s.uid)) : !legacyOk(s.iat)) return null;
   const [user, workspace, cfg] = await Promise.all([
     db.user.findUnique({ where: { id: s.uid } }),
     db.workspace.findUnique({ where: { id: s.wid } }),
@@ -51,13 +72,25 @@ export async function getContext() {
   ]);
   if (!user || !workspace) return null;
   const config = cfg ? parseJson<WorkspaceConfig | null>(cfg.configJson, null) : null;
-  return { user, workspace, config, configVersion: cfg?.version ?? 0 };
+  return { user, workspace, config, configVersion: cfg?.version ?? 0, sessionId: s.sid ?? "" };
 }
 
 export async function requireApp() {
   const ctx = await getContext();
   if (!ctx) redirect("/login");
   if (!ctx.config || !ctx.workspace.onboarded) redirect("/onboarding");
+  // Chủ bắt buộc bật xác thực 2 lớp cho vai trò này: chuyển tới trang Bảo mật cho tới khi bật xong.
+  if (!ctx.user.totpEnabled) {
+    const path = (await headers()).get("x-pathname") ?? "";
+    if (!path.startsWith("/w/settings/security")) {
+      const { securityPref, needs2fa } = await import("./security/sessions");
+      const pref = await securityPref(ctx.workspace.id);
+      if (pref.require2faFor !== "none") {
+        const { getAccess } = await import("./permissions");
+        if (needs2fa(pref, await getAccess(ctx.user.id, ctx.workspace.id))) redirect("/w/settings/security?required=1");
+      }
+    }
+  }
   return { ...ctx, config: ctx.config };
 }
 

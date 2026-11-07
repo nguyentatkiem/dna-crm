@@ -8,6 +8,50 @@ import { Members } from "./Members";
 import { FormEmbed } from "./FormEmbed";
 import { FieldEditor } from "./FieldEditor";
 import { PushToggle } from "@/components/pwa/PushToggle";
+import { Icon } from "@/components/Icon";
+
+const SETTING_GROUPS: { title: string; icon: string; items: { href: string; label: string; hint: string }[] }[] = [
+  {
+    title: "Doanh nghiệp & đội",
+    icon: "users",
+    items: [
+      { href: "/w/settings/company", label: "Thông tin doanh nghiệp", hint: "Tên, MST, địa chỉ in trên chứng từ" },
+      { href: "/w/settings/roles", label: "Vai trò & quyền", hint: "Ai được xem, sửa, xuất gì" },
+      { href: "/w/settings/teams", label: "Phòng ban / đội", hint: "Đội, trưởng nhóm, phân luồng phiếu" },
+      { href: "/w/settings/tutorial", label: "Hướng dẫn người mới", hint: "Tiến độ làm quen của từng người" },
+    ],
+  },
+  {
+    title: "Bán hàng",
+    icon: "cart",
+    items: [
+      { href: "/w/settings/payments", label: "Thanh toán & giao hàng", hint: "VietQR, đối soát, hoá đơn, vận chuyển" },
+      { href: "/w/settings/price-tiers", label: "Giá theo hạng", hint: "Giá riêng cho khách thân thiết" },
+      { href: "/w/settings/print-templates", label: "Mẫu in", hint: "Báo giá, đơn hàng, hợp đồng" },
+      { href: "/w/settings/scoring", label: "Chấm điểm khách", hint: "Điểm theo hồ sơ và hành vi" },
+    ],
+  },
+  {
+    title: "Dữ liệu & giao diện",
+    icon: "database",
+    items: [
+      { href: "/w/settings/fields", label: "Quyền & bố cục trường", hint: "Ẩn, chỉ xem, sắp xếp trường hồ sơ" },
+      { href: "/w/settings/privacy", label: "Bảo mật dữ liệu", hint: "Che SĐT/email, giới hạn xuất" },
+      { href: "/w/settings/backup", label: "Sao lưu & khôi phục", hint: "Tự sao lưu, lưu ra ngoài máy chủ" },
+      { href: "/w/trash", label: "Thùng rác", hint: "Khôi phục mục đã xoá" },
+    ],
+  },
+  {
+    title: "Hệ thống & bảo mật",
+    icon: "shield",
+    items: [
+      { href: "/w/settings/health", label: "Kiểm tra kết nối", hint: "Kênh, thanh toán, AI, lỗi hệ thống" },
+      { href: "/w/settings/security", label: "Bảo mật tài khoản", hint: "Xác thực 2 lớp, phiên đăng nhập" },
+      { href: "/w/settings/audit", label: "Nhật ký thao tác", hint: "Ai đã làm gì, lúc nào" },
+      { href: "/w/inbox/pages", label: "Kênh kết nối", hint: "Fanpage, Instagram, WhatsApp, sàn TMĐT" },
+    ],
+  },
+];
 
 export default async function SettingsPage() {
   const { workspace, config, configVersion } = await requireApp();
@@ -25,42 +69,30 @@ export default async function SettingsPage() {
           <h1 className="text-[26px] font-semibold">DNA & Cấu hình</h1>
           <p className="mt-1 text-ink-2">Sửa DNA để DNA Architect sinh cấu hình mới. Dữ liệu cũ được giữ nguyên.</p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Link href="/w/settings/audit" className="btn-outline">
-            Nhật ký thao tác
-          </Link>
-          <Link href="/w/settings/backup" className="btn-outline">
-            Sao lưu & khôi phục
-          </Link>
-          <Link href="/w/trash" className="btn-outline">
-            Thùng rác
-          </Link>
-          <Link href="/w/settings/company" className="btn-outline">
-            Thông tin doanh nghiệp
-          </Link>
-          <Link href="/w/settings/privacy" className="btn-outline">
-            Bảo mật dữ liệu
-          </Link>
-          <Link href="/w/settings/roles" className="btn-outline">
-            Vai trò & quyền
-          </Link>
-          <Link href="/w/settings/teams" className="btn-outline">
-            Phòng ban / đội
-          </Link>
-          <Link href="/w/settings/scoring" className="btn-outline">
-            Chấm điểm khách
-          </Link>
-          <Link href="/w/settings/fields" className="btn-outline">
-            Quyền & bố cục trường
-          </Link>
-          <Link href="/w/settings/tutorial" className="btn-outline">
-            Hướng dẫn người mới
-          </Link>
-          <Link href="/onboarding" className="btn-primary">
-            Sửa DNA và sinh lại
-          </Link>
-        </div>
+        <Link href="/onboarding" className="btn-primary">
+          Sửa DNA và sinh lại
+        </Link>
       </div>
+
+      <nav aria-label="Các mục cài đặt" className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {SETTING_GROUPS.map((g) => (
+          <section key={g.title} className="card p-4">
+            <h2 className="mb-2 flex items-center gap-2 text-[14px] font-semibold">
+              <Icon name={g.icon} size={16} className="text-ink-2" /> {g.title}
+            </h2>
+            <ul className="grid gap-0.5">
+              {g.items.map((it) => (
+                <li key={it.href}>
+                  <Link href={it.href} className="block rounded-md px-2 py-1.5 hover:bg-hover">
+                    <span className="block text-[14px] font-medium">{it.label}</span>
+                    <span className="block text-[12.5px] text-ink-2">{it.hint}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
+      </nav>
 
       <div className="mt-6 grid gap-4 xl:grid-cols-2">
         <section className="card p-5">

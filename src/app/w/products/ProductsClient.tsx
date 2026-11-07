@@ -6,16 +6,19 @@ import { Icon } from "@/components/Icon";
 import { Drawer, EmptyState } from "@/components/ui";
 import { fold, money, type Ser } from "@/lib/sales/shared";
 import { toast } from "@/components/ui/Toast";
+import { Badge } from "@/components/ui";
+import Link from "next/link";
+import { fmtQty, isLow } from "@/lib/stock/shared";
 
 type Item = Ser<Product>;
-type Form = { code: string; name: string; unit: string; category: string; price: string; vat: string; warrantyMonths: string; description: string; active: boolean };
-const EMPTY: Form = { code: "", name: "", unit: "cái", category: "", price: "", vat: "0", warrantyMonths: "0", description: "", active: true };
+type Form = { code: string; name: string; unit: string; category: string; price: string; vat: string; warrantyMonths: string; description: string; active: boolean; sku: string; weightGram: string; trackStock: boolean; lowStock: string; openingStock: string };
+const EMPTY: Form = { code: "", name: "", unit: "cái", category: "", price: "", vat: "0", warrantyMonths: "0", description: "", active: true, sku: "", weightGram: "", trackStock: false, lowStock: "", openingStock: "" };
 
 export function ProductsClient({ initial, canEdit, canDelete }: { initial: Item[]; canEdit: boolean; canDelete: boolean }) {
   const [items, setItems] = useState(initial);
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("");
-  const [show, setShow] = useState<"all" | "active" | "inactive">("active");
+  const [show, setShow] = useState<"all" | "active" | "inactive" | "low">("active");
   const [edit, setEdit] = useState<{ id?: string; f: Form } | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -24,13 +27,13 @@ export function ProductsClient({ initial, canEdit, canDelete }: { initial: Item[
   const cats = useMemo(() => [...new Set(items.map((i) => i.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, "vi")), [items]);
   const shown = useMemo(() => {
     const f = fold(q.trim());
-    return items.filter((p) => (!cat || p.category === cat) && (show === "all" || (show === "active") === p.active) && (!f || fold(`${p.code} ${p.name} ${p.category}`).includes(f)));
+    return items.filter((p) => (!cat || p.category === cat) && (show === "all" || (show === "low" ? isLow(p) : (show === "active") === p.active)) && (!f || fold(`${p.code} ${p.sku} ${p.name} ${p.category}`).includes(f)));
   }, [items, q, cat, show]);
 
   const open = (p?: Item) => {
     setErr("");
     setConfirmDel(false);
-    setEdit(p ? { id: p.id, f: { code: p.code, name: p.name, unit: p.unit, category: p.category, price: String(p.price), vat: String(p.vat), warrantyMonths: String(p.warrantyMonths), description: p.description, active: p.active } } : { f: { ...EMPTY } });
+    setEdit(p ? { id: p.id, f: { code: p.code, name: p.name, unit: p.unit, category: p.category, price: String(p.price), vat: String(p.vat), warrantyMonths: String(p.warrantyMonths), description: p.description, active: p.active, sku: p.sku, weightGram: p.weightGram ? String(p.weightGram) : "", trackStock: p.trackStock, lowStock: p.lowStock ? String(p.lowStock) : "", openingStock: "" } } : { f: { ...EMPTY } });
   };
   const setF = (k: keyof Form, v: string | boolean) => setEdit((e) => (e ? { ...e, f: { ...e.f, [k]: v } } : e));
 
@@ -39,7 +42,8 @@ export function ProductsClient({ initial, canEdit, canDelete }: { initial: Item[
     setBusy(true);
     setErr("");
     const f = edit.f;
-    const body = { ...f, price: Number(f.price.replace(/\D/g, "")) || 0, vat: Number(f.vat) || 0, warrantyMonths: Number(f.warrantyMonths) || 0 };
+    const { openingStock, ...rest } = f;
+    const body = { ...rest, price: Number(f.price.replace(/\D/g, "")) || 0, vat: Number(f.vat) || 0, warrantyMonths: Number(f.warrantyMonths) || 0, weightGram: Number(f.weightGram) || 0, lowStock: Number(f.lowStock.replace(",", ".")) || 0, ...(edit.id ? {} : { openingStock: Number(openingStock.replace(",", ".")) || 0 }) };
     const res = await fetch(edit.id ? `/api/products/${edit.id}` : "/api/products", { method: edit.id ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     const j = await res.json().catch(() => ({}));
     setBusy(false);
@@ -78,11 +82,19 @@ export function ProductsClient({ initial, canEdit, canDelete }: { initial: Item[
           <h1 className="text-[26px] font-semibold">Sản phẩm & dịch vụ</h1>
           <p className="mt-1 text-ink-2">Danh mục dùng khi lập báo giá và đơn hàng.</p>
         </div>
-        {canEdit && (
-          <button type="button" className="btn-primary" onClick={() => open()}>
-            <Icon name="plus" size={16} /> Thêm sản phẩm
-          </button>
-        )}
+        <div className="flex flex-wrap gap-2">
+          <Link href="/w/stock" className="btn-ghost">
+            <Icon name="box" size={15} /> Tồn kho
+          </Link>
+          <Link href="/w/settings/price-tiers" className="btn-ghost">
+            <Icon name="award" size={15} /> Giá theo hạng
+          </Link>
+          {canEdit && (
+            <button type="button" className="btn-primary" onClick={() => open()}>
+              <Icon name="plus" size={16} /> Thêm sản phẩm
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="mt-5 flex flex-wrap items-center gap-2">
@@ -106,6 +118,7 @@ export function ProductsClient({ initial, canEdit, canDelete }: { initial: Item[
             [
               ["active", "Đang bán"],
               ["inactive", "Ngừng bán"],
+              ["low", "Sắp hết hàng"],
               ["all", "Tất cả"],
             ] as const
           ).map(([k, l]) => (
@@ -123,13 +136,14 @@ export function ProductsClient({ initial, canEdit, canDelete }: { initial: Item[
         </div>
       ) : (
         <div className="card mt-4 overflow-x-auto">
-          <table className="w-full min-w-[640px] text-[14px]">
+          <table className="w-full min-w-[720px] text-[14px]">
             <thead>
               <tr className="border-b border-line-soft text-left text-[13px] text-ink-2">
                 <th className="px-3 py-2.5 font-normal">Sản phẩm</th>
                 <th className="px-2 py-2.5 font-normal">Nhóm</th>
                 <th className="px-2 py-2.5 text-right font-normal">Giá</th>
                 <th className="px-2 py-2.5 text-right font-normal">VAT</th>
+                <th className="px-2 py-2.5 text-right font-normal">Tồn kho</th>
                 <th className="px-2 py-2.5 text-right font-normal">Bảo hành</th>
                 <th className="px-3 py-2.5 text-right font-normal">Đang bán</th>
               </tr>
@@ -141,11 +155,21 @@ export function ProductsClient({ initial, canEdit, canDelete }: { initial: Item[
                     <button type="button" className="block max-w-full truncate text-left font-medium hover:underline disabled:no-underline" disabled={!canEdit} onClick={() => open(p)}>
                       {p.name}
                     </button>
-                    <p className="text-[12.5px] text-ink-2">{[p.code, p.unit].filter(Boolean).join(" · ")}</p>
+                    <p className="text-[12.5px] text-ink-2">{[p.code, p.sku && `SKU ${p.sku}`, p.unit].filter(Boolean).join(" · ")}</p>
                   </td>
                   <td className="px-2 py-2.5 text-ink-2">{p.category || "–"}</td>
                   <td className="px-2 py-2.5 text-right tnum">{money(p.price)}</td>
                   <td className="px-2 py-2.5 text-right tnum">{p.vat}%</td>
+                  <td className="whitespace-nowrap px-2 py-2.5 text-right tnum">
+                    {p.trackStock ? (
+                      <Link href={`/w/stock?product=${p.id}`} className="inline-flex items-center gap-1.5 hover:underline">
+                        {isLow(p) && <Badge tone="danger">{p.stock < 0 ? "Âm kho" : "Sắp hết"}</Badge>}
+                        {fmtQty(p.stock)}
+                      </Link>
+                    ) : (
+                      <span className="text-ink-2">–</span>
+                    )}
+                  </td>
                   <td className="px-2 py-2.5 text-right text-ink-2 tnum">{p.warrantyMonths ? `${p.warrantyMonths} tháng` : "–"}</td>
                   <td className="px-3 py-2.5 text-right">
                     <input type="checkbox" role="switch" aria-label={`Đang bán ${p.name}`} checked={p.active} disabled={!canEdit} onChange={() => toggle(p)} className="h-4 w-4 accent-[var(--primary)]" />
@@ -235,6 +259,47 @@ export function ProductsClient({ initial, canEdit, canDelete }: { initial: Item[
                 <span className="label">Bảo hành (tháng)</span>
                 <input className="input tnum" inputMode="numeric" value={edit.f.warrantyMonths} onChange={(e) => setF("warrantyMonths", e.target.value.replace(/\D/g, ""))} />
               </label>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="grid gap-1">
+                <span className="label">SKU</span>
+                <input className="input" value={edit.f.sku} onChange={(e) => setF("sku", e.target.value)} maxLength={80} placeholder="Mã kho / mã vạch" />
+              </label>
+              <label className="grid gap-1">
+                <span className="label">Khối lượng (gram)</span>
+                <input className="input tnum" inputMode="numeric" value={edit.f.weightGram} onChange={(e) => setF("weightGram", e.target.value.replace(/\D/g, ""))} placeholder="Dùng tính phí giao hàng" />
+              </label>
+            </div>
+            <div className="grid gap-2 rounded-md border border-line-soft p-3">
+              <label className="flex items-center gap-2 text-[14px]">
+                <input type="checkbox" role="switch" checked={edit.f.trackStock} onChange={(e) => setF("trackStock", e.target.checked)} className="h-4 w-4 accent-[var(--primary)]" />
+                Theo dõi tồn kho (hàng vật lý)
+              </label>
+              {edit.f.trackStock && (
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="grid gap-1">
+                    <span className="label">Báo sắp hết khi còn ≤</span>
+                    <input className="input tnum" inputMode="decimal" value={edit.f.lowStock} onChange={(e) => setF("lowStock", e.target.value.replace(/[^\d.,]/g, ""))} placeholder="0 = không báo" />
+                  </label>
+                  {edit.id ? (
+                    <div className="grid gap-1">
+                      <span className="label">Tồn hiện tại</span>
+                      <p className="flex h-9 items-center gap-2 text-[14px] tnum">
+                        {fmtQty(items.find((x) => x.id === edit.id)?.stock ?? 0)}
+                        <Link href={`/w/stock?product=${edit.id}`} className="text-[13px] text-primary hover:underline">
+                          Thẻ kho
+                        </Link>
+                      </p>
+                    </div>
+                  ) : (
+                    <label className="grid gap-1">
+                      <span className="label">Tồn đầu kỳ</span>
+                      <input className="input tnum" inputMode="decimal" value={edit.f.openingStock} onChange={(e) => setF("openingStock", e.target.value.replace(/[^\d.,]/g, ""))} placeholder="0" />
+                    </label>
+                  )}
+                </div>
+              )}
+              <p className="text-[12px] text-ink-2">Tồn chỉ đổi qua phiếu nhập/xuất/kiểm kê ở trang Tồn kho và khi đơn được xác nhận/huỷ.</p>
             </div>
             <label className="grid gap-1">
               <span className="label">Mô tả</span>

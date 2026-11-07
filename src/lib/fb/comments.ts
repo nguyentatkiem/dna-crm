@@ -102,10 +102,12 @@ export async function commentAction(conv: Conversation, action: CommentAction, o
   }
   const target = await targetOf(conv, opts.messageId);
   if (!target) return { ok: false, status: 404, error: "Không tìm thấy bình luận trong hội thoại này" };
-  if (!target.commentId) return { ok: false, status: 400, error: "Tin này không phải bình luận Facebook" };
+  if (!target.commentId) return { ok: false, status: 400, error: conv.channel === "instagram" ? "Tin này không phải bình luận Instagram" : "Tin này không phải bình luận Facebook" };
   if (target.status === "deleted" || target.status === "removed") return { ok: false, status: 409, error: "Bình luận đã bị xoá" };
   const { token, page } = await pageTokenFor(wid, conv.pageId);
   const simulated = isDryRun(token);
+  // Trang Instagram (FbPage platform "instagram") hoặc hội thoại kênh instagram: dùng API bình luận Instagram.
+  const platform = page?.platform === "instagram" || conv.channel === "instagram" ? "instagram" : "facebook";
   const text = (opts.text ?? "").trim();
   if ((action === "reply" || action === "private_reply") && !text) return { ok: false, status: 400, error: "Nhập nội dung trả lời" };
   if (!token) {
@@ -116,7 +118,7 @@ export async function commentAction(conv: Conversation, action: CommentAction, o
   try {
     switch (action) {
       case "reply": {
-        const id = await replyComment(token, target.commentId, text);
+        const id = await replyComment(token, target.commentId, text, platform);
         const msg = await db.message.create({ data: { conversationId: conv.id, direction: "out", kind: "comment", text, commentId: id, parentId: target.commentId, externalId: id, author: opts.actor } });
         const next = await markOut(conv, msg.createdAt, text, opts.auto);
         return { ok: true, action, message: toCommentMessage(msg), target: toCommentMessage(target), conversation: convPatch(next), simulated };
@@ -150,13 +152,13 @@ export async function commentAction(conv: Conversation, action: CommentAction, o
       case "hide":
       case "unhide": {
         const hidden = action === "hide";
-        await setCommentHidden(token, target.commentId, hidden);
+        await setCommentHidden(token, target.commentId, hidden, platform);
         const t = await db.message.update({ where: { id: target.id }, data: { hidden } });
         return { ok: true, action, message: null, target: toCommentMessage(t), conversation: convPatch(conv), simulated };
       }
       case "like": {
         const like = !target.liked;
-        await likeComment(token, target.commentId, like);
+        await likeComment(token, target.commentId, like, platform);
         const t = await db.message.update({ where: { id: target.id }, data: { liked: like } });
         return { ok: true, action, message: null, target: toCommentMessage(t), conversation: convPatch(conv), simulated };
       }
@@ -167,7 +169,7 @@ export async function commentAction(conv: Conversation, action: CommentAction, o
       }
     }
   } catch (e) {
-    const error = e instanceof FbError ? e.message : `Lỗi khi gọi Facebook: ${e instanceof Error ? e.message : String(e)}`;
+    const error = e instanceof FbError ? e.message : `Lỗi khi gọi ${platform === "instagram" ? "Instagram" : "Facebook"}: ${e instanceof Error ? e.message : String(e)}`;
     if (opts.auto) warnOnce(`${wid}:${conv.pageId}:${action}:${e instanceof FbError ? e.code : "x"}`, `Tự động ${action} bình luận thất bại ở trang ${conv.pageId}: ${error}`);
     // Trả lời không gửi được vẫn lưu lại (failed) để nhân viên thấy và gửi lại.
     let failed: Message | null = null;

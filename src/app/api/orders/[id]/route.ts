@@ -4,7 +4,9 @@ import { audit, diffOf } from "@/lib/audit";
 import { docScope, scoped, resolveLinks } from "@/lib/sales/access";
 import { totals } from "@/lib/sales/lines";
 import { OrderInput, OrderPatch, firstError } from "@/lib/sales/schemas";
-import { completeIfReady } from "@/lib/sales/service";
+import { afterOrderStatus } from "@/lib/sales/service";
+import { stampDocLines } from "@/lib/sales/tier-pricing";
+import { checkCommit, syncOrderStock } from "@/lib/stock/server";
 import { markVoucherUsed, orderVoucher, releaseOrderVoucher } from "@/lib/voucher/service";
 import { ORDER_NEXT, ORDER_STATUS, type OrderStatus } from "@/lib/sales/shared";
 
@@ -40,6 +42,10 @@ export async function PATCH(req: Request, { params }: Ctx) {
   if (d.status && d.status !== before.status) {
     if (!ORDER_NEXT[before.status as OrderStatus]?.includes(d.status as OrderStatus)) return fail(`Không chuyển được từ “${ORDER_STATUS[before.status as OrderStatus]?.label ?? before.status}” sang “${ORDER_STATUS[d.status as OrderStatus].label}”`, 409);
     if (d.status === "cancelled" && before.paid > 0 && !s.perm.cancelPaid) return fail("Đơn đã thu tiền: bạn chưa có quyền “Huỷ đơn đã thu tiền”", 403);
+    // Kho: không cho âm kho mà thiếu hàng thì không xác nhận được (dòng hàng gửi kèm thì kiểm theo dòng mới).
+    const items = Array.isArray(body.items) ? JSON.stringify(body.items) : before.itemsJson;
+    const short = await checkCommit(a.ctx.workspace.id, { ...before, itemsJson: items }, d.status);
+    if (short) return fail(short, 409);
     data.status = d.status;
   }
   if (d.dueAt !== undefined) data.dueAt = d.dueAt;
@@ -53,12 +59,13 @@ export async function PATCH(req: Request, { params }: Ctx) {
     const vc = await orderVoucher(a.ctx.workspace.id, body.voucherCode ?? before.voucherCode, totals(full.data.items, full.data.discount).subtotal - full.data.discount, links.contactId, id);
     if ("error" in vc) return fail(vc.error ?? "Mã giảm giá không hợp lệ", 422);
     voucher = vc;
+    const stamped = await stampDocLines(a.ctx.workspace.id, links.contactId, full.data.items);
     withoutVoucher = { ...totals(full.data.items, full.data.discount), voucherCode: "" };
     Object.assign(data, {
       ...links,
       customerName: full.data.customerName,
       customerPhone: full.data.customerPhone,
-      itemsJson: JSON.stringify(full.data.items),
+      itemsJson: JSON.stringify(stamped),
       ...totals(full.data.items, full.data.discount + vc.discount),
       voucherCode: vc.code,
     });
@@ -80,7 +87,8 @@ export async function PATCH(req: Request, { params }: Ctx) {
     const what = data.status ? `trạng thái → ${ORDER_STATUS[data.status as OrderStatus].label}` : Object.keys(diff).join(", ");
     await audit({ workspaceId: a.ctx.workspace.id, user: a.ctx.user }, "order.update", "order", id, `Sửa đơn ${order.number}: ${what}`, diff);
   }
-  await completeIfReady(id);
+  // Đổi trạng thái → trừ/hoàn kho (idempotent) + tích điểm khi hoàn tất và thu đủ.
+  await afterOrderStatus(order.workspaceId, id, a.ctx.user);
   return ok(await db.order.findUnique({ where: { id }, include: { payments: { orderBy: { paidAt: "desc" } } } }));
 }
 
@@ -94,6 +102,8 @@ export async function DELETE(_req: Request, { params }: Ctx) {
   if (!before) return fail("Không tìm thấy đơn hàng", 404);
   await db.order.delete({ where: { id } });
   await releaseOrderVoucher(a.ctx.workspace.id, id);
+  // Đơn đã trừ kho mà bị xoá → hoàn lại kho.
+  await syncOrderStock(a.ctx.workspace.id, id, a.ctx.user).catch((e) => console.error("[stock]", e));
   // Báo giá gốc mở lại được để tạo đơn mới.
   await db.quote.updateMany({ where: { workspaceId: a.ctx.workspace.id, orderId: id }, data: { orderId: null } });
   await audit({ workspaceId: a.ctx.workspace.id, user: a.ctx.user }, "order.delete", "order", id, `Xoá đơn ${before.number} (${before.customerName})`, { before });

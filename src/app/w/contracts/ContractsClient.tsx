@@ -175,6 +175,11 @@ export function ContractsClient({ initial, orders, recs: initialRecs, openId, de
                 )}
               </span>
             )}
+            {edit?.id && (
+              <Link href={`/w/contracts/${edit.id}/print`} className="btn-ghost">
+                <Icon name="download" size={15} /> In
+              </Link>
+            )}
             <button type="button" className="btn-ghost" onClick={() => setEdit(null)}>
               Huỷ
             </button>

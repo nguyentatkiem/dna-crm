@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Record as DbRecord } from "@prisma/client";
 import { requireApp } from "@/lib/auth";
+import { HealthBanner } from "@/app/w/settings/health/HealthBanner";
 import { db } from "@/lib/db";
 import { getObject } from "@/lib/config/schema";
 import { computeKpis, wonLost } from "@/lib/metrics";
@@ -144,6 +145,7 @@ export default async function HomePage() {
 
   return (
     <div className="canvas px-4 pb-16 pt-6 sm:px-8">
+      <HealthBanner workspaceId={workspace.id} userId={user.id} />
       <header className="flex flex-wrap items-end gap-3">
         <div className="min-w-0 flex-1 basis-[300px]">
           <p className="text-[13.5px] capitalize text-ink-2">{now.toLocaleDateString("vi-VN", { weekday: "long", day: "numeric", month: "long" })}</p>

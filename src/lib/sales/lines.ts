@@ -1,7 +1,20 @@
 // Tính tiền dòng hàng cho báo giá và đơn hàng. Thuần, dùng được cả client lẫn server.
 import { z } from "zod";
 
-export type Line = { productId?: string; code: string; name: string; unit: string; qty: number; price: number; discountPct: number; vatPct: number };
+export type Line = {
+  productId?: string;
+  code: string;
+  name: string;
+  unit: string;
+  qty: number;
+  price: number;
+  discountPct: number;
+  vatPct: number;
+  /** Giá niêm yết của sản phẩm lúc lập chứng từ (máy chủ ghi). */
+  listPrice?: number;
+  /** Quy tắc giá theo hạng đã áp (máy chủ xác nhận; rỗng = giá niêm yết hoặc giá gõ tay). */
+  priceRuleId?: string;
+};
 export type Totals = { subtotal: number; vatTotal: number; discount: number; total: number };
 
 const pct = z.coerce.number().min(0).max(100).catch(0);
@@ -15,6 +28,8 @@ export const LineSchema = z.object({
   price: z.coerce.number().min(0).max(1e13),
   discountPct: pct,
   vatPct: pct,
+  listPrice: z.coerce.number().min(0).max(1e13).optional().catch(undefined),
+  priceRuleId: z.string().max(60).optional().nullable().catch(undefined).transform((v) => v || undefined),
 });
 export const LinesSchema = z.array(LineSchema).max(200);
 

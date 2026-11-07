@@ -8,6 +8,7 @@ import { CreateTicketButton } from "@/components/care/CreateTicketButton";
 import type { InboxDetail, InboxItem, InboxMessage } from "@/lib/inbox-types";
 import type { InboxTag, QuickReplyDTO, Topic } from "@/lib/quick-replies";
 import { Composer, type ComposerHandle } from "./Composer";
+import { BotBanner } from "@/components/kb/BotBanner";
 import { CommentThread, MessageList, PostHeader, type CommentAction } from "./Messages";
 import { AngryBadge, api, ApiError, ChannelBadge, Face, StaffAvatar, TagChip, type Perms } from "./shared";
 
@@ -238,6 +239,7 @@ export const ConversationView = forwardRef<ComposerHandle, Props>(function Conve
         </div>
       </header>
 
+      <BotBanner convId={conv.id} trigger={detail?.messages.length ?? 0} />
       <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto bg-surface-2 px-3 py-4 sm:px-6">
         {conv.kind === "comment" && <PostHeader post={detail?.post ?? null} postId={conv.postId} onFilterPost={p.onFilterPost} />}
         {!messages ? (

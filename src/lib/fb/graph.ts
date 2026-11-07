@@ -93,10 +93,14 @@ export async function fetchRecentPosts(token: string, pageId: string, limit = 25
 
 /* ───────────── Bình luận ───────────── */
 
-/** Trả lời công khai dưới bình luận. Trả id bình luận mới. */
-export async function replyComment(token: string, commentId: string, text: string): Promise<string> {
+/** "instagram" = bình luận trên tài khoản Instagram chuyên nghiệp (Instagram Graph API, cùng token trang liên kết). */
+export type CommentPlatform = string; // "facebook" | "instagram"
+const isIg = (p?: CommentPlatform) => p === "instagram";
+
+/** Trả lời công khai dưới bình luận. Trả id bình luận mới. Instagram: POST /{ig-comment-id}/replies. */
+export async function replyComment(token: string, commentId: string, text: string, platform?: CommentPlatform): Promise<string> {
   if (isDryRun(token)) return dryId("comment");
-  const j = await graph<{ id?: string }>(token, "POST", `${encodeURIComponent(commentId)}/comments`, { message: text });
+  const j = await graph<{ id?: string }>(token, "POST", `${encodeURIComponent(commentId)}/${isIg(platform) ? "replies" : "comments"}`, { message: text });
   return j.id ?? "";
 }
 
@@ -110,14 +114,15 @@ export async function privateReply(token: string, commentId: string, text: strin
   return { recipientId: j.recipient_id ?? "", messageId: j.message_id ?? "" };
 }
 
-/** Ẩn / hiện bình luận (is_hidden). Người bình luận và bạn bè họ vẫn thấy. */
-export async function setCommentHidden(token: string, commentId: string, hidden: boolean): Promise<void> {
+/** Ẩn / hiện bình luận (is_hidden; Instagram: hide). Người bình luận và bạn bè họ vẫn thấy. */
+export async function setCommentHidden(token: string, commentId: string, hidden: boolean, platform?: CommentPlatform): Promise<void> {
   if (isDryRun(token)) return;
-  await graph(token, "POST", encodeURIComponent(commentId), { is_hidden: hidden });
+  await graph(token, "POST", encodeURIComponent(commentId), isIg(platform) ? { hide: hidden } : { is_hidden: hidden });
 }
 
 /** Trang thích / bỏ thích bình luận. */
-export async function likeComment(token: string, commentId: string, like = true): Promise<void> {
+export async function likeComment(token: string, commentId: string, like = true, platform?: CommentPlatform): Promise<void> {
+  if (isIg(platform)) throw new FbError("Instagram không cho trang thích bình luận qua API.", 0);
   if (isDryRun(token)) return;
   await graph(token, like ? "POST" : "DELETE", `${encodeURIComponent(commentId)}/likes`);
 }

@@ -3,6 +3,7 @@ import { appApi, fail, ok } from "@/lib/http";
 import { audit, diffOf } from "@/lib/audit";
 import { canEditDoc, docScope, notifyManagers, scoped, resolveLinks } from "@/lib/sales/access";
 import { totals } from "@/lib/sales/lines";
+import { stampDocLines } from "@/lib/sales/tier-pricing";
 import { QuoteInput, firstError } from "@/lib/sales/schemas";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -30,7 +31,9 @@ export async function PATCH(req: Request, { params }: Ctx) {
   if (!p.success) return fail(firstError(p.error));
   const d = p.data;
   const links = await resolveLinks(a.ctx, d);
-  const t = totals(d.items, d.discount);
+  // Ghi giá niêm yết + quy tắc giá theo hạng đúng thực tế (client không giả được nhãn "giá hạng").
+  const items = await stampDocLines(a.ctx.workspace.id, links.contactId, d.items);
+  const t = totals(items, d.discount);
   // Nhân viên sửa báo giá đã duyệt/đã gửi thì phải duyệt lại; quản lý sửa giữ nguyên trạng thái.
   let status = before.status;
   if (d.intent === "submit") status = s.perm.approve ? "approved" : "pending";
@@ -43,7 +46,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
     customerEmail: d.customerEmail,
     title: d.title,
     status,
-    itemsJson: JSON.stringify(d.items),
+    itemsJson: JSON.stringify(items),
     ...t,
     validUntil: d.validUntil === undefined ? before.validUntil : d.validUntil,
     note: d.note,

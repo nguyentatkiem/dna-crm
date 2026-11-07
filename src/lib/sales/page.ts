@@ -15,7 +15,7 @@ export async function salesPage() {
 
 /** Sản phẩm đang bán cho ô chọn dòng hàng. */
 export const activeProducts = (workspaceId: string) =>
-  db.product.findMany({ where: { workspaceId, active: true }, orderBy: [{ category: "asc" }, { name: "asc" }], select: { id: true, code: true, name: true, unit: true, category: true, price: true, vat: true } });
+  db.product.findMany({ where: { workspaceId, active: true }, orderBy: [{ category: "asc" }, { name: "asc" }], select: { id: true, code: true, name: true, unit: true, category: true, price: true, vat: true, trackStock: true, stock: true } });
 
 /** Bản nháp ban đầu cho trình soạn, điền sẵn khách/giao dịch khi mở từ một record (?record=id). */
 export async function draftFromRecord(ctx: Awaited<ReturnType<typeof salesPage>>, recordId?: string) {

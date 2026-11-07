@@ -4,7 +4,7 @@ import { accessOf, allow } from "@/lib/permissions";
 import { PagesClient } from "./PagesClient";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Trang Facebook · DNA CRM" };
+export const metadata = { title: "Kênh kết nối · DNA CRM" };
 
 export default async function InboxPagesPage() {
   const { user, workspace } = await requireApp();
@@ -19,9 +19,9 @@ export default async function InboxPagesPage() {
           Bài viết →
         </Link>
       </div>
-      <h1 className="mt-1 text-[26px] font-semibold">Trang Facebook</h1>
+      <h1 className="mt-1 text-[26px] font-semibold">Kênh kết nối</h1>
       <p className="mt-1 max-w-3xl text-ink-2">
-        Kết nối fanpage để tin nhắn và bình luận về chung Hộp thư. Cài tự ẩn bình luận có SĐT, tự thích, chữ ký cuối tin, và tạo link m.me có mã nguồn để biết khách đến từ đâu.
+        Kết nối Facebook, Instagram, WhatsApp để tin nhắn và bình luận về chung Hộp thư; kết nối Shopee, TikTok Shop để đơn sàn tự vào Đơn hàng. Cài tự ẩn bình luận có SĐT, chữ ký cuối tin, và tạo link m.me có mã nguồn để biết khách đến từ đâu.
       </p>
       <PagesClient canConnect={allow(acc, "integrations_manage")} canSettings={allow(acc, "integrations_manage") || allow(acc, "inbox_settings")} canInbox={allow(acc, "inbox_settings")} />
     </div>

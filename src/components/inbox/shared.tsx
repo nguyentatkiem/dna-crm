@@ -13,6 +13,9 @@ export const CH: Record<string, { label: string; bg: string; letter: string }> =
   messenger: { label: "Messenger", bg: "#0084ff", letter: "m" },
   facebook: { label: "Facebook", bg: "#1877f2", letter: "f" },
   instagram: { label: "Instagram", bg: "#d62976", letter: "ig" },
+  whatsapp: { label: "WhatsApp", bg: "#1da851", letter: "wa" },
+  shopee: { label: "Shopee", bg: "#ee4d2d", letter: "S" },
+  tiktok: { label: "TikTok Shop", bg: "#25262b", letter: "tt" },
 };
 export const chOf = (c: string) => CH[c] ?? { label: c || "Kênh", bg: "#676879", letter: (c[0] ?? "?").toUpperCase() };
 

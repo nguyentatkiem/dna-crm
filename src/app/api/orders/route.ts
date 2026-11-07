@@ -1,11 +1,9 @@
 import { db } from "@/lib/db";
 import { appApi, fail, ok } from "@/lib/http";
-import { audit } from "@/lib/audit";
-import { nextNumber } from "@/lib/counter";
 import { docScope, linkedTo, scoped, resolveLinks } from "@/lib/sales/access";
 import { totals } from "@/lib/sales/lines";
 import { OrderInput, firstError } from "@/lib/sales/schemas";
-import { orderFromQuote } from "@/lib/sales/service";
+import { createOrder, orderFromQuote } from "@/lib/sales/service";
 import { markVoucherUsed, orderVoucher } from "@/lib/voucher/service";
 import { ORDER_STATUSES, fold, overdue, remaining } from "@/lib/sales/shared";
 
@@ -50,23 +48,18 @@ export async function POST(req: Request) {
   // Mã giảm giá: tính trên tạm tính sau chiết khấu tay, cộng vào chiết khấu đơn.
   const vc = await orderVoucher(wid, body.voucherCode, totals(d.items, d.discount).subtotal - d.discount, links.contactId);
   if ("error" in vc) return fail(vc.error ?? "Mã giảm giá không hợp lệ", 422);
-  const number = await nextNumber(wid, "DH");
-  const order = await db.order.create({
-    data: {
-      workspaceId: wid,
-      number,
-      ...links,
-      customerName: d.customerName,
-      customerPhone: d.customerPhone,
-      itemsJson: JSON.stringify(d.items),
-      ...totals(d.items, d.discount + vc.discount),
-      voucherCode: vc.code,
-      dueAt: d.dueAt ?? null,
-      note: d.note,
-      createdBy: a.ctx.user.name,
-    },
+  const { order } = await createOrder(a.ctx, {
+    workspaceId: wid,
+    ...links,
+    customerName: d.customerName,
+    customerPhone: d.customerPhone,
+    items: d.items,
+    discount: d.discount + vc.discount,
+    voucherCode: vc.code,
+    dueAt: d.dueAt ?? null,
+    note: d.note,
+    createdBy: a.ctx.user.name,
   });
-  await audit({ workspaceId: wid, user: a.ctx.user }, "order.create", "order", order.id, `Tạo đơn ${number} cho ${order.customerName} (${order.total.toLocaleString("vi-VN")} ₫)`);
   // Hai đơn cùng lúc dùng một mã: đơn nào giữ được mã trước thì thắng, đơn còn lại huỷ tạo để không giảm giá hai lần.
   if (vc.code && !(await markVoucherUsed(wid, vc.code, order, vc.discount, a.ctx.user.name))) {
     await db.order.delete({ where: { id: order.id } });

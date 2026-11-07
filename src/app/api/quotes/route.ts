@@ -5,6 +5,7 @@ import { nextNumber } from "@/lib/counter";
 import { COMPANY_DEFAULT, getPref, type Company } from "@/lib/prefs";
 import { docScope, linkedTo, notifyManagers, scoped, resolveLinks } from "@/lib/sales/access";
 import { totals } from "@/lib/sales/lines";
+import { stampDocLines } from "@/lib/sales/tier-pricing";
 import { QuoteInput, firstError } from "@/lib/sales/schemas";
 import { QUOTE_STATUSES, fold } from "@/lib/sales/shared";
 
@@ -37,7 +38,9 @@ export async function POST(req: Request) {
   const d = p.data;
   const wid = a.ctx.workspace.id;
   const links = await resolveLinks(a.ctx, d);
-  const t = totals(d.items, d.discount);
+  // Ghi giá niêm yết + quy tắc giá theo hạng đúng thực tế (client không giả được nhãn "giá hạng").
+  const items = await stampDocLines(a.ctx.workspace.id, links.contactId, d.items);
+  const t = totals(items, d.discount);
   const company = await getPref<Company>(wid, "company", COMPANY_DEFAULT);
   // Quản lý bấm "Lưu & duyệt" thì duyệt luôn; nhân viên bấm "Gửi duyệt" thì chờ duyệt.
   const status = d.intent === "submit" ? (s.perm.approve ? "approved" : "pending") : "draft";
@@ -52,7 +55,7 @@ export async function POST(req: Request) {
       customerEmail: d.customerEmail,
       title: d.title,
       status,
-      itemsJson: JSON.stringify(d.items),
+      itemsJson: JSON.stringify(items),
       ...t,
       validUntil: d.validUntil ?? new Date(Date.now() + 15 * 864e5),
       note: d.note,

@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { lineNet, totals, type Line } from "@/lib/sales/lines";
 import { money } from "@/lib/sales/shared";
+import { priceFor, type PriceRuleLite } from "@/lib/sales/pricing";
+import { fmtQty } from "@/lib/stock/shared";
 import { ContactPicker, DealPicker, ProductPicker, customerOfRecord, type ProductOpt } from "./Pickers";
 import { TotalsBox } from "./LinesView";
 import { VoucherField, type AppliedVoucher } from "@/components/voucher/VoucherField";
@@ -36,7 +38,11 @@ export type DocDraft = {
  * Soạn báo giá hoặc đơn hàng: chọn khách, gắn giao dịch, thêm dòng hàng, chiết khấu, điều khoản.
  * Tiền tính lại ngay khi gõ bằng cùng hàm totals() phía máy chủ dùng.
  */
-export function DocEditor({ kind, id, initial, products, seeAll, dealLabel, backHref }: { kind: "quote" | "order"; id?: string; initial: DocDraft; products: ProductOpt[]; seeAll: boolean; dealLabel: string; backHref: string }) {
+/** Sản phẩm cho trình soạn: thêm tồn kho (activeProducts trả kèm). */
+type Prod = ProductOpt & { trackStock?: boolean; stock?: number };
+type TierInfo = { tier: { name: string; color: string } | null; rules: PriceRuleLite[] };
+
+export function DocEditor({ kind, id, initial, products, seeAll, dealLabel, backHref }: { kind: "quote" | "order"; id?: string; initial: DocDraft; products: Prod[]; seeAll: boolean; dealLabel: string; backHref: string }) {
   const router = useRouter();
   const [d, setD] = useState<DocDraft>(initial);
   const [busy, setBusy] = useState(false);
@@ -47,7 +53,53 @@ export function DocEditor({ kind, id, initial, products, seeAll, dealLabel, back
   const t = useMemo(() => totals(d.items, d.discount + (kind === "order" ? voucher?.discount ?? 0 : 0)), [d.items, d.discount, voucher, kind]);
   const voucherBase = useMemo(() => totals(d.items, d.discount).subtotal - d.discount, [d.items, d.discount]);
 
-  const addProduct = (p: ProductOpt) => set("items", [...d.items, { productId: p.id, code: p.code, name: p.name, unit: p.unit, qty: 1, price: p.price, discountPct: 0, vatPct: p.vat }]);
+  // Giá theo hạng của khách đang gắn (tự áp cho dòng thêm mới) + cấu hình kho (cảnh báo vượt tồn).
+  const [tier, setTier] = useState<TierInfo>({ tier: null, rules: [] });
+  const [allowNegative, setAllowNegative] = useState(true);
+  useEffect(() => {
+    let live = true;
+    if (!d.contactId) {
+      setTier({ tier: null, rules: [] });
+      return;
+    }
+    fetch(`/api/price-rules/for?contactId=${encodeURIComponent(d.contactId)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => live && j && setTier({ tier: j.tier, rules: j.rules ?? [] }))
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [d.contactId]);
+  useEffect(() => {
+    fetch("/api/stock/settings")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => j && setAllowNegative(j.allowNegative !== false))
+      .catch(() => undefined);
+  }, []);
+  const byId = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
+  const tierPrice = (l: Line) => {
+    const p = l.productId ? byId.get(l.productId) : undefined;
+    if (!p || !tier.tier) return null;
+    const r = priceFor({ basePrice: p.price, productId: p.id, category: p.category, tier: tier.tier.name, rules: tier.rules });
+    return r.ruleId ? { ...r, list: p.price } : null;
+  };
+  // Tổng SL theo sản phẩm (nhiều dòng cùng sản phẩm cộng lại) để so với tồn.
+  const need = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const l of d.items) if (l.productId) m.set(l.productId, (m.get(l.productId) ?? 0) + (Number(l.qty) || 0));
+    return m;
+  }, [d.items]);
+  const pendingTier = d.items.filter((l) => !l.priceRuleId && tierPrice(l) && l.price === tierPrice(l)!.list).length;
+  const applyTierAll = () => set("items", d.items.map((l) => {
+    const t = !l.priceRuleId && tierPrice(l);
+    return t && l.price === t.list ? { ...l, price: t.price, priceRuleId: t.ruleId ?? undefined, listPrice: t.list } : l;
+  }));
+
+  const addProduct = (p: Prod) => {
+    const r = tier.tier ? priceFor({ basePrice: p.price, productId: p.id, category: p.category, tier: tier.tier.name, rules: tier.rules }) : null;
+    const price = r?.ruleId ? r.price : p.price;
+    set("items", [...d.items, { productId: p.id, code: p.code, name: p.name, unit: p.unit, qty: 1, price, discountPct: 0, vatPct: p.vat, listPrice: p.price, ...(r?.ruleId ? { priceRuleId: r.ruleId } : {}) }]);
+  };
   const addFree = () => set("items", [...d.items, { code: "", name: "", unit: "", qty: 1, price: 0, discountPct: 0, vatPct: 0 }]);
 
   async function save(intent: "draft" | "submit") {
@@ -150,6 +202,19 @@ export function DocEditor({ kind, id, initial, products, seeAll, dealLabel, back
               <Icon name="plus" size={15} /> Dòng tự do
             </button>
           </div>
+          {tier.tier && (
+            <p className="flex flex-wrap items-center gap-2 text-[12.5px] text-ink-2">
+              <span className="badge" style={{ background: `${tier.tier.color}22`, color: tier.tier.color }}>
+                Hạng {tier.tier.name}
+              </span>
+              {tier.rules.length ? "Giá hạng tự áp cho dòng thêm mới." : "Hạng này chưa có bảng giá riêng."}
+              {pendingTier > 0 && (
+                <button type="button" className="btn-ghost h-7 text-[12.5px]" onClick={applyTierAll}>
+                  Áp giá hạng cho {pendingTier} dòng
+                </button>
+              )}
+            </p>
+          )}
           <ProductPicker products={products} onPick={addProduct} />
           {d.items.length === 0 && <p className="py-4 text-center text-[13.5px] text-ink-2">Chưa có dòng hàng. Tìm sản phẩm ở trên hoặc thêm dòng tự do.</p>}
           <ol className="grid gap-2">
@@ -172,7 +237,11 @@ export function DocEditor({ kind, id, initial, products, seeAll, dealLabel, back
                   </label>
                   <label className="grid gap-0.5">
                     <span className="text-[11.5px] text-ink-2">Đơn giá</span>
-                    <input className="input tnum" inputMode="numeric" value={l.price ? l.price.toLocaleString("vi-VN") : ""} placeholder="0" onChange={(e) => setLine(i, { price: Math.max(0, num(e.target.value)) })} />
+                    <input className="input tnum" inputMode="numeric" value={l.price ? l.price.toLocaleString("vi-VN") : ""} placeholder="0" onChange={(e) => {
+                        const price = Math.max(0, num(e.target.value));
+                        const t = tierPrice(l);
+                        setLine(i, { price, priceRuleId: t && t.price === price ? t.ruleId ?? undefined : undefined });
+                      }} />
                   </label>
                   <label className="grid gap-0.5">
                     <span className="text-[11.5px] text-ink-2">CK %</span>
@@ -187,6 +256,19 @@ export function DocEditor({ kind, id, initial, products, seeAll, dealLabel, back
                     <span className="font-semibold leading-9 tnum">{money(lineNet(l))}</span>
                   </div>
                 </div>
+                <LineHints
+                  l={l}
+                  tierLabel={(() => {
+                    const t = tierPrice(l);
+                    return t ? { label: t.label, price: t.price, list: t.list, ruleId: t.ruleId ?? "" } : null;
+                  })()}
+                  color={tier.tier?.color}
+                  prod={l.productId ? byId.get(l.productId) : undefined}
+                  need={l.productId ? need.get(l.productId) ?? 0 : 0}
+                  allowNegative={allowNegative}
+                  kind={kind}
+                  onPatch={(p) => setLine(i, p)}
+                />
               </li>
             ))}
           </ol>
@@ -252,6 +334,39 @@ export function DocEditor({ kind, id, initial, products, seeAll, dealLabel, back
           </Link>
         </div>
       </aside>
+    </div>
+  );
+}
+
+/** Dưới mỗi dòng: nhãn giá hạng (bỏ / áp lại) và cảnh báo vượt tồn kho. */
+function LineHints({ l, tierLabel, color, prod, need, allowNegative, kind, onPatch }: { l: Line; tierLabel: { label: string; price: number; list: number; ruleId: string } | null; color?: string; prod?: Prod; need: number; allowNegative: boolean; kind: "quote" | "order"; onPatch: (p: Partial<Line>) => void }) {
+  const applied = !!l.priceRuleId && !!tierLabel && l.price === tierLabel.price;
+  const over = prod?.trackStock && typeof prod.stock === "number" && need > prod.stock;
+  if (!applied && !tierLabel && !over) return null;
+  return (
+    <div className="mt-1.5 flex flex-wrap items-center gap-2 pl-7 text-[12.5px]">
+      {applied && tierLabel && (
+        <>
+          <span className="badge" style={{ background: `${color ?? "#e2a400"}22`, color: color ?? "#b07d00" }}>
+            {tierLabel.label}
+          </span>
+          <span className="text-ink-2 line-through tnum">{money(tierLabel.list)}</span>
+          <button type="button" className="text-primary hover:underline" onClick={() => onPatch({ price: tierLabel.list, priceRuleId: undefined })}>
+            Dùng giá niêm yết
+          </button>
+        </>
+      )}
+      {!applied && tierLabel && (
+        <button type="button" className="text-primary hover:underline" onClick={() => onPatch({ price: tierLabel.price, priceRuleId: tierLabel.ruleId, listPrice: tierLabel.list })}>
+          Áp giá {tierLabel.label.replace(/^Giá /, "")} ({money(tierLabel.price)})
+        </button>
+      )}
+      {over && (
+        <span role="status" className={allowNegative ? "text-warning" : "text-danger"}>
+          ⚠ Vượt tồn kho: còn {fmtQty(prod!.stock ?? 0)} {prod!.unit}
+          {!allowNegative && kind === "order" ? " — đơn sẽ không xác nhận được tới khi nhập thêm hàng" : allowNegative ? " (vẫn bán được, kho sẽ âm)" : ""}
+        </span>
+      )}
     </div>
   );
 }

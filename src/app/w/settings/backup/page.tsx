@@ -5,6 +5,8 @@ import { getSettings } from "@/lib/settings";
 import { dbProvider, listBackups } from "@/lib/backup";
 import { Icon } from "@/components/Icon";
 import { BackupPanel } from "./BackupPanel";
+import { RemotePanel } from "./RemotePanel";
+import { getRemote, maskRemote } from "@/lib/backup-remote";
 
 export const dynamic = "force-dynamic";
 
@@ -46,6 +48,7 @@ export default async function BackupPage() {
         workspaceName={workspace.name}
         provider={dbProvider()}
       />
+      <RemotePanel initial={maskRemote(await getRemote(workspace.id))} />
     </div>
   );
 }

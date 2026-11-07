@@ -8,6 +8,8 @@ import { viMessage } from "@/lib/format";
 import type { InboxItem, InboxMessage } from "@/lib/inbox-types";
 import { fold, insertAt, renderQuickReply, slashToken, suggestQuick, varsFor, type QuickReplyDTO, type Topic } from "@/lib/quick-replies";
 import { api, chOf } from "./shared";
+import { SuggestStrip } from "@/components/kb/SuggestStrip";
+import { WaTemplatePicker } from "./WaTemplatePicker";
 
 export type ComposerMode = "reply" | "private" | "note";
 export type ComposerHandle = { focus: () => void; setTarget: (m: InboxMessage | null, mode?: ComposerMode) => void; insert: (text: string) => void };
@@ -80,6 +82,8 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({ co
   const [topic, setTopic] = useState("");
   const [pq, setPq] = useState("");
   const [sendNow, setSendNow] = useState(false);
+  // Kho kiến thức: câu vừa gửi (để "Thêm vào kho").
+  const [lastSent, setLastSent] = useState("");
   const box = useRef<HTMLTextAreaElement>(null);
   const sending = useRef(false);
 
@@ -145,6 +149,7 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({ co
         if (!r.ok && r.error) setErr(r.error);
       }
       setUsedQuick(undefined);
+      if (mode !== "note") setLastSent(t);
       await onSent();
       // Đã tải lại tin thật: bỏ tin tạm (phòng khi nội dung máy chủ khác, vd. có thêm chữ ký).
       onOptimistic?.(null);
@@ -309,6 +314,20 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({ co
           <QuickList items={suggestions} topics={topics} active={slashIdx} onHover={setSlashIdx} onPick={(r) => pick(r, "slash")} />
         </div>
       )}
+
+      {conv.channel === "whatsapp" && <WaTemplatePicker conversationId={conv.id} onSent={() => void onSent()} />}
+
+      <SuggestStrip
+        convId={conv.id}
+        trigger={conv.lastInAt ?? conv.lastAt}
+        hidden={mode === "note"}
+        sentText={lastSent}
+        onInsert={(t) => {
+          setText(t);
+          setHint("Gợi ý từ kho kiến thức — kiểm tra, sửa cho đúng khách rồi gửi.");
+          setTimeout(() => box.current?.focus(), 0);
+        }}
+      />
 
       {/* Chừa chỗ cho nút Trợ lý AI nổi ở góc phải trên điện thoại. */}
       <div className="flex items-end gap-2 max-md:pr-[76px]">
