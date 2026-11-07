@@ -53,6 +53,9 @@ export default async function SettingsPage() {
           <Link href="/w/settings/fields" className="btn-outline">
             Quyền & bố cục trường
           </Link>
+          <Link href="/w/settings/tutorial" className="btn-outline">
+            Hướng dẫn người mới
+          </Link>
           <Link href="/onboarding" className="btn-primary">
             Sửa DNA và sinh lại
           </Link>
@@ -103,7 +106,7 @@ export default async function SettingsPage() {
       <FormEmbed formKey={workspace.formKey} />
       <FieldEditor config={config} />
 
-      <section className="card mt-4 flex flex-wrap items-center justify-between gap-3 p-5">
+      <section id="sample-data" className="card mt-4 flex scroll-mt-4 flex-wrap items-center justify-between gap-3 p-5">
         <div>
           <h2 className="text-[16px] font-semibold">Dữ liệu mẫu</h2>
           <p className="mt-1 text-[14px] text-ink-2">{sampleCount ? `Đang có ${sampleCount} mục mẫu. Xoá đi khi bạn bắt đầu nhập dữ liệu thật.` : "Không còn dữ liệu mẫu."}</p>

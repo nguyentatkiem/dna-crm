@@ -27,7 +27,7 @@ export default async function TeamsPage() {
       <Link href="/w/settings" className="text-[13px] text-ink-2 hover:underline">
         ← Cài đặt
       </Link>
-      <h1 className="mt-1 text-[26px] font-semibold">Phòng ban / đội</h1>
+      <h1 data-tour="teams-head" className="mt-1 text-[26px] font-semibold">Phòng ban / đội</h1>
       <p className="mt-1 text-ink-2">Nhóm nhân viên theo đội để đặt KPI theo đội, thưởng trưởng nhóm, và phân luồng phiếu hỗ trợ về đúng bộ phận.</p>
       <TeamsClient initialTeams={teams} people={people} initialRouting={routing} />
     </div>

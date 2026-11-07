@@ -519,7 +519,7 @@ export function Board({
         </div>
       </div>
 
-      <div className="mt-3">
+      <div className="mt-3" data-tour="board-views">
         <ViewsBar
           views={views}
           active={active}
@@ -541,7 +541,7 @@ export function Board({
         />
       </div>
 
-      <div className="mt-2 flex gap-1 overflow-x-auto border-b border-line-soft" role="tablist" aria-label="Kiểu xem">
+      <div data-tour="board-viewtabs" className="mt-2 flex gap-1 overflow-x-auto border-b border-line-soft" role="tablist" aria-label="Kiểu xem">
         {tabs.map(([k, label, icon]) => (
           <button key={k} type="button" role="tab" aria-selected={view === k} onClick={() => setView(k)} className={`-mb-px flex h-9 flex-none items-center gap-1.5 border-b-2 px-3 text-[14px] ${view === k ? "border-primary text-ink" : "border-transparent text-ink-2 hover:text-ink"}`}>
             <Icon name={icon} size={16} /> {label}
@@ -550,7 +550,7 @@ export function Board({
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <button type="button" className="btn-primary" onClick={async () => { const r = await create(`${obj.itemLabel} mới`); if (r) setOpenId(r.id); }}>
+        <button type="button" data-tour="board-add" className="btn-primary" onClick={async () => { const r = await create(`${obj.itemLabel} mới`); if (r) setOpenId(r.id); }}>
           Thêm {obj.itemLabel.toLowerCase()} mới
         </button>
         {isContacts && (
@@ -652,12 +652,12 @@ export function Board({
             <Icon name="history" size={16} /> <span className="max-sm:hidden">Nhật ký</span>
           </button>
           {canImport && (
-            <button type="button" className="btn-ghost" onClick={() => setImporting(true)}>
+            <button type="button" data-tour="board-import" className="btn-ghost" onClick={() => setImporting(true)}>
               <Icon name="upload" size={16} /> <span className="max-sm:hidden">Nhập</span>
             </button>
           )}
           {canExport && (
-            <button type="button" className="btn-ghost" onClick={() => void exportAll()}>
+            <button type="button" data-tour="board-export" className="btn-ghost" onClick={() => void exportAll()}>
               <Icon name="download" size={16} /> <span className="max-sm:hidden">Xuất Excel</span>
             </button>
           )}

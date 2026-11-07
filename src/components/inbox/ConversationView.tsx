@@ -213,7 +213,7 @@ export const ConversationView = forwardRef<ComposerHandle, Props>(function Conve
               <StaffAvatar name={conv.assignee} online={p.online.has(conv.assignee)} /> {conv.assignee === p.me ? "Bạn phụ trách" : conv.assignee}
             </span>
           ) : (
-            <button type="button" className="btn-outline h-7 px-2 text-[12.5px]" disabled={!!busy} onClick={() => patch({ assignee: p.me }, "assign")}>
+            <button type="button" data-tour="inbox-claim" className="btn-outline h-7 px-2 text-[12.5px]" disabled={!!busy} onClick={() => patch({ assignee: p.me }, "assign")}>
               <Icon name="person" size={13} /> Nhận hội thoại
             </button>
           )}

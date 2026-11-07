@@ -73,7 +73,7 @@ export function ProductsClient({ initial, canEdit, canDelete }: { initial: Item[
 
   return (
     <>
-      <div className="flex flex-wrap items-end justify-between gap-3">
+      <div data-tour="sales-products" className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-[26px] font-semibold">Sản phẩm & dịch vụ</h1>
           <p className="mt-1 text-ink-2">Danh mục dùng khi lập báo giá và đơn hàng.</p>

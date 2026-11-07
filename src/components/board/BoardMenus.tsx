@@ -31,7 +31,7 @@ export function FilterMenu({ fields, filters, mode, onChange }: { fields: Filter
   }, [p.open, p.ref]);
   return (
     <div ref={p.ref} className="relative">
-      <button type="button" className={`btn-ghost ${active ? "bg-primary-selected" : ""}`} onClick={() => { p.setOpen(!p.open); if (!filters.length) add(); }} aria-expanded={p.open}>
+      <button type="button" data-tour="board-filter" className={`btn-ghost ${active ? "bg-primary-selected" : ""}`} onClick={() => { p.setOpen(!p.open); if (!filters.length) add(); }} aria-expanded={p.open}>
         <Icon name="filter" size={16} /> Lọc{active ? ` · ${active}` : ""}
       </button>
       {p.open && (
@@ -127,7 +127,7 @@ export function ColumnsMenu({ cols, hidden, onChange }: { cols: Column[]; hidden
   const p = usePopover();
   return (
     <div ref={p.ref} className="relative">
-      <button type="button" className={`btn-ghost ${hidden.length ? "bg-primary-selected" : ""}`} onClick={() => p.setOpen(!p.open)} aria-expanded={p.open}>
+      <button type="button" data-tour="board-columns" className={`btn-ghost ${hidden.length ? "bg-primary-selected" : ""}`} onClick={() => p.setOpen(!p.open)} aria-expanded={p.open}>
         <Icon name="layout" size={16} /> Cột{hidden.length ? ` · ẩn ${hidden.length}` : ""}
       </button>
       {p.open && (

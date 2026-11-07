@@ -87,7 +87,7 @@ function TelesalesInner(p: Props) {
         </p>
       )}
       {drawer && <SipDrawer sip={p.sip} owner={p.canSip ?? p.owner} onClose={() => setDrawer(false)} />}
-      <nav className="mt-4 flex gap-1 overflow-x-auto border-b border-line" aria-label="Telesales">
+      <nav data-tour="ts-tabs" className="mt-4 flex gap-1 overflow-x-auto border-b border-line" aria-label="Telesales">
         {TABS.map(([k, label]) => (
           <Link key={k} href={`/w/telesales?tab=${k}`} className={`-mb-px flex-none border-b-2 px-3 py-2 text-[14px] ${p.tab === k ? "border-primary font-medium text-ink" : "border-transparent text-ink-2 hover:text-ink"}`}>
             {label}
@@ -206,7 +206,7 @@ function Queue({ queue, script, stt, contactLabel, objCtx }: Props) {
         onClose={() => setDialer(null)}
       />
       <div className="mt-4 grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
-        <ol className="card max-h-[38vh] overflow-y-auto p-1.5 lg:max-h-[75vh]" aria-label="Hàng gọi">
+        <ol data-tour="ts-queue" className="card max-h-[38vh] overflow-y-auto p-1.5 lg:max-h-[75vh]" aria-label="Hàng gọi">
           {(dialer?.running ? dialer.list : queue).map((q, i) => {
             const doneInSession = dialer?.running && i < dialer.idx;
             return (
@@ -279,7 +279,7 @@ function DialerBar(p: {
   const d = p.dialer;
   if (!d)
     return (
-      <section className="card mt-5 flex flex-wrap items-center gap-3 p-4">
+      <section data-tour="ts-auto" className="card mt-5 flex flex-wrap items-center gap-3 p-4">
         <span className="grid h-10 w-10 flex-none place-items-center rounded-full bg-primary-selected text-primary">
           <Icon name="bolt" size={18} />
         </span>
@@ -497,7 +497,7 @@ function CallDesk({
 
   return (
     <section id="call-desk" className="card grid min-w-0 content-start gap-4 p-4 sm:p-5">
-      <header className="flex flex-wrap items-center gap-3">
+      <header data-tour="ts-desk" className="flex flex-wrap items-center gap-3">
         <Avatar name={item.title} size={44} />
         <div className="min-w-[160px] flex-1">
           <h2 className="truncate text-[20px] font-semibold">{item.title}</h2>

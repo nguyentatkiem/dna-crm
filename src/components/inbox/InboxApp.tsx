@@ -369,7 +369,7 @@ export function InboxApp(props: InboxAppProps) {
   return (
     <div className="flex h-full min-h-[520px] flex-col bg-surface md:rounded-tl-lg">
       <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[300px_minmax(0,1fr)] xl:grid-cols-[300px_minmax(0,1fr)_290px] 2xl:grid-cols-[340px_minmax(0,1fr)_340px]">
-        <section className={`${pane === "list" ? "flex" : "hidden md:flex"} min-h-0 min-w-0 flex-col border-line-soft md:border-r`} aria-label="Danh sách hội thoại">
+        <section data-tour="inbox-list" className={`${pane === "list" ? "flex" : "hidden md:flex"} min-h-0 min-w-0 flex-col border-line-soft md:border-r`} aria-label="Danh sách hội thoại">
           <ConversationList
             list={list}
             loading={loading}
@@ -441,7 +441,7 @@ export function InboxApp(props: InboxAppProps) {
           )}
         </section>
 
-        <aside className={`${pane === "info" ? "flex" : "hidden xl:flex"} min-h-0 min-w-0 flex-col overflow-y-auto border-line-soft bg-surface-2 xl:border-l`} aria-label="Thông tin khách">
+        <aside data-tour="inbox-crm" className={`${pane === "info" ? "flex" : "hidden xl:flex"} min-h-0 min-w-0 flex-col overflow-y-auto border-line-soft bg-surface-2 xl:border-l`} aria-label="Thông tin khách">
           {sel ? (
             <CrmPanel
               detail={sel}

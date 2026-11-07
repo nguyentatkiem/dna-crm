@@ -6,18 +6,22 @@ import { Copilot } from "@/components/Copilot";
 import { CommandPalette } from "@/components/CommandPalette";
 import { Toaster } from "@/components/ui/Toast";
 import { INDUSTRIES } from "@/lib/dna";
+import { TutorialRoot } from "@/components/tutorial/TutorialRoot";
+import { tutorialBoot } from "@/lib/tutorial/server";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, workspace, config } = await requireApp();
   // Máy chủ dev chạy từ trước khi generate Prisma có thể chưa có bảng Conversation: không để cả app lỗi theo.
   const conv = db.conversation as typeof db.conversation | undefined;
-  const [counts, openTasks, inbox] = await Promise.all([
+  const industryLabel = INDUSTRIES[config.industry as keyof typeof INDUSTRIES]?.label ?? "";
+  const [counts, openTasks, inbox, boot] = await Promise.all([
     db.record.groupBy({ by: ["objectKey"], where: { workspaceId: workspace.id }, _count: true }),
     db.task.count({ where: { workspaceId: workspace.id, done: false } }),
     conv ? conv.aggregate({ where: { workspaceId: workspace.id }, _sum: { unread: true } }).catch(() => ({ _sum: { unread: 0 } })) : { _sum: { unread: 0 } },
+    tutorialBoot({ workspaceId: workspace.id, workspace: workspace.name, industry: industryLabel, user, term: config.terminology }),
   ]);
   const boards = config.objects.map((o) => ({ key: o.key, label: o.label, count: counts.find((c) => c.objectKey === o.key)?._count ?? 0 }));
-  const industry = INDUSTRIES[config.industry as keyof typeof INDUSTRIES]?.label ?? "";
+  const industry = industryLabel;
   const unread = inbox._sum.unread ?? 0;
 
   return (
@@ -32,6 +36,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <Copilot term={config.terminology} />
       <CommandPalette boards={boards} term={config.terminology} />
       <Toaster />
+      <TutorialRoot boot={boot} />
     </div>
   );
 }

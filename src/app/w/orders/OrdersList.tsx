@@ -23,14 +23,14 @@ export function OrdersList({ initial, initialStatus, initialDebt, canCreate = tr
 
   return (
     <>
-      <div className="flex flex-wrap items-end justify-between gap-3">
+      <div data-tour="sales-orders" className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-[26px] font-semibold">Đơn hàng</h1>
           <p className="mt-1 text-ink-2">Theo dõi giao hàng, thu tiền và công nợ.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           {canDebts && (
-            <Link href="/w/orders/debts" className="btn-outline">
+            <Link href="/w/orders/debts" data-tour="sales-debts" className="btn-outline">
               <Icon name="wallet" size={16} /> Công nợ
             </Link>
           )}

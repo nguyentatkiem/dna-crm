@@ -219,7 +219,7 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({ co
       ];
 
   return (
-    <div className={`relative border-t border-line-soft p-2.5 sm:p-3 ${mode === "note" ? "bg-warning-soft/40" : "bg-surface"}`}>
+    <div data-tour="inbox-composer" className={`relative border-t border-line-soft p-2.5 sm:p-3 ${mode === "note" ? "bg-warning-soft/40" : "bg-surface"}`}>
       <div className="mb-2 flex flex-wrap items-center gap-1">
         {MODES.map(([k, label]) => (
           <button

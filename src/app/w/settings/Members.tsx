@@ -115,7 +115,7 @@ export function Members() {
 
   return (
     <section id="members" className="card mt-4 scroll-mt-4 p-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div data-tour="settings-members" className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <h2 className="text-[16px] font-semibold">Thành viên & phân quyền</h2>
           <p className="mt-1 text-[14px] text-ink-2">Mời nhân viên bằng link dùng một lần, hết hạn sau 7 ngày. Vai trò của bạn: {roleLabel(d.myRole)}.</p>

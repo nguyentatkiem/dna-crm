@@ -58,6 +58,7 @@ const PAGES: Check[] = [
   ["Hoa hồng", "/w/perf/commission"],
   ["Phòng ban / đội", "/w/settings/teams"],
   ["Quyền & bố cục trường", "/w/settings/fields"],
+  ["Hướng dẫn người mới", "/w/settings/tutorial"],
 ].map(([name, path]) => ({ name, path, expect: "html" as const }));
 const APIS: Check[] = [
   { name: "API bản ghi", path: "/api/records?object=contacts", expect: "json" },
@@ -112,6 +113,9 @@ const APIS: Check[] = [
   { name: "API KPI", path: "/api/kpi", expect: "json" },
   { name: "API bảng tin", path: "/api/feed", expect: "json" },
   { name: "API bảo mật", path: "/api/privacy", expect: "json" },
+  { name: "API hướng dẫn", path: "/api/tutorial", expect: "json" },
+  { name: "API tiến độ đội", path: "/api/tutorial/team", expect: "json" },
+  { name: "API cài đặt hướng dẫn", path: "/api/tutorial/settings", expect: "json" },
   { name: "Manifest app", path: "/manifest.webmanifest" },
   { name: "Service worker", path: "/sw.js" },
   { name: "Xuất Excel", path: "/api/records/export?object=contacts", expect: "xlsx" },

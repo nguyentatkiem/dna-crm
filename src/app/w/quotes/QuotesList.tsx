@@ -25,7 +25,7 @@ export function QuotesList({ initial, initialStatus, seeAll, canCreate = true }:
 
   return (
     <>
-      <div className="flex flex-wrap items-end justify-between gap-3">
+      <div data-tour="sales-quotes" className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-[26px] font-semibold">Báo giá</h1>
           <p className="mt-1 text-ink-2">{seeAll ? "Lập, duyệt và gửi báo giá cho khách." : "Báo giá của bạn. Gửi duyệt trước khi gửi khách."}</p>

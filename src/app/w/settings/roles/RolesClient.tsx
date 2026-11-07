@@ -141,7 +141,7 @@ export function RolesClient({ initial, modules, canManage, myRole, initialRole, 
         <Compare view={view} />
       ) : (
         <div className="mt-4 grid gap-4 lg:grid-cols-[260px_minmax(0,1fr)]">
-          <aside className="grid content-start gap-2" aria-label="Danh sách vai trò">
+          <aside data-tour="roles-list" className="grid content-start gap-2" aria-label="Danh sách vai trò">
             <ul className="card grid divide-y divide-[var(--line-soft)] overflow-hidden">
               {view.roles.map((r) => (
                 <li key={r.key}>
@@ -195,7 +195,7 @@ export function RolesClient({ initial, modules, canManage, myRole, initialRole, 
           </aside>
 
           <section className="card min-w-0 p-4 sm:p-5" aria-label={`Quyền của vai trò ${role.name}`}>
-            <div className="flex flex-wrap items-start gap-3">
+            <div data-tour="roles-perms" className="flex flex-wrap items-start gap-3">
               <div className="min-w-0 flex-1">
                 {editable && !role.builtin ? (
                   <div className="flex flex-wrap items-center gap-2">

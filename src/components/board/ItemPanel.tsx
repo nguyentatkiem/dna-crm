@@ -127,7 +127,7 @@ export function ItemPanel({ obj, team, record, onClose, onPatch, onDelete, canDe
               )}
             </div>
             {/* Bảng Khách có 8 tab: điện thoại thì vuốt ngang, màn rộng thì xuống dòng để không tab nào bị khuất (Voucher). */}
-            <div className="mt-3 flex gap-x-1 overflow-x-auto sm:flex-wrap sm:overflow-visible">
+            <div data-tour="item-tabs" className="mt-3 flex gap-x-1 overflow-x-auto sm:flex-wrap sm:overflow-visible">
               {(
                 [
                   ...(obj.key === "contacts" ? ([["c360", "360°"]] as const) : []),

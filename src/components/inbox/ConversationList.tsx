@@ -53,7 +53,7 @@ const Row = memo(function Row({ c, active, cursor, checked, selecting, tagMap, n
       <label className={`absolute left-1 top-1/2 z-10 -translate-y-1/2 items-center p-1.5 ${selecting || checked ? "flex" : "hidden md:group-hover:flex"}`}>
         <input type="checkbox" checked={checked} onChange={() => onCheck(c.id)} aria-label={`Chọn ${c.name}`} className="h-4 w-4" />
       </label>
-      <button type="button" onClick={() => onOpen(c.id)} className={`flex w-full items-start gap-2.5 px-2.5 py-2.5 text-left ${selecting || checked ? "pl-8" : ""}`} aria-current={active ? "true" : undefined}>
+      <button type="button" data-tour="inbox-item" onClick={() => onOpen(c.id)} className={`flex w-full items-start gap-2.5 px-2.5 py-2.5 text-left ${selecting || checked ? "pl-8" : ""}`} aria-current={active ? "true" : undefined}>
         <Face c={c} />
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-1.5">
@@ -183,7 +183,7 @@ export function ConversationList(p: Props) {
             <Icon name="search" size={15} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-2" />
             <input ref={p.searchRef} className="input h-8 pl-8 text-[13px]" placeholder="Tìm tên, SĐT hoặc nội dung" value={p.search} onChange={(e) => p.setSearch(e.target.value)} aria-label="Tìm hội thoại" />
           </div>
-          <button type="button" onClick={() => setFilterOpen((v) => !v)} className={`btn-outline h-8 flex-none px-2 text-[13px] ${nFilters ? "border-primary text-primary" : ""}`} aria-expanded={filterOpen} aria-label="Bộ lọc nâng cao">
+          <button type="button" data-tour="inbox-filter" onClick={() => setFilterOpen((v) => !v)} className={`btn-outline h-8 flex-none px-2 text-[13px] ${nFilters ? "border-primary text-primary" : ""}`} aria-expanded={filterOpen} aria-label="Bộ lọc nâng cao">
             <Icon name="filter" size={14} />
             <span className="hidden sm:inline">Lọc</span>
             {nFilters > 0 && <span className="grid h-4 min-w-4 place-items-center rounded-full bg-primary px-1 text-[10.5px] font-semibold text-white tnum">{nFilters}</span>}

@@ -579,7 +579,7 @@ export function CrmPanel({ detail, me, labels, statuses, hasAppointments, hasDea
       )}
 
       <h3 className="label mt-5">Thao tác từ chat</h3>
-      <div className="mt-2 grid grid-cols-2 gap-1.5">
+      <div data-tour="inbox-order" className="mt-2 grid grid-cols-2 gap-1.5">
         <ActBtn icon="cart" label="Tạo đơn hàng" onClick={() => setOrderOpen(true)} disabled={!perms.salesCreate} title={perms.salesCreate ? undefined : "Cần quyền tạo chứng từ bán hàng"} />
         {perms.salesCreate && r ? (
           <Link href={`/w/quotes/new?record=${r.id}`} className="btn-outline h-9 justify-start px-2.5 text-[12.5px]">

@@ -185,14 +185,14 @@ function AutomationsInner({ config, initial, canManage, team, sequences, runs = 
           <p className="mt-1 max-w-2xl text-ink-2">Luật dạng câu “Khi … thì …” chạy nền 24/7: khi có khách mới, đổi trạng thái, có cuộc gọi, khách nhắn tin, đến ngày hẹn...</p>
         </div>
         {canManage && (
-          <button className="btn-primary" onClick={() => setEditing({ id: null, rule: blank })}>
+          <button data-tour="auto-new" className="btn-primary" onClick={() => setEditing({ id: null, rule: blank })}>
             <Icon name="plus" size={16} /> Tạo luật
           </button>
         )}
       </div>
 
       {canManage ? (
-        <form onSubmit={createFromText} className="mt-5 flex flex-wrap items-center gap-2 rounded-lg border border-[#d9c5f0] bg-surface-2 p-3">
+        <form data-tour="auto-ai" onSubmit={createFromText} className="mt-5 flex flex-wrap items-center gap-2 rounded-lg border border-[#d9c5f0] bg-surface-2 p-3">
           <Icon name="spark" size={18} className="ml-1 text-[#a25ddc]" />
           <input
             id="auto-text"
@@ -213,7 +213,7 @@ function AutomationsInner({ config, initial, canManage, team, sequences, runs = 
       )}
       {msg && <p className="mt-2 text-[13px] text-ink-2">{msg}</p>}
 
-      <nav className="mt-6 flex gap-1 border-b border-line" aria-label="Tự động hoá">
+      <nav data-tour="auto-tabs" className="mt-6 flex gap-1 border-b border-line" aria-label="Tự động hoá">
         {(
           [
             ["rules", `Luật của bạn (${rows.length})`],

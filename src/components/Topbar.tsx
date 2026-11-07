@@ -9,6 +9,7 @@ import { Icon, Logo } from "./Icon";
 import { Avatar } from "./Avatar";
 import { ago } from "@/lib/format";
 import { getTheme, setTheme, THEME_EVENT, type Theme } from "./ui/theme";
+import { HelpButton } from "./tutorial/HelpButton";
 
 type Note = { id: string; source: "notification" | "task" | "agent"; kind: string; text: string; at: string; href: string; read: boolean };
 
@@ -135,6 +136,7 @@ export function Topbar({ workspace, user, searchHref = "/w/b/contacts" }: { work
       </Link>
       <span className="hidden truncate text-[13px] text-ink-2 lg:inline">· {workspace}</span>
       <form
+        data-tour="search"
         className="relative ml-auto w-full min-w-0 max-w-[320px]"
         onSubmit={(e) => {
           e.preventDefault();
@@ -156,6 +158,8 @@ export function Topbar({ workspace, user, searchHref = "/w/b/contacts" }: { work
 
       <InstallAppButton compact className="btn-ghost h-8 flex-none px-2" />
 
+      <HelpButton />
+
       <div ref={bellRef} className="relative flex-none">
         <button
           type="button"
@@ -164,6 +168,7 @@ export function Topbar({ workspace, user, searchHref = "/w/b/contacts" }: { work
             setMenu(false);
             if (!bell) load();
           }}
+          data-tour="bell"
           className="btn-ghost relative h-8 w-8 justify-center p-0"
           aria-label={`Thông báo (${unreadCount} chưa đọc)`}
           aria-expanded={bell}

@@ -322,6 +322,7 @@ const Row = memo(function Row({ obj, team, r, cols, template, moneyCols, on, onS
   return (
     <div
       role="row"
+      data-tour="board-row"
       className="group grid"
       style={{ gridTemplateColumns: template }}
       onContextMenu={(e) => {
@@ -349,7 +350,7 @@ const Row = memo(function Row({ obj, team, r, cols, template, moneyCols, on, onS
         >
           …
         </button>
-        <button type="button" onClick={() => onOpen(r.id)} className="mr-1 flex h-7 flex-none items-center gap-1 rounded px-1.5 text-[12.5px] text-ink-2 opacity-0 hover:bg-hover hover:text-primary focus:opacity-100 group-hover:opacity-100 max-md:opacity-100" aria-label={`Mở chi tiết ${r.title}`}>
+        <button type="button" data-tour="board-row-open" onClick={() => onOpen(r.id)} className="mr-1 flex h-7 flex-none items-center gap-1 rounded px-1.5 text-[12.5px] text-ink-2 opacity-0 hover:bg-hover hover:text-primary focus:opacity-100 group-hover:opacity-100 max-md:opacity-100" aria-label={`Mở chi tiết ${r.title}`}>
           <Icon name="open" size={14} /> <span className="max-md:hidden">Mở</span>
         </button>
         {r.updates > 0 && <span className="mr-2 flex-none rounded-full bg-primary px-1.5 text-[11px] text-white tnum">{r.updates}</span>}

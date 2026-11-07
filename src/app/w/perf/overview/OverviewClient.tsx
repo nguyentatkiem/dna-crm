@@ -104,7 +104,7 @@ export function OverviewClient({ initial }: { initial: Overview }) {
         </div>
       </div>
 
-      <div className="mt-4">
+      <div className="mt-4" data-tour="perf-range">
         <RangePicker preset={data.range.preset} from={vnDate(data.range.cur.from)} to={vnDate(data.range.cur.to - 1)} disabled={busy} onChange={(range, from, to) => load({ range, from, to })} />
       </div>
 
@@ -148,7 +148,7 @@ export function OverviewClient({ initial }: { initial: Overview }) {
 
       {/* Bảng xếp hạng */}
       <section className="card mt-4" aria-labelledby="perf-board-h">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line-soft px-4 py-3">
+        <div data-tour="perf-board" className="flex flex-wrap items-center justify-between gap-2 border-b border-line-soft px-4 py-3">
           <h2 id="perf-board-h" className="font-medium">
             {self ? "Chỉ số của bạn" : "Bảng xếp hạng"} <span className="text-[12.5px] font-normal text-ink-2">· màu theo vị trí trong {data.teamId ? "đội" : data.scope === "team" ? "đội" : "công ty"} ({data.population} người)</span>
           </h2>
@@ -307,7 +307,7 @@ export function OverviewClient({ initial }: { initial: Overview }) {
           <p className="mt-1 text-[11.5px] text-ink-2">8 tuần gần nhất (thứ Hai → Chủ nhật){data.trend.series.length >= 10 ? " · 10 người đứng đầu" : ""}.</p>
         </section>
 
-        <section className="card min-w-0 p-4" aria-labelledby="perf-alert-h">
+        <section data-tour="perf-alerts" className="card min-w-0 p-4" aria-labelledby="perf-alert-h">
           <h2 id="perf-alert-h" className="mb-3 flex items-center gap-2 font-medium">
             <Icon name="bell" size={16} className="text-warning" /> Cần chú ý
             {data.alerts.length > 0 && <span className="badge-warning">{data.alerts.length}</span>}

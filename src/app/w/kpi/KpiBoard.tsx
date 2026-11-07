@@ -151,7 +151,7 @@ export function KpiBoard({ initial, me, canEdit }: { initial: Board; me: string;
 
   return (
     <div className="anim-fade">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+      <div data-tour="kpi-head" className="flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
           <h1 className="flex items-center gap-2 text-[26px] font-semibold">
             <Icon name="target" size={24} className="text-primary" /> Chỉ tiêu KPI

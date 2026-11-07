@@ -31,7 +31,7 @@ function CopyUrl({ url }: { url: string }) {
 export function SetupGuide({ setup }: { setup: Setup }) {
   return (
     <div className="min-h-0 flex-1 overflow-y-auto p-5 sm:p-8">
-      <div className="mx-auto max-w-2xl">
+      <div data-tour="inbox-setup" className="mx-auto max-w-2xl">
         <Icon name="inbox" size={30} className="text-primary" />
         <h2 className="mt-2 text-[22px] font-semibold">Gom tin Zalo OA và Messenger về một chỗ</h2>
         <p className="mt-1 text-ink-2">Bật webhook tin nhắn ở hai nền tảng, khách nhắn là tin hiện ngay tại đây, tự gắn với hồ sơ khách và báo cho người phụ trách.</p>

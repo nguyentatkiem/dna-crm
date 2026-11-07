@@ -230,6 +230,13 @@ So sánh đầy đủ với BizCRM (Bizfly) trong [docs/SO-SANH-BIZFLY.md](docs/
 - **Sao lưu tự động** mỗi ngày (giữ 14 bản), sao lưu/tải về/khôi phục ngay trong **Cài đặt → Sao lưu**.
 - Chuyển **SQLite ↔ Postgres** bằng một lệnh. **Kiểm thử tự động** (`npm test`, `npm run smoke`).
 
+### Hướng dẫn cho người mới
+- Lần đầu vào app có **lời chào** theo vai trò và ngành, ba lựa chọn: đi một vòng, xem việc cần làm, tự khám phá.
+- **Tour dẫn đường**: làm mờ màn hình, chỉ vào đúng nút và giải thích, tự chuyển trang; dùng phím → ← Esc; trên điện thoại hiện dạng ngăn kéo dưới. Có tour làm quen (khác nhau cho chủ và nhân viên) và tour riêng cho Bảng & dạng xem, Hộp thư, Telesales, Bán hàng, Tự động hoá, Hiệu suất, Vai trò & quyền.
+- **Danh sách "Bắt đầu"** ở góc dưới trái: tự đánh dấu xong khi bạn làm thật (nhập khách, kết nối kênh, mời đội, phân quyền, bật tự động hoá, tạo báo giá, đặt KPI…; nhân viên có danh sách riêng). Mỗi việc có nút "Làm ngay" và "Hướng dẫn".
+- **Menu "?"** trên thanh trên cùng: xem lại tour, danh sách bắt đầu, phím tắt, câu hỏi thường gặp, bắt đầu lại hướng dẫn. Lần đầu mở các trang chính có gợi ý "Lần đầu ở đây?".
+- **Cài đặt → Hướng dẫn cho đội**: chủ và quản lý xem từng người đã hoàn thành tới đâu, gửi nhắc, bật/tắt lời chào cho thành viên mới.
+
 ### Khác
 - **Bảng lệnh Ctrl/⌘ + K**: tìm khách (không dấu cũng ra), số điện thoại, tài liệu, trang, và hành động nhanh.
 - Thanh bên thu gọn được; trên điện thoại có thanh điều hướng dưới cùng.

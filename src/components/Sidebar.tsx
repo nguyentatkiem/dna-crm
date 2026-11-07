@@ -74,6 +74,8 @@ export function navSections(boards: NavBoard[], counts: { openTasks?: number; un
   ];
 }
 
+/** Khoá data-tour cho hướng dẫn: "/w/my-work" → "nav-my-work", "/w" → "nav-home", "/w/settings" → "nav-settings". */
+const tourKey = (href: string) => `nav-${href === "/w" ? "home" : href.slice(3).replace(/\//g, "-")}`;
 const isOn = (path: string, href: string) => (href === "/w" ? path === "/w" : path === href || path.startsWith(href + "/") || path.startsWith(href + "?"));
 const openPalette = () => window.dispatchEvent(new Event("palette:open"));
 
@@ -117,6 +119,7 @@ export function Sidebar({ workspace, industry, boards, openTasks, unread = 0 }: 
       <Link
         key={it.href}
         href={it.href}
+        data-tour={tourKey(it.href)}
         aria-current={on ? "page" : undefined}
         aria-label={collapsed ? it.label : undefined}
         onMouseEnter={showTip(it.label + (it.badge ? ` · ${it.badge} chưa đọc` : ""))}
@@ -138,7 +141,7 @@ export function Sidebar({ workspace, industry, boards, openTasks, unread = 0 }: 
   return (
     <>
       {/* Máy tính: sidebar thu gọn được */}
-      <nav className="sb hidden flex-none flex-col overflow-hidden md:flex" aria-label="Điều hướng">
+      <nav data-tour="nav" className="sb hidden flex-none flex-col overflow-hidden md:flex" aria-label="Điều hướng">
         <div className="flex flex-none items-center gap-1 px-3 pb-2 pt-1">
           <button
             type="button"
@@ -202,7 +205,7 @@ export function Sidebar({ workspace, industry, boards, openTasks, unread = 0 }: 
       )}
 
       {/* Điện thoại: thanh điều hướng dưới cùng */}
-      <nav className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-line-soft bg-surface md:hidden" aria-label="Điều hướng nhanh">
+      <nav data-tour="mobile-nav" className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-line-soft bg-surface md:hidden" aria-label="Điều hướng nhanh">
         <div className="grid h-14 grid-cols-5">
           {[
             { href: "/w", label: "Trang chủ", icon: "home" },
@@ -212,7 +215,7 @@ export function Sidebar({ workspace, industry, boards, openTasks, unread = 0 }: 
           ].map((it) => {
             const on = isOn(path, it.href);
             return (
-              <Link key={it.href} href={it.href} aria-current={on ? "page" : undefined} className={`relative flex flex-col items-center justify-center gap-0.5 text-[11px] ${on ? "font-semibold text-primary" : "text-ink-2"}`}>
+              <Link key={it.href} href={it.href} data-tour={`m${tourKey(it.href)}`} aria-current={on ? "page" : undefined} className={`relative flex flex-col items-center justify-center gap-0.5 text-[11px] ${on ? "font-semibold text-primary" : "text-ink-2"}`}>
                 <span className="relative">
                   <Icon name={it.icon} size={21} />
                   {it.badge ? <span className="count-dot absolute -right-2.5 -top-1.5">{it.badge > 99 ? "99+" : it.badge}</span> : null}
@@ -221,7 +224,7 @@ export function Sidebar({ workspace, industry, boards, openTasks, unread = 0 }: 
               </Link>
             );
           })}
-          <button type="button" onClick={() => setMore(true)} className={`flex flex-col items-center justify-center gap-0.5 text-[11px] ${more ? "font-semibold text-primary" : "text-ink-2"}`} aria-haspopup="dialog">
+          <button type="button" data-tour="mnav-more" onClick={() => setMore(true)} className={`flex flex-col items-center justify-center gap-0.5 text-[11px] ${more ? "font-semibold text-primary" : "text-ink-2"}`} aria-haspopup="dialog">
             <Icon name="grip" size={21} />
             Thêm
           </button>

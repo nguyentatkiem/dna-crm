@@ -188,6 +188,7 @@ export function Copilot({ term }: { term: { contact: string; deal: string } }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
+        data-tour="copilot"
         className="fixed bottom-[calc(68px+env(safe-area-inset-bottom))] right-4 z-30 flex h-12 items-center gap-2 rounded-full bg-[#323338] pl-4 pr-5 font-medium text-white shadow-lg transition hover:brightness-110 md:bottom-5 md:right-5"
         aria-label="Mở Trợ lý AI"
       >
