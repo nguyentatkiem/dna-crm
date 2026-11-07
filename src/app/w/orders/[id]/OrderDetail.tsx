@@ -121,8 +121,8 @@ export function OrderDetail({ initial, items, deal, contact, quote, dealLabel, p
       )}
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="grid min-w-0 content-start gap-4">
-          <section className="card grid min-w-0 gap-4 p-4">
+        <div className="grid min-w-0 grid-cols-1 content-start gap-4">
+          <section className="card grid min-w-0 grid-cols-1 gap-4 p-4">
             <LinesView lines={items} />
             <TotalsBox t={o} paid={o.paid} />
             {o.voucherCode && (
@@ -142,14 +142,14 @@ export function OrderDetail({ initial, items, deal, contact, quote, dealLabel, p
             {o.note && <p className="whitespace-pre-line text-[14px] text-ink-2">{o.note}</p>}
           </section>
 
-          <section className="card grid gap-3 p-4">
+          <section className="card grid min-w-0 grid-cols-1 gap-3 p-4">
             <h2 className="section-title">Phiếu thu ({o.payments.length})</h2>
             {o.payments.length === 0 ? (
               <p className="text-[13.5px] text-ink-2">Chưa thu đồng nào.</p>
             ) : (
-              <ul className="grid divide-y divide-line-soft">
+              <ul className="grid grid-cols-1 divide-y divide-line-soft">
                 {o.payments.map((p) => (
-                  <li key={p.id} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 py-2 text-[14px]">
+                  <li key={p.id} className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5 py-2 text-[14px]">
                     <span className="font-semibold tnum">{money(p.amount)}</span>
                     <span className="badge">{PAY_METHOD[p.method as PayMethod] ?? p.method}</span>
                     <span className="text-[13px] text-ink-2" suppressHydrationWarning>

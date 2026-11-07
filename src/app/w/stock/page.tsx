@@ -18,7 +18,7 @@ export default async function StockPage({ searchParams }: { searchParams: Promis
   const items = rows.map((p) => ({ ...p, value: stockValue(p), low: isLow(p) }));
   return (
     <div className="canvas px-4 pb-16 pt-6 sm:px-8">
-      <StockClient initial={items} pref={pref} canManage={allow(acc, "stock_manage")} canProducts={allow(acc, "product_manage")} initialView={sp.low ? "low" : "tracked"} openProduct={sp.product ?? null} />
+      <StockClient initial={items} pref={pref} canManage={allow(acc, "stock_manage")} canProducts={allow(acc, "product_manage")} canExport={allow(acc, "record_export") || allow(acc, "stock_manage")} initialView={sp.low ? "low" : "tracked"} openProduct={sp.product ?? null} />
     </div>
   );
 }

@@ -133,7 +133,7 @@ export async function autoMatch(txnId: string): Promise<MatchResult> {
 
 /** Ghép tay một giao dịch với đơn (người có quyền Đối soát chuyển khoản). */
 export async function manualMatch(workspaceId: string, txnId: string, orderId: string, actor: Actor, amount?: number): Promise<MatchResult | { error: string }> {
-  const txn = await db.bankTxn.findFirst({ where: { id: txnId, workspaceId } });
+  const txn = await staleFree(await db.bankTxn.findFirst({ where: { id: txnId, workspaceId } }));
   if (!txn) return { error: "Không tìm thấy giao dịch" };
   if (txn.status === "matched") return { error: "Giao dịch đã được ghép" };
   if (txn.amount <= 0) return { error: "Giao dịch tiền ra, không ghép được" };
@@ -148,8 +148,16 @@ export async function manualMatch(workspaceId: string, txnId: string, orderId: s
   return applyToOrder({ ...txn, orderId: order.id }, order, actor, s.tolerance, amt);
 }
 
+/** Giao dịch "Đã ghép" nhưng phiếu thu đã bị xoá (dữ liệu cũ) → trả về "Chờ ghép". */
+async function staleFree(txn: BankTxn | null): Promise<BankTxn | null> {
+  if (!txn || txn.status !== "matched") return txn;
+  const alive = txn.paymentId ? await db.payment.findUnique({ where: { id: txn.paymentId }, select: { id: true } }) : null;
+  if (alive) return txn;
+  return db.bankTxn.update({ where: { id: txn.id }, data: { status: "unmatched", paymentId: null, orderId: null } });
+}
+
 export async function setIgnored(workspaceId: string, txnId: string, ignored: boolean, actor: Actor) {
-  const txn = await db.bankTxn.findFirst({ where: { id: txnId, workspaceId } });
+  const txn = await staleFree(await db.bankTxn.findFirst({ where: { id: txnId, workspaceId } }));
   if (!txn) return { error: "Không tìm thấy giao dịch" };
   if (txn.status === "matched") return { error: "Giao dịch đã ghép, xoá phiếu thu ở đơn trước nếu cần" };
   await db.bankTxn.update({ where: { id: txn.id }, data: { status: ignored ? "ignored" : "unmatched", orderId: null } });

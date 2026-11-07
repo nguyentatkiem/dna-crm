@@ -1,3 +1,4 @@
+import { releaseTxns } from "@/lib/pay/release";
 import { db } from "@/lib/db";
 import { appApi, fail, ok } from "@/lib/http";
 import { audit, diffOf } from "@/lib/audit";
@@ -100,6 +101,11 @@ export async function DELETE(_req: Request, { params }: Ctx) {
   if (!s.perm.del) return fail("Bạn chưa có quyền xoá. Hãy nhờ chủ workspace cấp quyền.", 403);
   const before = await db.order.findFirst({ where: scoped(s.where, { id }), include: { payments: true } });
   if (!before) return fail("Không tìm thấy đơn hàng", 404);
+  // Hoá đơn điện tử thật đã phát hành không được mất theo đơn (xoá đơn sẽ xoá luôn bản ghi hoá đơn).
+  const inv = await db.eInvoice.findFirst({ where: { workspaceId: a.ctx.workspace.id, orderId: id, status: { in: ["draft", "issued"] }, provider: { not: "demo" } }, select: { series: true, number: true } });
+  if (inv) return fail(`Đơn đã có hoá đơn điện tử ${[inv.series, inv.number].filter(Boolean).join("-")}. Huỷ hoá đơn trước rồi mới xoá đơn.`, 409);
+  // Giao dịch ngân hàng đã ghép với đơn này quay về "Chờ ghép" (trước khi xoá, vì xoá đơn đặt orderId = null).
+  await releaseTxns(a.ctx.workspace.id, { orderId: id, paymentIds: before.payments.map((p) => p.id) });
   await db.order.delete({ where: { id } });
   await releaseOrderVoucher(a.ctx.workspace.id, id);
   // Đơn đã trừ kho mà bị xoá → hoàn lại kho.

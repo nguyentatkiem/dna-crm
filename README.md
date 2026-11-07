@@ -164,6 +164,13 @@ Mỗi agent có công tắc bật/tắt và **mức tự chủ** (Chỉ gợi ý
 - **Đơn hàng**: Mới → Xác nhận → Đang giao → Hoàn tất, **thu tiền nhiều đợt**, lọc còn nợ/quá hạn, trang **công nợ phải thu** theo khách, tự nhắc khi quá hạn. Đơn hoàn tất và thu đủ thì tự **tích điểm** và **tạo phiếu bảo hành**.
 - **Hợp đồng**: số HD tự tăng, gắn khách/giao dịch/đơn, link file, **tự nhắc trước khi hết hạn**.
 - Trong hồ sơ khách/giao dịch có khối **Bán hàng** hiện báo giá, đơn, hợp đồng, số còn nợ.
+- **Thu tiền bằng VietQR**: mỗi đơn có mã QR chuyển khoản (đúng chuẩn NAPAS, 29 ngân hàng) với nội dung là mã đơn; link trả tiền cho khách `/p/…`. Nối webhook **Casso** hoặc **SePay** là khách chuyển khoản xong, đơn tự ghi nhận đã thu; giao dịch không khớp nằm ở **Đối soát** để ghép tay.
+- **Hoá đơn điện tử**: bản demo đủ trường bắt buộc (ký hiệu, số, MST, thuế suất, bằng chữ) để thử; với MISA, Viettel, VNPT hiện xuất file để nhập vào phần mềm hoá đơn, rồi ghi lại số hoá đơn trong CRM.
+- **Giao hàng**: tạo vận đơn GHN, GHTK, Viettel Post ngay từ đơn (tính phí, thu hộ COD = số còn lại, theo dõi trạng thái qua webhook, giao xong tự hoàn tất đơn).
+- **Tồn kho đơn giản**: bật theo dõi tồn cho từng sản phẩm, phiếu nhập/xuất/kiểm kê, thẻ kho, cảnh báo sắp hết. Đơn xác nhận thì tự trừ kho, huỷ thì hoàn lại.
+- **Giá theo hạng thành viên**: đặt % hoặc giá cố định theo sản phẩm/nhóm hàng cho từng hạng; báo giá và đơn tự áp giá theo hạng của khách.
+- **Mẫu in kéo thả** cho báo giá, đơn hàng, hợp đồng: logo, bảng hàng, bằng chữ, mã QR thanh toán, chữ ký, văn bản tự do có biến.
+- **Đơn từ Shopee, TikTok Shop** tự đồng bộ về Đơn hàng (khớp sản phẩm theo SKU, trừ kho).
 
 ### Chăm sóc sau bán
 - **Phiếu hỗ trợ**: hạn xử lý theo **SLA** từng mức ưu tiên, quá hạn thì tự báo người xử lý và quản lý. Tạo nhanh từ **Hộp thư** hoặc **cuộc gọi**; trả lời gửi thẳng cho khách qua Zalo/email/SMS; ghi chú nội bộ.
@@ -225,7 +232,23 @@ Mỗi agent có công tắc bật/tắt và **mức tự chủ** (Chỉ gợi ý
 
 So sánh đầy đủ với BizCRM (Bizfly) trong [docs/SO-SANH-BIZFLY.md](docs/SO-SANH-BIZFLY.md).
 
+### AI kho kiến thức & chatbot
+- **Kho kiến thức** (Công cụ → Kho kiến thức): câu hỏi thường gặp, tài liệu & chính sách, sản phẩm (tự đồng bộ), **học từ hội thoại cũ** (nhân viên duyệt trước khi lưu).
+- Trong Hộp thư có dải **gợi ý trả lời từ kho kiến thức**, kèm nguồn; có khoá Claude thì AI viết theo giọng cửa hàng, không bịa giá hay chính sách ngoài kho.
+- **Chatbot** (tắt sẵn): trả lời ngoài giờ hoặc tin đầu tiên khi đủ chắc chắn, ghi rõ "Trợ lý tự động"; khách đòi gặp người, khách bực hoặc bot không chắc thì chuyển cho nhân viên. Có ô "Thử hỏi bot" để thử trước khi bật.
+
+### Chat nội bộ & báo cáo tự tạo
+- **Chat nội bộ**: nhắn riêng, nhóm, @nhắc tên, đính kèm khách/đơn/việc dạng thẻ (người không có quyền chỉ thấy "Không có quyền xem"), đã xem, thu hồi trong 15 phút.
+- **Báo cáo tự tạo**: chọn nguồn (khách, giao dịch, đơn, thanh toán, cuộc gọi, phiếu, hội thoại, hoạt động), lọc, nhóm theo, chỉ số, biểu đồ; 6 mẫu sẵn; **gửi email theo lịch** kèm file Excel. Mỗi người chỉ thấy số trong phạm vi quyền của mình.
+
+### Kênh bán thêm
+- **Instagram** (tin nhắn, bình luận), **WhatsApp Cloud API** (tin nhắn, mẫu tin khi quá 24 giờ), **Shopee**, **TikTok Shop** (đồng bộ đơn) ở Hộp thư → Kênh kết nối.
+
 ### Vận hành
+- **Kiểm tra kết nối** (Cài đặt → Kiểm tra kết nối): một trang xem mọi kênh, thanh toán, AI, sao lưu, tác vụ nền đang chạy hay lỗi, bấm "Thử ngay" để gọi thử; **nhật ký lỗi** gộp theo loại, báo chủ khi có lỗi mới.
+- **Bảo mật tài khoản**: xác thực 2 lớp (ứng dụng Authenticator, 10 mã khôi phục), chủ có thể bắt buộc cho chủ/quản lý; danh sách phiên đăng nhập, đăng xuất từ xa; khoá tạm 15 phút khi sai mật khẩu 5 lần.
+- **Sao lưu ra ngoài máy chủ**: tự đẩy bản sao lưu lên S3, Cloudflare R2, Backblaze B2 hoặc MinIO, giữ N bản.
+- **Hướng dẫn đưa lên máy chủ thật**: [docs/TRIEN-KHAI.md](docs/TRIEN-KHAI.md) (VPS + Docker + Postgres + HTTPS, webhook, sao lưu, cập nhật).
 - **Docker một lệnh** (`docker compose up -d`), kèm tuỳ chọn chép lời (speaches), đường hầm webhook (cloudflared) và Postgres.
 - **Sao lưu tự động** mỗi ngày (giữ 14 bản), sao lưu/tải về/khôi phục ngay trong **Cài đặt → Sao lưu**.
 - Chuyển **SQLite ↔ Postgres** bằng một lệnh. **Kiểm thử tự động** (`npm test`, `npm run smoke`).
@@ -491,6 +514,22 @@ npm run smoke
 
 `npm test` chạy kiểm thử tự động; `npm run smoke` mở thử tất cả trang và API chính (cần đang chạy `npm run dev`).
 
+### Kiểm thử giao diện E2E (Playwright)
+
+Bấm qua các luồng thật như người dùng (đăng nhập, bảng khách, báo giá → đơn → VietQR → vận đơn → hoá đơn, kho, hộp thư, chatbot, chat nội bộ, báo cáo, hiệu suất, vai trò, điện thoại 375px, khói ~20 trang không lỗi JavaScript/hydration). Nên chạy trước mỗi lần phát hành.
+
+```bash
+npm run test:e2e        # chạy toàn bộ, ~2–4 phút
+npm run test:e2e:ui     # giao diện Playwright: chọn bài, xem từng bước
+npx playwright show-report e2e/.data/report   # báo cáo HTML, trace của bài lỗi
+```
+
+- **Tách biệt hoàn toàn**: `e2e/server.ts` chép mã nguồn sang `e2e/.data/app` (thư mục `.next` riêng), tạo database SQLite MỚI `e2e/.data/e2e.db` (không đọc `prisma/dev.db`, không đọc `.env`), chạy `prisma db push`, `npm run demo` (ngành spa) và thêm tài khoản nhân viên `staff@e2e.local`, rồi bật `next dev --turbopack -p 3333` với `MESSAGING_DRY_RUN=1`, `PAY_DRY_RUN=1`, `CRM_JOBS=off`. Server dev :3210 và dữ liệu thật không bị đụng tới.
+- **Trình duyệt**: dùng Google Chrome đã cài (`channel: "chrome"`). Trên CI không có Chrome: `npx playwright install chromium` rồi chạy với `E2E_CHANNEL=chromium`.
+- **Biến tuỳ chọn**: `E2E_REUSE=1` dùng lại server :3333 đang chạy (chạy lặp nhanh khi viết bài), `E2E_WORKERS` (mặc định 2, SQLite chỉ một luồng ghi), `E2E_PORT`, `E2E_BUILD=1` thử `next build` + `next start` thay cho `next dev`.
+- Mỗi bài tự tạo dữ liệu riêng (tên có mã ngẫu nhiên, người dùng dùng một lần qua `e2e/support/db.ts`), không phụ thuộc thứ tự. Bài lộ lỗi thật của app được đánh dấu `test.fixme` kèm mô tả lỗi.
+- Viết bài mới: đặt trong `e2e/tests/*.spec.ts`, import `test, expect` từ `e2e/support/fixtures` (tự đánh rớt khi trang có `pageerror` hoặc lỗi hydration; `asUser("staff")` mở phiên nhân viên). Ưu tiên `getByRole` / `getByLabel`.
+
 ---
 
 ## Bật AI (tuỳ chọn)
@@ -626,6 +665,7 @@ src/components/ui/             Thành phần dùng chung: Drawer, Tabs, Badge, E
 src/app/api/                   API cho mọi module; hooks/[key]/[nguồn] là webhook
 scripts/                       demo, reset-password, backup, restore, use-db, smoke
 tests/, src/**/*.test.ts       Kiểm thử (vitest)
+e2e/, playwright.config.ts     Kiểm thử giao diện E2E (Playwright)
 Dockerfile, docker-compose.yml Chạy bằng Docker
 DESIGN.md                      Nguyên tắc giao diện
 ```

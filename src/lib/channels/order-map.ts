@@ -167,3 +167,19 @@ export function buildLines(o: ShopOrder, products: ProductLite[]): { lines: Line
 }
 
 export const mapShopOrder = (channel: ShopChannel, raw: Json) => (channel === "shopee" ? mapShopeeOrder(raw) : mapTiktokOrder(raw));
+
+const RANK: Record<string, number> = { new: 0, confirmed: 1, shipping: 2, done: 3 };
+
+/**
+ * Trạng thái mới khi sàn báo lại một đơn đã có (null = giữ nguyên). Chỉ tiến lên (Mới → Đã xác nhận → Đang giao → Hoàn tất)
+ * hoặc huỷ khi đơn chưa hoàn tất; không kéo lùi đơn mà nhân viên đã xử lý tiếp trên CRM (vd. đã tạo vận đơn / hoàn tất),
+ * không hồi sinh đơn đã huỷ — tránh trả kho / trừ kho lặp mỗi lần đồng bộ.
+ */
+export function shopStatusUpdate(cur: string, incoming: string): string | null {
+  if (cur === incoming || cur === "cancelled") return null;
+  if (incoming === "cancelled") return cur === "done" ? null : "cancelled";
+  const a = RANK[cur];
+  const b = RANK[incoming];
+  if (a === undefined || b === undefined) return null;
+  return b > a ? incoming : null;
+}

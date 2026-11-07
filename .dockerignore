@@ -16,3 +16,7 @@ next-env.d.ts
 docs/screenshots
 npm-debug.log*
 .DS_Store
+
+e2e/.data
+test-results
+playwright-report

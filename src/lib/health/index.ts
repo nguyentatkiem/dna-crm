@@ -167,8 +167,9 @@ function dryRunCheck(): Check[] {
 // ======================= Kênh chat =======================
 
 async function fbChecks(workspaceId: string, live: boolean, only?: string): Promise<Check[]> {
-  const pages = await db.fbPage.findMany({ where: { workspaceId, active: true }, select: { pageId: true, name: true, platform: true, token: true } });
-  if (!pages.length) return [{ key: "fb.none", group: CHAT, label: "Facebook / Instagram", status: "off", detail: "Chưa kết nối fanpage nào", fixHref: "/w/inbox/pages" }];
+  // Instagram được kiểm ở nhóm "Kênh chat & sàn" (lib/channels/health) — không lặp lại ở đây.
+  const pages = await db.fbPage.findMany({ where: { workspaceId, active: true, platform: { not: "instagram" } }, select: { pageId: true, name: true, platform: true, token: true } });
+  if (!pages.length) return [{ key: "fb.none", group: CHAT, label: "Facebook", status: "off", detail: "Chưa kết nối fanpage nào", fixHref: "/w/inbox/pages" }];
   const out: Check[] = [];
   for (const p of pages) {
     const key = `fb.${p.pageId}`;

@@ -180,7 +180,7 @@ function PostCard({ post, me, manager, team, onChange, onDelete }: { post: PostD
             )}
           </div>
           <div className="text-[12px] text-ink-2">
-            #{post.channel} · <time dateTime={post.createdAt}>{ago(post.createdAt)}</time>
+            #{post.channel} · <time dateTime={post.createdAt} suppressHydrationWarning>{ago(post.createdAt)}</time>
           </div>
         </div>
         <div className="flex flex-none items-center gap-1">
@@ -235,7 +235,7 @@ function PostCard({ post, me, manager, team, onChange, onDelete }: { post: PostD
                 <div className="min-w-0 flex-1 rounded-lg bg-surface-2 px-3 py-2">
                   <div className="flex items-center gap-2 text-[12.5px]">
                     <span className="font-semibold">{c.author}</span>
-                    <span className="text-ink-2">{ago(c.createdAt)}</span>
+                    <span className="text-ink-2" suppressHydrationWarning>{ago(c.createdAt)}</span>
                     {(manager || c.author === me) && (
                       <button className="ml-auto text-ink-2 opacity-70 hover:text-danger group-hover:opacity-100" onClick={() => delComment(c.id)} aria-label="Xoá bình luận">
                         <Icon name="x" size={13} />

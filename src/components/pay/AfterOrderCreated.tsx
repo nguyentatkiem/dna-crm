@@ -19,15 +19,16 @@ export function AfterOrderCreated({ order, convId, canSend }: { order: { id: str
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
   const [showQr, setShowQr] = useState(false);
+  const [loadError, setLoadError] = useState("");
   useEffect(() => {
     fetch(`/api/pay/qr?orderId=${encodeURIComponent(order.id)}`)
       .then((r) => r.json())
-      .then((j: Qr) => {
-        if (!j?.payCode) return;
+      .then((j: Qr & { error?: string }) => {
+        if (!j?.payCode) return setLoadError(j?.error || "Không tải được thông tin chuyển khoản. Mở đơn hàng để gửi mã QR.");
         setQr(j);
         setText(payMessage(j, window.location.origin));
       })
-      .catch(() => undefined);
+      .catch(() => setLoadError("Mất kết nối, chưa tải được thông tin chuyển khoản. Mở đơn hàng để gửi mã QR."));
   }, [order.id]);
 
   async function send() {
@@ -51,7 +52,7 @@ export function AfterOrderCreated({ order, convId, canSend }: { order: { id: str
           <Icon name="wallet" size={15} /> Gửi mã QR cho khách
         </p>
         {!qr ? (
-          <p className="text-[12.5px] text-ink-2">Đang chuẩn bị…</p>
+          <p className={`text-[12.5px] ${loadError ? "text-danger" : "text-ink-2"}`}>{loadError || "Đang chuẩn bị…"}</p>
         ) : !qr.configured ? (
           <p className="text-[12.5px] text-ink-2">Chưa cài tài khoản nhận tiền (Cài đặt → Thanh toán & giao hàng).</p>
         ) : (

@@ -21,7 +21,7 @@ const VLABEL: Record<VKind, { title: string; qty: string; btn: string }> = {
 
 const dt = (s: string) => new Date(s).toLocaleString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
-export function StockClient({ initial, pref: pref0, canManage, canProducts, initialView, openProduct }: { initial: Item[]; pref: StockPref; canManage: boolean; canProducts: boolean; initialView: "tracked" | "low"; openProduct: string | null }) {
+export function StockClient({ initial, pref: pref0, canManage, canProducts, canExport = true, initialView, openProduct }: { initial: Item[]; pref: StockPref; canManage: boolean; canProducts: boolean; canExport?: boolean; initialView: "tracked" | "low"; openProduct: string | null }) {
   const [items, setItems] = useState(initial);
   const [pref, setPref] = useState(pref0);
   const [q, setQ] = useState("");
@@ -121,9 +121,11 @@ export function StockClient({ initial, pref: pref0, canManage, canProducts, init
               </button>
             </>
           )}
-          <a href="/api/stock/export" className="btn-ghost">
-            <Icon name="download" size={15} /> Excel
-          </a>
+          {canExport && (
+            <a href="/api/stock/export" className="btn-ghost">
+              <Icon name="download" size={15} /> Excel
+            </a>
+          )}
         </div>
       </div>
 

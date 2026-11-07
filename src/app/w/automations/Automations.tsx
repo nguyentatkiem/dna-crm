@@ -241,7 +241,7 @@ function AutomationsInner({ config, initial, canManage, team, sequences, runs = 
                 </div>
                 <Sentence rule={r.rule} config={config} sequences={sequences} />
                 <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line-soft pt-3 text-[13px] text-ink-2">
-                  <span className="tnum">
+                  <span className="tnum" suppressHydrationWarning>
                     {r.enabled ? "Đang chạy" : "Đã tắt"} · đã chạy {r.runs} lần{r.lastRunAt ? ` · lần gần nhất ${ago(r.lastRunAt)}` : ""}
                   </span>
                   <span className="flex flex-wrap items-center gap-1">
@@ -275,7 +275,7 @@ function AutomationsInner({ config, initial, canManage, team, sequences, runs = 
                           <li key={i} className="flex gap-2">
                             <span className={`mt-1.5 h-1.5 w-1.5 flex-none rounded-full ${x.message.includes("Lỗi:") ? "bg-[#df2f4a]" : "bg-[#00c875]"}`} />
                             <span className="min-w-0 flex-1 break-words">{x.message.replace(/^\[[^\]]*\]\s*/, "")}</span>
-                            <span className="flex-none text-ink-2">{ago(x.at)}</span>
+                            <span className="flex-none text-ink-2" suppressHydrationWarning>{ago(x.at)}</span>
                           </li>
                         ))}
                       </ul>

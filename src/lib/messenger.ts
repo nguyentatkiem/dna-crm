@@ -15,6 +15,8 @@ export class MessengerError extends Error {
 /** Token của trang nhận tin (Hộp thư → Trang), không có thì dùng token chung ở Nguồn khách → Facebook. */
 async function pageToken(workspaceId: string, pageId?: string) {
   const { token } = await pageTokenFor(workspaceId, pageId);
+  // Chạy thử toàn hệ thống: không cần token thật.
+  if (!token && process.env.MESSAGING_DRY_RUN === "1") return "demo_dry_run";
   if (!token) throw new MessengerError("Chưa có Page Access Token. Kết nối trang ở Hộp thư → Trang (hoặc Nguồn khách → Facebook) để trả lời Messenger từ CRM.");
   return token;
 }

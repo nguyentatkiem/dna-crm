@@ -210,7 +210,7 @@ export function QuoteDetail({ q: initial, items, deal, contact, order, link, per
       )}
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
-        <section className="card grid min-w-0 gap-4 p-4">
+        <section className="card grid min-w-0 grid-cols-1 gap-4 p-4">
           <LinesView lines={items} />
           <TotalsBox t={q} words />
           {q.note && (

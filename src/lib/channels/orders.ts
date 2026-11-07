@@ -4,7 +4,9 @@
 // salesChannel + externalId); đổi trạng thái / thu tiền sau đó gọi afterOrderStatus (kho + tích điểm/bảo hành).
 import type { ChannelAccount, Order, Workspace } from "@prisma/client";
 import { db } from "../db";
-import { buildLines, mapShopOrder, type ShopChannel, type ShopOrder } from "./order-map";
+import { audit } from "../audit";
+import { ORDER_STATUS, type OrderStatus } from "../sales/shared";
+import { buildLines, mapShopOrder, shopStatusUpdate, type ShopChannel, type ShopOrder } from "./order-map";
 import { afterOrderStatus, createOrder, recalcPaid } from "../sales/service";
 import { ingestLead } from "../sources/ingest";
 import { PLATFORM_LABEL, patchSettings, type Platform } from "./accounts";
@@ -45,15 +47,17 @@ export async function upsertShopOrder(ws: Workspace, o: ShopOrder): Promise<Upse
   return withLock(`${ws.id}:${o.channel}:${o.externalId}`, async () => {
     const cur = await db.order.findFirst({ where: { workspaceId: ws.id, salesChannel: o.channel, externalId: o.externalId } });
     if (cur) {
+      const nextStatus = shopStatusUpdate(cur.status, o.status);
       const data = {
-        ...(cur.status !== o.status ? { status: o.status } : {}),
+        ...(nextStatus ? { status: nextStatus } : {}),
         ...(!cur.shipAddress && o.address ? { shipAddress: o.address, shipProvince: o.province, shipDistrict: o.district, shipWard: o.ward } : {}),
         ...(!cur.customerPhone && o.phone ? { customerPhone: o.phone, shipPhone: o.phone } : {}),
       };
       let order = Object.keys(data).length ? await db.order.update({ where: { id: cur.id }, data }) : cur;
       const paidBefore = order.paid;
       order = await settlePaid(order, o, label);
-      if (cur.status !== o.status || order.paid !== paidBefore) await afterOrderStatus(ws.id, order.id).catch((e) => console.error("[channels] afterOrderStatus", e instanceof Error ? e.message : e));
+      if (nextStatus) await audit({ workspaceId: ws.id, user: null }, "order.update", "order", order.id, `Đơn ${order.number}: trạng thái → ${ORDER_STATUS[nextStatus as OrderStatus]?.label ?? nextStatus} (đồng bộ ${label})`).catch(() => undefined);
+      if (nextStatus || order.paid !== paidBefore) await afterOrderStatus(ws.id, order.id).catch((e) => console.error("[channels] afterOrderStatus", e instanceof Error ? e.message : e));
       return { status: Object.keys(data).length ? "updated" : "unchanged", order };
     }
     const products = await db.product.findMany({ where: { workspaceId: ws.id }, select: { id: true, code: true, sku: true, name: true, unit: true, vat: true } });

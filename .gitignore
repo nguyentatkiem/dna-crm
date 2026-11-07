@@ -8,3 +8,9 @@ next-env.d.ts
 .claude
 uploads
 backups
+
+# Kiểm thử E2E (Playwright): database, bản sao app, báo cáo, trace
+e2e/.data
+/test-results
+/playwright-report
+/blob-report

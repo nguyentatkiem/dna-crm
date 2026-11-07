@@ -4,7 +4,7 @@ import { countParams, explainWaError, fillWaTemplate, parseWaWebhook, toTemplate
 import { instagramEvents } from "@/lib/channels/instagram";
 import { getProvider } from "@/lib/sources/providers";
 import { shopeeAuthUrl, shopeePushSignature, shopeeQuery, shopeeSign, tiktokAuthUrl, tiktokSign, tiktokUrl, tiktokWebhookSignature, verifyShopeePush, verifyTiktokWebhook } from "@/lib/channels/shop-sign";
-import { buildLines, mapShopeeOrder, mapShopStatus, mapTiktokOrder, unmask } from "@/lib/channels/order-map";
+import { buildLines, mapShopeeOrder, mapShopStatus, mapTiktokOrder, shopStatusUpdate, unmask } from "@/lib/channels/order-map";
 import { demoShopeeOrders } from "@/lib/channels/shopee";
 import { demoTiktokOrders } from "@/lib/channels/tiktok";
 
@@ -241,5 +241,20 @@ describe("Đơn sàn → đơn CRM", () => {
     const o = mapTiktokOrder({ id: "1" });
     expect(o).toMatchObject({ externalId: "1", status: "new", total: 0, items: [], buyerName: "Người mua TikTok Shop" });
     expect(buildLines(o, products)).toEqual({ lines: [], discount: 0, matched: 0 });
+  });
+});
+
+describe("shopStatusUpdate (đồng bộ lại đơn sàn)", () => {
+  it("chỉ tiến lên, không kéo lùi đơn đã xử lý trên CRM", () => {
+    expect(shopStatusUpdate("new", "confirmed")).toBe("confirmed");
+    expect(shopStatusUpdate("confirmed", "done")).toBe("done");
+    expect(shopStatusUpdate("done", "new")).toBeNull();
+    expect(shopStatusUpdate("shipping", "confirmed")).toBeNull();
+    expect(shopStatusUpdate("new", "new")).toBeNull();
+  });
+  it("huỷ từ sàn áp dụng khi chưa hoàn tất; không hồi sinh đơn đã huỷ", () => {
+    expect(shopStatusUpdate("shipping", "cancelled")).toBe("cancelled");
+    expect(shopStatusUpdate("done", "cancelled")).toBeNull();
+    expect(shopStatusUpdate("cancelled", "new")).toBeNull();
   });
 });

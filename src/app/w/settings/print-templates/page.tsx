@@ -27,7 +27,9 @@ export default async function PrintTemplatesPage({ searchParams }: { searchParam
   const company = await printCompany(workspace.id, config.businessName || workspace.name);
   const rows = await db.printTemplate.findMany({ where: { workspaceId: workspace.id }, orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }] });
   const tpls: Tpl[] = rows.map((r) => ({ id: r.id, name: r.name, docType: r.docType as DocType, isDefault: r.isDefault, layout: parseLayout(r.layoutJson, r.docType as DocType) }));
-  const real = await samples(workspace.id, "");
+  // Xem trước bằng chứng từ thật chỉ cho người sửa được mẫu (quản lý): nhân viên chỉ xem mẫu với dữ liệu giả,
+  // tránh lộ đơn / báo giá ngoài phạm vi của mình.
+  const real = canEdit ? await samples(workspace.id, "") : { quote: null, order: null, contract: null };
   const fake = { quote: sampleData("quote"), order: sampleData("order"), contract: sampleData("contract") };
   const t = (await searchParams).type;
   return (

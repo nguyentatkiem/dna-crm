@@ -1,3 +1,4 @@
+import { releaseTxns } from "@/lib/pay/release";
 import { db } from "@/lib/db";
 import { appApi, fail, ok } from "@/lib/http";
 import { audit } from "@/lib/audit";
@@ -45,6 +46,7 @@ export async function DELETE(req: Request, { params }: Ctx) {
   if (!pay) return fail("Không tìm thấy phiếu thu", 404);
   await db.payment.delete({ where: { id: pid } });
   await recalcPaid(id);
+  await releaseTxns(a.ctx.workspace.id, { paymentIds: [pid] });
   await audit({ workspaceId: a.ctx.workspace.id, user: a.ctx.user }, "payment.delete", "order", id, `Xoá phiếu thu ${money(pay.amount)} của đơn ${order.number}`, { before: pay });
   return ok(await db.order.findUnique({ where: { id }, include: { payments: { orderBy: { paidAt: "desc" } } } }));
 }

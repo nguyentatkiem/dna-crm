@@ -30,7 +30,7 @@ export async function revokeAllSessions(userId: string, exceptId?: string) {
 
 // ---------- Giới hạn theo IP (trong bộ nhớ, đủ cho một máy chủ) ----------
 
-const g = globalThis as unknown as { crmLoginRate?: Map<string, number[]> };
+const g = globalThis as unknown as { crmLoginRate?: Map<string, number[]>; crmTotpUsed?: Map<string, number> };
 const WINDOW = 15 * 60_000;
 const PER_IP = 30;
 
@@ -58,7 +58,16 @@ export async function checkSecondFactor(u: U, code: string): Promise<"totp" | "r
   const c = String(code ?? "").trim();
   if (/^\d{3}\s?\d{3}$/.test(c)) {
     const secret = u.totpSecret ? openSecret(u.totpSecret) : null;
-    return secret && verifyTotp(secret, c.replace(/\s/g, "")) ? "totp" : null;
+    const digits = c.replace(/\s/g, "");
+    if (!secret || !verifyTotp(secret, digits)) return null;
+    // Chống dùng lại: một mã 6 số chỉ đăng nhập được một lần (mã còn hiệu lực tối đa ~90 giây với cửa sổ ±1).
+    const now = Date.now();
+    const used = (g.crmTotpUsed ??= new Map<string, number>());
+    for (const [k, exp] of used) if (exp < now) used.delete(k);
+    const key = `${u.id}:${digits}`;
+    if (used.has(key)) return null;
+    used.set(key, now + 120_000);
+    return "totp";
   }
   const n = normRecovery(c);
   if (n.length !== 10) return null;

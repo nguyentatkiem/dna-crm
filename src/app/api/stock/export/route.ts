@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
-import { appApi } from "@/lib/http";
+import { appApi, fail } from "@/lib/http";
+import { allow, getAccess } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import { buildXlsx, XLSX_MIME } from "@/lib/xlsx";
 import { MOVE_KIND, isLow, stockValue, type MoveKind } from "@/lib/stock/shared";
@@ -9,6 +10,8 @@ export async function GET() {
   const a = await appApi();
   if ("error" in a) return a.error;
   const wid = a.ctx.workspace.id;
+  const acc = await getAccess(a.ctx.user.id, wid);
+  if (!allow(acc, "record_export") && !allow(acc, "stock_manage")) return fail("Bạn chưa có quyền xuất dữ liệu ra Excel", 403);
   const products = await db.product.findMany({ where: { workspaceId: wid, trackStock: true }, orderBy: [{ category: "asc" }, { name: "asc" }] });
   const moves = await db.stockMove.findMany({ where: { workspaceId: wid }, orderBy: { createdAt: "desc" }, take: 10000 });
   const name = new Map(products.map((p) => [p.id, p]));
